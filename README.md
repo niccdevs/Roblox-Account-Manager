@@ -1,13 +1,8 @@
 Full credit to [ic3w0lf22](https://github.com/ic3w0lf22) for the original Roblox Account Manager. I am just continuing the project where I think optimizations or additions could be made.
 
-[![Download](https://img.shields.io/github/v/release/niccdevs/Roblox-Account-Manager)](https://github.com/niccdevs/Roblox-Account-Manager/releases/latest)
-[![Latest Downloads](https://img.shields.io/github/downloads/niccdevs/Roblox-Account-Manager/latest/total)](https://github.com/niccdevs/Roblox-Account-Manager/releases)
-[![ic3w0lf22's Discord](https://img.shields.io/discord/871845273800957982?label=Discord)](https://discord.gg/MsEH7smXY8)
-![License](https://img.shields.io/github/license/niccdevs/Roblox-Account-Manager)
+[![Discord](https://img.shields.io/discord/871845273800957982?label=Discord)](https://discord.gg/MsEH7smXY8)
 
-<!-- BEGIN LATEST DOWNLOAD BUTTON -->
-[![Download zip](https://custom-icon-badges.herokuapp.com/badge/-Download-blue?style=for-the-badge&logo=download&logoColor=white "Download")](https://github.com/niccdevs/Roblox-Account-Manager/releases/download/3.8/Roblox.Account.Manager.3.8.zip)
-<!-- END LATEST DOWNLOAD BUTTON -->
+**[Download Latest Release (3.8)](https://github.com/niccdevs/Roblox-Account-Manager/releases/latest)**
 
 [Click here to view Roblox Account Manager features](https://github.com/niccdevs/Roblox-Account-Manager/blob/master/README.md#features)
 
