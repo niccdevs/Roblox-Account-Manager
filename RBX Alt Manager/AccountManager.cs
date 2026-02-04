@@ -52,6 +52,7 @@ namespace RBX_Alt_Manager
         public static RestClient Web13Client;
         public static string CurrentPlaceId { get => Instance.PlaceID.Text; }
         public static string CurrentJobId { get => Instance.JobID.Text; }
+        public static string CurrentLaunchData { get => Instance.LaunchData.Text; }
         private ArgumentsForm afform;
         private ServerList ServerListForm;
         private AccountUtils UtilsForm;
@@ -104,6 +105,9 @@ namespace RBX_Alt_Manager
         public AccountManager()
         {
             Instance = this;
+
+            ServicePointManager.Expect100Continue = true;
+            ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls | SecurityProtocolType.Tls11 | SecurityProtocolType.Tls12;
 
             ThemeEditor.LoadTheme();
 
@@ -703,7 +707,7 @@ namespace RBX_Alt_Manager
                         Assembly assembly = Assembly.GetExecutingAssembly();
                         FileVersionInfo fvi = FileVersionInfo.GetVersionInfo(assembly.Location);
                         WC.Headers["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/95.0.4638.54 Safari/537.36";
-                        string Releases = WC.DownloadString("https://api.github.com/repos/ic3w0lf22/Roblox-Account-Manager/releases/latest");
+                        string Releases = WC.DownloadString("https://api.github.com/repos/niccdevs/Roblox-Account-Manager/releases/latest");
                         Match match = Regex.Match(Releases, @"""tag_name"":\s*""?([^""]+)");
 
                         if (match.Success)
@@ -1463,8 +1467,16 @@ namespace RBX_Alt_Manager
         {
             Match IDMatch = Regex.Match(PlaceID.Text, @"\/games\/(\d+)[\/|\?]?"); // idiotproofing
 
+            Match LaunchDataMatch = Regex.Match(PlaceID.Text, @"[?&]launchData=([^&]+)");
+            if (LaunchDataMatch.Success && string.IsNullOrEmpty(LaunchData.Text))
+                LaunchData.Text = System.Web.HttpUtility.UrlDecode(LaunchDataMatch.Groups[1].Value);
+
             if (PlaceID.Text.Contains("privateServerLinkCode") && IDMatch.Success)
                 JobID.Text = PlaceID.Text;
+
+            Match PlaceIdQueryMatch = Regex.Match(PlaceID.Text, @"[?&]placeId=(\d+)");
+            if (PlaceIdQueryMatch.Success)
+                IDMatch = PlaceIdQueryMatch;
 
             Game G = RecentGames.FirstOrDefault(RG => RG.Details.filteredName == PlaceID.Text);
 
@@ -1483,6 +1495,7 @@ namespace RBX_Alt_Manager
             CancelLaunching();
 
             bool LaunchMultiple = AccountsView.SelectedObjects.Count > 1;
+            string launchData = LaunchData.Text;
 
             new Thread(async () => // finally fixing an ancient bug in a dumb way, p.s. i do not condone this.
             {
@@ -1490,11 +1503,11 @@ namespace RBX_Alt_Manager
                 {
                     LauncherToken = new CancellationTokenSource();
 
-                    await LaunchAccounts(SelectedAccounts, PlaceId, VIPServer ? JobID.Text.Substring(4) : JobID.Text, false, VIPServer);
+                    await LaunchAccounts(SelectedAccounts, PlaceId, VIPServer ? JobID.Text.Substring(4) : JobID.Text, false, VIPServer, launchData);
                 }
                 else if (SelectedAccount != null)
                 {
-                    string res = await SelectedAccount.JoinServer(PlaceId, VIPServer ? JobID.Text.Substring(4) : JobID.Text, false, VIPServer);
+                    string res = await SelectedAccount.JoinServer(PlaceId, VIPServer ? JobID.Text.Substring(4) : JobID.Text, false, VIPServer, false, launchData);
 
                     if (!res.Contains("Success"))
                         MessageBox.Show(res);
@@ -1996,7 +2009,7 @@ namespace RBX_Alt_Manager
             }
         }
 
-        private async Task LaunchAccounts(List<Account> Accounts, long PlaceID, string JobID, bool FollowUser = false, bool VIPServer = false)
+        private async Task LaunchAccounts(List<Account> Accounts, long PlaceID, string JobID, bool FollowUser = false, bool VIPServer = false, string LaunchData = "")
         {
             int Delay = General.Exists("AccountJoinDelay") ? General.Get<int>("AccountJoinDelay") : 8;
 
@@ -2016,7 +2029,7 @@ namespace RBX_Alt_Manager
                     if (!string.IsNullOrEmpty(account.GetField("SavedJobId"))) JobId = account.GetField("SavedJobId");
                 }
 
-                await account.JoinServer(PlaceId, JobId, FollowUser, VIPServer);
+                await account.JoinServer(PlaceId, JobId, FollowUser, VIPServer, false, LaunchData);
 
                 if (AsyncJoin)
                 {

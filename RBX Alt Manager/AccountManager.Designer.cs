@@ -86,6 +86,8 @@ namespace RBX_Alt_Manager
             this.DefaultEncryptionButton = new System.Windows.Forms.Button();
             this.PasswordEncryptionButton = new System.Windows.Forms.Button();
             this.JobID = new RBX_Alt_Manager.Classes.BorderedTextBox();
+            this.LaunchData = new RBX_Alt_Manager.Classes.BorderedTextBox();
+            this.LabelLaunchData = new System.Windows.Forms.Label();
             this.DonateButton = new System.Windows.Forms.Button();
             this.AccountsView = new BrightIdeasSoftware.ObjectListView();
             this.Username = ((BrightIdeasSoftware.OLVColumn)(new BrightIdeasSoftware.OLVColumn()));
@@ -140,7 +142,17 @@ namespace RBX_Alt_Manager
             this.LabelJobID.TabIndex = 1000;
             this.LabelJobID.Text = "Job ID";
             this.SaveTooltip.SetToolTip(this.LabelJobID, "Job ID is a unique ID assigned to every roblox server.");
-            // 
+            //
+            // LabelLaunchData
+            //
+            this.LabelLaunchData.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
+            this.LabelLaunchData.AutoSize = true;
+            this.LabelLaunchData.Location = new System.Drawing.Point(504, 70);
+            this.LabelLaunchData.Name = "LabelLaunchData";
+            this.LabelLaunchData.Size = new System.Drawing.Size(68, 13);
+            this.LabelLaunchData.TabIndex = 1001;
+            this.LabelLaunchData.Text = "Launch Data";
+            //
             // AddAccountsStrip
             // 
             this.AddAccountsStrip.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
@@ -193,7 +205,7 @@ namespace RBX_Alt_Manager
             // JoinServer
             // 
             this.JoinServer.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-            this.JoinServer.Location = new System.Drawing.Point(503, 67);
+            this.JoinServer.Location = new System.Drawing.Point(503, 91);
             this.JoinServer.Name = "JoinServer";
             this.JoinServer.Size = new System.Drawing.Size(198, 23);
             this.JoinServer.TabIndex = 4;
@@ -204,7 +216,7 @@ namespace RBX_Alt_Manager
             // SetDescription
             // 
             this.SetDescription.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-            this.SetDescription.Location = new System.Drawing.Point(503, 236);
+            this.SetDescription.Location = new System.Drawing.Point(503, 260);
             this.SetDescription.Name = "SetDescription";
             this.SetDescription.Size = new System.Drawing.Size(133, 23);
             this.SetDescription.TabIndex = 12;
@@ -215,7 +227,7 @@ namespace RBX_Alt_Manager
             // SetAlias
             // 
             this.SetAlias.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-            this.SetAlias.Location = new System.Drawing.Point(707, 122);
+            this.SetAlias.Location = new System.Drawing.Point(707, 146);
             this.SetAlias.Name = "SetAlias";
             this.SetAlias.Size = new System.Drawing.Size(65, 23);
             this.SetAlias.TabIndex = 10;
@@ -226,7 +238,7 @@ namespace RBX_Alt_Manager
             // Follow
             // 
             this.Follow.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-            this.Follow.Location = new System.Drawing.Point(707, 96);
+            this.Follow.Location = new System.Drawing.Point(707, 120);
             this.Follow.Name = "Follow";
             this.Follow.Size = new System.Drawing.Size(65, 23);
             this.Follow.TabIndex = 8;
@@ -239,7 +251,7 @@ namespace RBX_Alt_Manager
             // 
             this.LabelUserID.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
             this.LabelUserID.AutoSize = true;
-            this.LabelUserID.Location = new System.Drawing.Point(505, 101);
+            this.LabelUserID.Location = new System.Drawing.Point(505, 125);
             this.LabelUserID.Name = "LabelUserID";
             this.LabelUserID.Size = new System.Drawing.Size(55, 13);
             this.LabelUserID.TabIndex = 1000;
@@ -248,7 +260,7 @@ namespace RBX_Alt_Manager
             // ServerList
             // 
             this.ServerList.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-            this.ServerList.Location = new System.Drawing.Point(707, 67);
+            this.ServerList.Location = new System.Drawing.Point(707, 91);
             this.ServerList.Name = "ServerList";
             this.ServerList.Size = new System.Drawing.Size(65, 23);
             this.ServerList.TabIndex = 6;
@@ -631,7 +643,17 @@ namespace RBX_Alt_Manager
             this.SaveTooltip.SetToolTip(this.JobID, "Job ID is a unique ID assigned to every roblox server.\r\nYou may also put a Privat" +
         "e Server link in this box to join it.");
             this.JobID.Click += new System.EventHandler(this.JobID_Click);
-            // 
+            //
+            // LaunchData
+            //
+            this.LaunchData.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
+            this.LaunchData.BorderColor = System.Drawing.Color.FromArgb(((int)(((byte)(0)))), ((int)(((byte)(122)))), ((int)(((byte)(122)))), ((int)(((byte)(122)))));
+            this.LaunchData.Location = new System.Drawing.Point(580, 67);
+            this.LaunchData.Name = "LaunchData";
+            this.LaunchData.Size = new System.Drawing.Size(165, 20);
+            this.LaunchData.TabIndex = 3;
+            this.SaveTooltip.SetToolTip(this.LaunchData, "Launch Data for private server join codes");
+            //
             // DonateButton
             // 
             this.DonateButton.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
@@ -1011,7 +1033,7 @@ namespace RBX_Alt_Manager
             // 
             this.UserID.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
             this.UserID.BorderColor = System.Drawing.Color.FromArgb(((int)(((byte)(0)))), ((int)(((byte)(122)))), ((int)(((byte)(122)))), ((int)(((byte)(122)))));
-            this.UserID.Location = new System.Drawing.Point(566, 98);
+            this.UserID.Location = new System.Drawing.Point(566, 122);
             this.UserID.Name = "UserID";
             this.UserID.Size = new System.Drawing.Size(135, 20);
             this.UserID.TabIndex = 7;
@@ -1020,7 +1042,7 @@ namespace RBX_Alt_Manager
             // 
             this.Alias.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
             this.Alias.BorderColor = System.Drawing.Color.FromArgb(((int)(((byte)(0)))), ((int)(((byte)(122)))), ((int)(((byte)(122)))), ((int)(((byte)(122)))));
-            this.Alias.Location = new System.Drawing.Point(504, 124);
+            this.Alias.Location = new System.Drawing.Point(504, 148);
             this.Alias.MaxLength = 30;
             this.Alias.Name = "Alias";
             this.Alias.Size = new System.Drawing.Size(197, 20);
@@ -1031,7 +1053,7 @@ namespace RBX_Alt_Manager
             // 
             this.DescriptionBox.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
             this.DescriptionBox.BorderColor = System.Drawing.Color.FromArgb(((int)(((byte)(0)))), ((int)(((byte)(122)))), ((int)(((byte)(122)))), ((int)(((byte)(122)))));
-            this.DescriptionBox.Location = new System.Drawing.Point(504, 150);
+            this.DescriptionBox.Location = new System.Drawing.Point(504, 174);
             this.DescriptionBox.Name = "DescriptionBox";
             this.DescriptionBox.Size = new System.Drawing.Size(268, 80);
             this.DescriptionBox.TabIndex = 11;
@@ -1084,6 +1106,8 @@ namespace RBX_Alt_Manager
             this.Controls.Add(this.LabelPlaceID);
             this.Controls.Add(this.JobID);
             this.Controls.Add(this.PlaceID);
+            this.Controls.Add(this.LaunchData);
+            this.Controls.Add(this.LabelLaunchData);
             this.Controls.Add(this.AccountsView);
             this.Controls.Add(this.PasswordPanel);
             this.Controls.Add(this.DownloadProgressBar);
@@ -1117,6 +1141,8 @@ namespace RBX_Alt_Manager
         #endregion
         public Classes.BorderedTextBox PlaceID;
         public Classes.BorderedTextBox JobID;
+        public Classes.BorderedTextBox LaunchData;
+        private System.Windows.Forms.Label LabelLaunchData;
         private System.Windows.Forms.Label LabelJobID;
         private MenuButton Add;
         private System.Windows.Forms.Button Remove;
