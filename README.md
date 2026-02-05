@@ -17,6 +17,16 @@ Multiple Roblox Instances is built into the account manager but [must be manuall
 
 Report bugs to the issues section or direct message me via discord @niccdev. The discord (https://discord.gg/MsEH7smXY8) is ic3w0lf22's but is no longer actively maintained.
 
+# RAM v4 Rewrite
+
+Account manager is getting a full rewrite. The C# WinForms codebase is being replaced with a Rust + TypeScript stack using [Tauri](https://tauri.app/).
+
+This means Windows and Mac support, a way better looking UI, lower memory usage, and faster startup. All existing features (multi roblox, account control, server list, launch data, local API, etc.) will carry over.
+
+WinForms was holding back the UI and locking us to Windows only, so it was time to move on.
+
+If you have ideas or feature requests for v4, feel free to open a PR or DM me on Discord (@niccdev).
+
 # WARNING
 If someone asks you to generate an "rbx-player link", **DO NOT** do it, they can use these to join any game using your account, or even launch roblox studio with one of your games. They can do many things in game such as spend your robux or even do things that can get your account terminated. **USE THESE FEATURES AT YOUR OWN RISK**
 
@@ -92,7 +102,7 @@ Be careful executing random scripts when having dangerous settings enabled.
 
 ## **Q:** Can you use this on Mac?
 
-**A:** No, unfortunately we do not have compatibility with mac osx devices at this moment. This may change in the future.
+**A:** Not yet, but Mac support is coming with the v4 rewrite.
 
 
 ## **Q:** You should add ${feature}.
