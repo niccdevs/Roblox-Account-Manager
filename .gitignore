@@ -331,4 +331,4 @@ __pycache__/
 *.odx.cs
 *.xsd.cs
 
-# OpenCover UI anal
+_legacy/
