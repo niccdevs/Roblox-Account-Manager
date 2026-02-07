@@ -521,7 +521,12 @@ async fn launch_roblox(
 
     let multi_rbx = settings.get_bool("General", "EnableMultiRbx");
     if multi_rbx {
-        windows::enable_multi_roblox()?;
+        let enabled = windows::enable_multi_roblox()?;
+        if !enabled {
+            return Err("Failed to enable Multi Roblox. Close all Roblox processes and try again.".into());
+        }
+    } else {
+        let _ = windows::disable_multi_roblox();
     }
 
     patch_client_settings_for_launch(&settings);
@@ -698,7 +703,12 @@ async fn launch_multiple(
 
         let multi_rbx = settings.get_bool("General", "EnableMultiRbx");
         if multi_rbx {
-            let _ = windows::enable_multi_roblox();
+            let enabled = windows::enable_multi_roblox()?;
+            if !enabled {
+                return Err("Failed to enable Multi Roblox. Close all Roblox processes and try again.".into());
+            }
+        } else {
+            let _ = windows::disable_multi_roblox();
         }
 
         patch_client_settings_for_launch(&settings);
