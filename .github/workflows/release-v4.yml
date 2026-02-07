@@ -176,8 +176,7 @@ jobs:
             bunx tauri signer sign "$updaterPath"
 
             if (-not (Test-Path $sigPath) -and $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD) {
-              Remove-Item Env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD -ErrorAction SilentlyContinue
-              bunx tauri signer sign "$updaterPath"
+              bunx tauri signer sign "$updaterPath" -p ""
             }
           }
 
