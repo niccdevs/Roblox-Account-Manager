@@ -1,0 +1,193 @@
+name: Release v4
+
+on:
+  push:
+    branches:
+      - v4
+    paths:
+      - "src/**"
+      - "src-tauri/**"
+      - "package.json"
+  workflow_dispatch:
+
+concurrency:
+  group: release-v4
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: ${{ github.event_name != 'push' || !contains(github.event.head_commit.message, '[skip release]') }}
+    runs-on: windows-latest
+    permissions:
+      contents: write
+      pull-requests: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Resolve bump and channel
+        id: controls
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const message = (context.payload.head_commit?.message || "").toLowerCase();
+            let bump = "patch";
+            let channel = "beta";
+
+            if (message.includes("[bump:minor]")) bump = "minor";
+            if (message.includes("[bump:patch]")) bump = "patch";
+            if (message.includes("[channel:stable]")) channel = "stable";
+            if (message.includes("[channel:beta]")) channel = "beta";
+
+            const prs = await github.rest.repos.listPullRequestsAssociatedWithCommit({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              commit_sha: context.sha
+            });
+
+            if (prs.data.length > 0) {
+              const pr = prs.data.find((item) => item.base.ref === "v4") ?? prs.data[0];
+              const labels = pr.labels.map((label) => String(label.name).toLowerCase());
+
+              if (labels.includes("bump:minor")) bump = "minor";
+              if (labels.includes("bump:patch")) bump = "patch";
+              if (labels.includes("channel:stable")) channel = "stable";
+              if (labels.includes("channel:beta")) channel = "beta";
+
+              core.setOutput("pr_number", String(pr.number));
+            }
+
+            core.setOutput("bump", bump);
+            core.setOutput("channel", channel);
+
+      - name: Prepare version and release metadata
+        id: meta
+        run: bun .github/scripts/prepare-release.mjs
+        env:
+          RELEASE_BUMP: ${{ steps.controls.outputs.bump }}
+          RELEASE_CHANNEL: ${{ steps.controls.outputs.channel }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_SHA: ${{ github.sha }}
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Validate updater signing secrets
+        shell: pwsh
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          if (-not $env:TAURI_SIGNING_PRIVATE_KEY) {
+            throw "Missing secret: TAURI_SIGNING_PRIVATE_KEY"
+          }
+
+          if (-not $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD) {
+            throw "Missing secret: TAURI_SIGNING_PRIVATE_KEY_PASSWORD"
+          }
+
+      - name: Build and publish release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          projectPath: "."
+          tauriScript: "bun tauri"
+          tagName: ${{ steps.meta.outputs.tag }}
+          releaseName: ${{ steps.meta.outputs.release_title }}
+          releaseBody: ${{ steps.meta.outputs.release_body }}
+          prerelease: ${{ steps.controls.outputs.channel == 'beta' }}
+          releaseDraft: false
+          uploadUpdaterJson: true
+          updaterJsonPreferNsis: true
+
+      - name: Upload portable EXE
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "${{ steps.meta.outputs.tag }}" "src-tauri/target/release/roblox-account-manager.exe" --clobber
+
+      - name: Download updater manifest
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          New-Item -ItemType Directory -Path ".updater" -Force | Out-Null
+          gh release download "${{ steps.meta.outputs.tag }}" --pattern "latest.json" --dir ".updater"
+
+      - name: Publish channel manifest
+        uses: actions/github-script@v7
+        env:
+          RELEASE_CHANNEL: ${{ steps.controls.outputs.channel }}
+          RELEASE_TAG: ${{ steps.meta.outputs.tag }}
+        with:
+          script: |
+            const fs = require("fs");
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const branch = "update-manifests";
+            const channel = process.env.RELEASE_CHANNEL;
+            const releaseTag = process.env.RELEASE_TAG;
+            const filePath = `${channel}/latest.json`;
+            const content = fs.readFileSync(".updater/latest.json", "utf8");
+
+            try {
+              await github.rest.repos.getBranch({ owner, repo, branch });
+            } catch (error) {
+              if (error.status !== 404) {
+                throw error;
+              }
+
+              const repoInfo = await github.rest.repos.get({ owner, repo });
+              const baseBranch = await github.rest.repos.getBranch({
+                owner,
+                repo,
+                branch: repoInfo.data.default_branch
+              });
+
+              await github.rest.git.createRef({
+                owner,
+                repo,
+                ref: `refs/heads/${branch}`,
+                sha: baseBranch.data.commit.sha
+              });
+            }
+
+            let sha;
+            try {
+              const existing = await github.rest.repos.getContent({
+                owner,
+                repo,
+                path: filePath,
+                ref: branch
+              });
+              sha = existing.data.sha;
+            } catch (error) {
+              if (error.status !== 404) {
+                throw error;
+              }
+            }
+
+            await github.rest.repos.createOrUpdateFileContents({
+              owner,
+              repo,
+              branch,
+              path: filePath,
+              message: `chore(updater): update ${channel} manifest for ${releaseTag} [skip ci]`,
+              content: Buffer.from(content, "utf8").toString("base64"),
+              sha
+            });
