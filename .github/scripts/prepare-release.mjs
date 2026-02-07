@@ -1,5 +1,7 @@
 import { execSync } from "node:child_process";
 import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 const bump = (process.env.RELEASE_BUMP || "patch").toLowerCase();
 const channel = (process.env.RELEASE_CHANNEL || "beta").toLowerCase();
@@ -18,9 +20,23 @@ if (!repository) {
   throw new Error("Missing GITHUB_REPOSITORY");
 }
 
-const packagePath = "package.json";
-const tauriConfigPath = "src-tauri/tauri.conf.json";
-const cargoPath = "src-tauri/Cargo.toml";
+const scriptDir = path.dirname(fileURLToPath(import.meta.url));
+const repoRoot = resolveRepoRoot([
+  process.cwd(),
+  path.resolve(scriptDir, "../..")
+]);
+
+const packagePath = path.join(repoRoot, "package.json");
+const tauriConfigPath = path.join(repoRoot, "src-tauri", "tauri.conf.json");
+const cargoPath = path.join(repoRoot, "src-tauri", "Cargo.toml");
+
+const missingPaths = [packagePath, tauriConfigPath, cargoPath].filter((item) => !fs.existsSync(item));
+if (missingPaths.length > 0) {
+  const missingRel = missingPaths.map((item) => path.relative(repoRoot, item)).join(", ");
+  throw new Error(
+    `Missing required release files: ${missingRel}. Ensure v4 rewrite files are committed on the target branch before running release.`
+  );
+}
 
 const packageJson = JSON.parse(fs.readFileSync(packagePath, "utf8"));
 const tauriConfig = JSON.parse(fs.readFileSync(tauriConfigPath, "utf8"));
@@ -171,4 +187,21 @@ function setMultilineOutput(name, value) {
   }
 
   fs.appendFileSync(outputPath, `${name}<<EOF\n${value}\nEOF\n`, "utf8");
+}
+
+function resolveRepoRoot(candidates) {
+  for (const candidate of candidates) {
+    if (!candidate) {
+      continue;
+    }
+
+    const hasPackage = fs.existsSync(path.join(candidate, "package.json"));
+    const hasCargo = fs.existsSync(path.join(candidate, "src-tauri", "Cargo.toml"));
+
+    if (hasPackage && hasCargo) {
+      return candidate;
+    }
+  }
+
+  return candidates.find(Boolean) || process.cwd();
 }

@@ -36,6 +36,26 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Validate required v4 files
+        shell: pwsh
+        run: |
+          $required = @(
+            "package.json",
+            "src-tauri/tauri.conf.json",
+            "src-tauri/Cargo.toml"
+          )
+
+          $missing = @()
+          foreach ($path in $required) {
+            if (-not (Test-Path $path)) {
+              $missing += $path
+            }
+          }
+
+          if ($missing.Count -gt 0) {
+            throw "Missing required v4 files on this branch: $($missing -join ', '). Commit/push the v4 rewrite files first, then rerun Release v4."
+          }
+
       - name: Resolve bump and channel
         id: controls
         uses: actions/github-script@v7
