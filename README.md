@@ -2,7 +2,7 @@ Full credit to [ic3w0lf22](https://github.com/ic3w0lf22) for the original Roblox
 
 [![Discord](https://img.shields.io/discord/871845273800957982?label=Discord)](https://discord.gg/MsEH7smXY8)
 
-**[Download Latest Release (3.8)](https://github.com/niccdevs/Roblox-Account-Manager/releases/latest)**
+**[Download Latest Release (v4 beta)](https://github.com/niccdevs/Roblox-Account-Manager/releases/latest)**
 
 [Click here to view Roblox Account Manager features](https://github.com/niccdevs/Roblox-Account-Manager/blob/master/README.md#features)
 
@@ -17,15 +17,34 @@ Multiple Roblox Instances is built into the account manager but [must be manuall
 
 Report bugs to the issues section or direct message me via discord @niccdev. The discord (https://discord.gg/MsEH7smXY8) is ic3w0lf22's but is no longer actively maintained.
 
-# RAM v4 Rewrite
+# RAM v4 (Beta)
+Roblox Account Manager v4 is in active beta on a new Rust + TypeScript stack using [Tauri](https://tauri.app/).
 
-Account manager is getting a full rewrite. The C# WinForms codebase is being replaced with a Rust + TypeScript stack using [Tauri](https://tauri.app/).
+This branch is under heavy development and feature parity with legacy is still in progress.
 
-This means Windows and Mac support, a way better looking UI, lower memory usage, and faster startup. All existing features (multi roblox, account control, server list, launch data, local API, etc.) will carry over.
+If you need maximum stability right now, use the latest legacy release until v4 exits beta.
 
-WinForms was holding back the UI and locking us to Windows only, so it was time to move on.
+## Beta Warning
+- Expect bugs and incomplete behavior in some areas
+- Some flows may change between beta versions without full backwards-compatibility
+- Keep backups of your account data before testing new beta builds
 
-If you have ideas or feature requests for v4, feel free to open a PR or DM me on Discord (@niccdev).
+## Implemented in v4 beta (can still be unfinished or bugged)
+- New desktop architecture (Tauri + React + Rust backend)
+- Core account loading, storage, and encryption compatibility handling
+- Account list UI with grouping, sorting, and multi-select workflows
+- Settings dialog, theme editor, and utility dialogs
+- Server list experience (games, servers, favorites, recent tabs)
+- Roblox launch/process-management foundation and multi-instance settings
+- Local API/server and Nexus websocket foundations
+- Signed Windows build/release automation for v4 beta updates
+
+## Still in progress
+- Full legacy feature parity validation and edge-case behavior
+- Additional polish and reliability fixes across account utilities
+- More testing coverage and hardening for updater/release flows
+- Cross-platform parity validation (especially macOS runtime behavior)
+- v4-specific documentation and migration notes
 
 # WARNING
 If someone asks you to generate an "rbx-player link", **DO NOT** do it, they can use these to join any game using your account, or even launch roblox studio with one of your games. They can do many things in game such as spend your robux or even do things that can get your account terminated. **USE THESE FEATURES AT YOUR OWN RISK**
