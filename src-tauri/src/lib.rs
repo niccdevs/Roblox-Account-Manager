@@ -1170,7 +1170,7 @@ fn export_nexus_lua() -> Result<String, String> {
     let out_path = std::env::current_dir()
         .map_err(|e| format!("Failed to read current directory: {}", e))?
         .join("Nexus.lua");
-    let content = include_str!(r#"../../_legacy/RBX Alt Manager/Nexus/Nexus.lua"#);
+    let content = include_str!("../assets/Nexus.lua");
     std::fs::write(&out_path, content)
         .map_err(|e| format!("Failed to write Nexus.lua: {}", e))?;
     Ok(out_path.to_string_lossy().into_owned())
