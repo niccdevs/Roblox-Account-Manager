@@ -113,13 +113,72 @@ jobs:
             throw "Missing secret: TAURI_SIGNING_PRIVATE_KEY_PASSWORD"
           }
 
+      - name: Normalize and verify updater signing secrets
+        shell: pwsh
+        env:
+          RAW_TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          RAW_TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          $privateKey = $env:RAW_TAURI_SIGNING_PRIVATE_KEY
+          $password = $env:RAW_TAURI_SIGNING_PRIVATE_KEY_PASSWORD
+
+          if ($privateKey.Contains('\n') -and -not $privateKey.Contains("`n")) {
+            $privateKey = $privateKey -replace '\\n', "`n"
+          }
+
+          $candidate = $privateKey.Trim()
+          if ($candidate -and -not $candidate.Contains("`n")) {
+            try {
+              $decoded = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($candidate))
+              if ($decoded -match '^untrusted comment: minisign secret key: ') {
+                $privateKey = $decoded
+              }
+            } catch {
+            }
+          }
+
+          $privateKey = ($privateKey -replace "`r", "").TrimEnd()
+          if ($privateKey -notmatch '^untrusted comment: minisign secret key: ') {
+            throw "TAURI_SIGNING_PRIVATE_KEY is not in minisign secret key format after normalization."
+          }
+
+          $password = ($password -replace "`r", "") -replace "`n", ""
+          if ($password.Length -ge 2) {
+            if (($password.StartsWith('"') -and $password.EndsWith('"')) -or ($password.StartsWith("'") -and $password.EndsWith("'"))) {
+              $password = $password.Substring(1, $password.Length - 2)
+            }
+          }
+
+          if (-not $password) {
+            throw "TAURI_SIGNING_PRIVATE_KEY_PASSWORD is empty after normalization."
+          }
+
+          @"
+TAURI_SIGNING_PRIVATE_KEY<<__TAURI_KEY__
+$privateKey
+__TAURI_KEY__
+"@ | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "TAURI_SIGNING_PRIVATE_KEY_PASSWORD=$password" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+          $env:TAURI_SIGNING_PRIVATE_KEY = $privateKey
+          $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD = $password
+
+          $probePath = Join-Path $env:RUNNER_TEMP "tauri-signing-probe.txt"
+          Set-Content -Path $probePath -Value "tauri-signing-probe" -Encoding utf8 -NoNewline
+          bunx tauri signer sign $probePath
+
+          $probeSigPath = "$probePath.sig"
+          if (-not (Test-Path $probeSigPath)) {
+            throw "Updater signing probe failed to produce a signature."
+          }
+
+          Remove-Item -Path $probePath, $probeSigPath -Force -ErrorAction SilentlyContinue
+
       - name: Build and publish release
         id: tauri_build
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           projectPath: "."
           tauriScript: "bun tauri"
@@ -143,8 +202,6 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
           $tag = "${{ steps.meta.outputs.tag }}"
           New-Item -ItemType Directory -Path ".updater" -Force | Out-Null

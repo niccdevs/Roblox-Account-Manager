@@ -14,6 +14,10 @@ fn cookie_header(security_token: &str) -> String {
     format!(".ROBLOSECURITY={}", security_token)
 }
 
+fn normalize_quick_login_code(code: &str) -> String {
+    code.chars().filter(|c| c.is_ascii_digit()).collect()
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AccountInfo {
     #[serde(alias = "UserId")]
@@ -301,7 +305,8 @@ pub async fn change_email(
 }
 
 pub async fn quick_login_enter_code(security_token: &str, code: &str) -> Result<serde_json::Value, String> {
-    if code.len() != 6 {
+    let normalized_code = normalize_quick_login_code(code);
+    if normalized_code.len() != 6 {
         return Err("Code must be 6 digits".to_string());
     }
 
@@ -312,7 +317,7 @@ pub async fn quick_login_enter_code(security_token: &str, code: &str) -> Result<
         .post("https://apis.roblox.com/auth-token-service/v1/login/enterCode")
         .header(COOKIE, cookie_header(security_token))
         .header("X-CSRF-TOKEN", &csrf)
-        .json(&serde_json::json!({ "code": code }))
+        .json(&serde_json::json!({ "code": normalized_code }))
         .send()
         .await
         .map_err(|e| format!("Request failed: {}", e))?;
@@ -326,6 +331,11 @@ pub async fn quick_login_enter_code(security_token: &str, code: &str) -> Result<
 }
 
 pub async fn quick_login_validate_code(security_token: &str, code: &str) -> Result<(), String> {
+    let normalized_code = normalize_quick_login_code(code);
+    if normalized_code.len() != 6 {
+        return Err("Code must be 6 digits".to_string());
+    }
+
     let csrf = get_csrf_token(security_token).await?;
     let client = build_client();
 
@@ -333,7 +343,7 @@ pub async fn quick_login_validate_code(security_token: &str, code: &str) -> Resu
         .post("https://apis.roblox.com/auth-token-service/v1/login/validateCode")
         .header(COOKIE, cookie_header(security_token))
         .header("X-CSRF-TOKEN", &csrf)
-        .json(&serde_json::json!({ "code": code }))
+        .json(&serde_json::json!({ "code": normalized_code }))
         .send()
         .await
         .map_err(|e| format!("Request failed: {}", e))?;

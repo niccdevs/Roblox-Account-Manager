@@ -21,6 +21,7 @@ export function AccountRow({ account }: { account: Account }) {
   const rawName = account.Alias || account.Username;
   const displayName = store.hideUsernames ? maskName(rawName, store.hiddenNameLetters) : rawName;
   const showUsername = !!account.Alias && !store.hideUsernames;
+  const description = account.Description?.trim() || "";
   const hideAvatar = store.hideUsernames && !store.showAvatarsWhenHidden;
   const showPresence = store.settings?.General?.ShowPresence === "true";
   const presenceType = store.presenceByUserId.get(account.UserID) ?? 0;
@@ -170,11 +171,18 @@ export function AccountRow({ account }: { account: Account }) {
             @{account.Username}
           </div>
         )}
+        {description && (
+          <div className="text-[11px] text-zinc-600 truncate leading-tight lg:hidden">
+            {description}
+          </div>
+        )}
       </div>
 
-      <div className="text-[11px] text-zinc-600 truncate max-w-[180px] hidden xl:block">
-        {account.Description}
-      </div>
+      {description && (
+        <div className="text-[11px] text-zinc-600 truncate max-w-[180px] hidden lg:block">
+          {description}
+        </div>
+      )}
 
       <div className="text-[11px] w-14 text-right flex-shrink-0 tabular-nums">
         {isJoining ? (

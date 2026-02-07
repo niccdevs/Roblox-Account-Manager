@@ -56,6 +56,10 @@ export function ContextMenu() {
     }
   }
 
+  function normalizeQuickLoginCode(value: string) {
+    return value.replace(/\D/g, "");
+  }
+
   function copyMulti(getter: (a: typeof accounts[0]) => string, label: string) {
     const text = accounts.map(getter).join("\n");
     copyToClipboard(text, label);
@@ -274,14 +278,15 @@ export function ContextMenu() {
         let code = "";
         try {
           const clip = await navigator.clipboard.readText();
-          if (/^\d{6}$/.test(clip.trim())) code = clip.trim();
+          const normalizedClipCode = normalizeQuickLoginCode(clip);
+          if (normalizedClipCode.length === 6) code = normalizedClipCode;
         } catch {}
         if (!code) {
           const input = await prompt("Enter 6-digit code:");
           if (!input) return;
-          code = input.trim();
+          code = normalizeQuickLoginCode(input);
         }
-        if (!/^\d{6}$/.test(code)) {
+        if (code.length !== 6) {
           store.addToast("Invalid code (must be 6 digits)");
           return;
         }
