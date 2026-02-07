@@ -84,18 +84,19 @@ if (channel === "beta") {
 
 const coreVersion = `${nextMajor}.${nextMinor}.${nextPatch}`;
 const fullVersion = betaNumber === null ? coreVersion : `${coreVersion}-beta.${betaNumber}`;
+const appVersion = coreVersion;
 const tag = `v${fullVersion}`;
 const releaseTitle = `Roblox Account Manager ${tag}`;
 const updaterEndpoint = `https://raw.githubusercontent.com/${repository}/update-manifests/${channel}/latest.json`;
 
-packageJson.version = fullVersion;
+packageJson.version = appVersion;
 
-tauriConfig.version = fullVersion;
+tauriConfig.version = appVersion;
 tauriConfig.plugins ??= {};
 tauriConfig.plugins.updater ??= {};
 tauriConfig.plugins.updater.endpoints = [updaterEndpoint];
 
-const updatedCargoToml = cargoToml.replace(/^version\s*=\s*".*"$/m, `version = "${fullVersion}"`);
+const updatedCargoToml = cargoToml.replace(/^version\s*=\s*".*"$/m, `version = "${appVersion}"`);
 if (updatedCargoToml === cargoToml) {
   throw new Error(`Could not update version in ${cargoPath}`);
 }
@@ -115,10 +116,12 @@ const releaseBody = [
   "- `roblox-account-manager.exe` (portable binary, advanced use)",
   "",
   `Bump mode: ${bump}`,
-  `Channel: ${channelLabel}`
+  `Channel: ${channelLabel}`,
+  `App version: ${appVersion}`
 ].join("\n");
 
 setOutput("version", fullVersion);
+setOutput("app_version", appVersion);
 setOutput("tag", tag);
 setOutput("release_title", releaseTitle);
 setMultilineOutput("release_body", releaseBody);
