@@ -1,0 +1,46 @@
+{
+  "$schema": "https://raw.githubusercontent.com/nicovank/tauri-v2/main/packages/cli/schema.json",
+  "productName": "Roblox Account Manager",
+  "version": "4.0.0",
+  "identifier": "com.niccdevs.roblox-account-manager",
+  "build": {
+    "beforeDevCommand": "bun run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "bun run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Roblox Account Manager",
+        "width": 1100,
+        "height": 700,
+        "minWidth": 750,
+        "minHeight": 450,
+        "decorations": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/niccdevs/Roblox-Account-Manager/releases/latest/download/latest.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDY4OTM2MEFCRTFBQjBDMTAKUldRUURLdmhxMkNUYUdDZTQ0VVdiVXE1N2NhSXFVOWEwL3BteXRjaDkxWFo5Nm5iaVE3eEEyVW8K"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.png",
+      "icons/icon.ico"
+    ]
+  }
+}

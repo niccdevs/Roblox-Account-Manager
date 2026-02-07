@@ -1,0 +1,191 @@
+import { useStore } from "../../store";
+import type { Account } from "../../types";
+import { timeAgo, getFreshnessColor } from "../../types";
+
+function maskName(name: string, previewLetters: number): string {
+  if (previewLetters > 0 && previewLetters < name.length) {
+    return name.slice(0, previewLetters) + "********";
+  }
+  return "************";
+}
+
+export function AccountRow({ account }: { account: Account }) {
+  const store = useStore();
+  const selected = store.selectedIds.has(account.UserID);
+  const multiMode = store.selectedIds.size > 1;
+  const avatarUrl = store.avatarUrls.get(account.UserID);
+  const freshness =
+    store.settings?.General?.DisableAgingAlert === "true"
+      ? null
+      : getFreshnessColor(account.LastUse);
+  const rawName = account.Alias || account.Username;
+  const displayName = store.hideUsernames ? maskName(rawName, store.hiddenNameLetters) : rawName;
+  const showUsername = !!account.Alias && !store.hideUsernames;
+  const hideAvatar = store.hideUsernames && !store.showAvatarsWhenHidden;
+  const showPresence = store.settings?.General?.ShowPresence === "true";
+  const presenceType = store.presenceByUserId.get(account.UserID) ?? 0;
+  const launchedLocally = store.launchedByProgram.has(account.UserID);
+  const isJoining = store.joiningAccounts.has(account.UserID);
+
+  const presenceMeta =
+    presenceType === 3
+      ? { label: "In Studio", dot: "bg-violet-500" }
+      : presenceType >= 2
+      ? { label: "In Game", dot: "bg-emerald-500" }
+      : presenceType === 1
+        ? { label: "Online", dot: "bg-sky-500" }
+        : { label: "Offline", dot: "bg-zinc-600" };
+
+  const statusDots: Array<{ color: string; title: string }> = [];
+  if (!account.Valid) {
+    statusDots.push({ color: "#ef4444", title: "Invalid session" });
+  }
+  if (freshness) {
+    statusDots.push({ color: freshness, title: "Aged account (20+ days inactive)" });
+  }
+  if (launchedLocally) {
+    statusDots.push({ color: "#f59e0b", title: "Launched by Roblox Account Manager" });
+  }
+  if (showPresence && presenceType >= 1) {
+    const presenceColor =
+      presenceType === 3 ? "#4629d8" : presenceType >= 2 ? "#02b757" : "#00a2ff";
+    statusDots.push({ color: presenceColor, title: presenceMeta.label });
+  }
+
+  function handleClick(e: React.MouseEvent) {
+    e.stopPropagation();
+    store.handleSelect(account.UserID, e);
+  }
+
+  function handleContext(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!store.selectedIds.has(account.UserID)) {
+      store.selectSingle(account.UserID);
+    }
+    store.openContextMenu(e.clientX, e.clientY);
+  }
+
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const dragged = store.dragState;
+    store.setDragState(null);
+    if (!dragged) return;
+
+    if (dragged.sourceGroup === (account.Group || "Default")) {
+      store.reorderAccounts(dragged.userId, account.UserID);
+      return;
+    }
+
+    store.moveToGroup([dragged.userId], account.Group || "Default");
+  }
+
+  return (
+    <div
+      className={`group/row flex items-center gap-3 px-3 py-1.5 cursor-default select-none border-l-2 transition-all duration-100 ${
+        selected
+          ? "bg-sky-500/15 border-l-sky-500"
+          : "border-l-transparent hover:bg-zinc-800/40"
+      }`}
+      onClick={handleClick}
+      onContextMenu={handleContext}
+      draggable
+      onDragStart={(e) => {
+        e.dataTransfer.effectAllowed = "move";
+        e.dataTransfer.setData("text/plain", String(account.UserID));
+        store.setDragState({ userId: account.UserID, sourceGroup: account.Group || "Default" });
+      }}
+      onDragOver={(e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "move";
+      }}
+      onDrop={handleDrop}
+    >
+      <div className={`shrink-0 overflow-hidden transition-all duration-150 ease-out ${
+        multiMode ? "w-4 opacity-100" : "w-0 opacity-0"
+      }`}>
+        <div className={`w-4 h-4 rounded border flex items-center justify-center transition-all duration-100 ${
+          selected
+            ? "bg-sky-500 border-sky-500"
+            : "border-zinc-600 group-hover/row:border-zinc-500"
+        }`}>
+          {selected && (
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          )}
+        </div>
+      </div>
+
+      <div className="relative flex-shrink-0">
+        {statusDots.length > 0 && (
+          <div className="absolute -left-1.5 -top-1 z-10 flex items-center gap-0.5">
+            {statusDots.map((dot, index) => (
+              <span
+                key={index}
+                title={dot.title}
+                className="w-2 h-2 rounded-full ring-1 ring-zinc-950/90"
+                style={{ backgroundColor: dot.color }}
+              />
+            ))}
+          </div>
+        )}
+        {hideAvatar ? (
+          <div className="w-8 h-8 rounded-full bg-zinc-800/80 flex items-center justify-center text-zinc-600">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+              <circle cx="9" cy="7" r="4" />
+            </svg>
+          </div>
+        ) : avatarUrl ? (
+          <img
+            src={avatarUrl}
+            alt=""
+            className="w-8 h-8 rounded-full bg-zinc-800 transition-transform duration-150 group-hover/row:scale-105"
+            loading="lazy"
+          />
+        ) : (
+          <div className="w-8 h-8 rounded-full bg-zinc-800/80 flex items-center justify-center text-zinc-600 text-xs font-medium">
+            {(account.Username || "?").charAt(0).toUpperCase()}
+          </div>
+        )}
+      </div>
+
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-1.5 min-w-0">
+          {showPresence && presenceType >= 1 && (
+            <span
+              className={`w-1.5 h-1.5 rounded-full shrink-0 ${presenceMeta.dot} ${presenceType >= 1 ? "animate-pulse" : ""}`}
+              title={presenceMeta.label}
+            />
+          )}
+          <div className={`text-[13px] truncate leading-tight transition-colors duration-100 ${selected ? "text-sky-200" : "text-zinc-200"}`}>
+            {displayName}
+          </div>
+        </div>
+        {showUsername && (
+          <div className="text-[11px] text-zinc-600 truncate leading-tight">
+            @{account.Username}
+          </div>
+        )}
+      </div>
+
+      <div className="text-[11px] text-zinc-600 truncate max-w-[180px] hidden xl:block">
+        {account.Description}
+      </div>
+
+      <div className="text-[11px] w-14 text-right flex-shrink-0 tabular-nums">
+        {isJoining ? (
+          <span className="inline-flex items-center gap-1 text-sky-400">
+            <span className="w-2 h-2 border border-sky-400 border-t-transparent rounded-full animate-spin" />
+            <span>Join</span>
+          </span>
+        ) : (
+          <span className="text-zinc-600">{timeAgo(account.LastUse)}</span>
+        )}
+      </div>
+    </div>
+  );
+}

@@ -332,3 +332,8 @@ __pycache__/
 *.xsd.cs
 
 _legacy/
+
+# Tauri / Rust
+target/
+dist/
+src-tauri/gen/
