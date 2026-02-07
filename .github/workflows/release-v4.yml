@@ -128,7 +128,7 @@ jobs:
           releaseBody: ${{ steps.meta.outputs.release_body }}
           prerelease: ${{ steps.controls.outputs.channel == 'beta' }}
           releaseDraft: false
-          uploadUpdaterJson: false
+          includeUpdaterJson: false
 
       - name: Upload portable EXE
         shell: pwsh
@@ -142,13 +142,16 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          $nsisDir = "src-tauri\target\release\bundle\nsis"
-          $bundle = Get-ChildItem -Path $nsisDir -File |
-            Where-Object { $_.Name -match '\.nsis\.zip$' } |
+          $bundleRoot = "src-tauri\target\release\bundle"
+          $bundle = Get-ChildItem -Path $bundleRoot -Recurse -File -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -match '\.(nsis|msi)\.zip$' } |
+            Sort-Object -Property @{
+              Expression = { if ($_.Name -match '\.nsis\.zip$') { 0 } else { 1 } }
+            }, @{ Expression = { $_.LastWriteTimeUtc }; Descending = $true } |
             Select-Object -First 1
 
           if (-not $bundle) {
-            throw "Could not find NSIS updater bundle (*.nsis.zip)."
+            throw "Could not find updater bundle (*.nsis.zip or *.msi.zip)."
           }
 
           $sigPath = "$($bundle.FullName).sig"
@@ -169,13 +172,16 @@ jobs:
           $repo = "${{ github.repository }}"
           $version = "${{ steps.meta.outputs.app_version }}"
 
-          $nsisDir = "src-tauri\target\release\bundle\nsis"
-          $bundle = Get-ChildItem -Path $nsisDir -File |
-            Where-Object { $_.Name -match '\.nsis\.zip$' } |
+          $bundleRoot = "src-tauri\target\release\bundle"
+          $bundle = Get-ChildItem -Path $bundleRoot -Recurse -File -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -match '\.(nsis|msi)\.zip$' } |
+            Sort-Object -Property @{
+              Expression = { if ($_.Name -match '\.nsis\.zip$') { 0 } else { 1 } }
+            }, @{ Expression = { $_.LastWriteTimeUtc }; Descending = $true } |
             Select-Object -First 1
 
           if (-not $bundle) {
-            throw "Could not find NSIS updater bundle (*.nsis.zip)."
+            throw "Could not find updater bundle (*.nsis.zip or *.msi.zip)."
           }
 
           $sigPath = "$($bundle.FullName).sig"
@@ -197,7 +203,7 @@ jobs:
             $asset = $release.assets | Where-Object { $_.name -eq $assetName } | Select-Object -First 1
 
             if (-not $asset) {
-              $asset = $release.assets | Where-Object { $_.name -match '\.nsis\.zip$' } | Select-Object -First 1
+              $asset = $release.assets | Where-Object { $_.name -match '\.(nsis|msi)\.zip$' } | Select-Object -First 1
             }
 
             if ($asset) {
