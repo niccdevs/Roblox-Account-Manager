@@ -118,6 +118,7 @@ jobs:
           }
 
       - name: Build and publish release
+        id: tauri_build
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -141,13 +142,47 @@ jobs:
         run: |
           gh release upload "${{ steps.meta.outputs.tag }}" "src-tauri/target/release/roblox-account-manager.exe" --clobber
 
-      - name: Download updater manifest
+      - name: Resolve updater manifest
         shell: pwsh
         env:
+          ARTIFACT_PATHS: ${{ steps.tauri_build.outputs.artifactPaths }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           New-Item -ItemType Directory -Path ".updater" -Force | Out-Null
-          gh release download "${{ steps.meta.outputs.tag }}" --pattern "latest.json" --dir ".updater"
+
+          $manifest = $null
+
+          if ($env:ARTIFACT_PATHS) {
+            try {
+              $paths = $env:ARTIFACT_PATHS | ConvertFrom-Json
+              foreach ($candidate in $paths) {
+                if ($candidate -match 'latest.*\.json$' -and (Test-Path $candidate)) {
+                  $manifest = $candidate
+                  break
+                }
+              }
+            } catch {
+            }
+          }
+
+          if (-not $manifest) {
+            $manifest = Get-ChildItem -Path "src-tauri\target" -Recurse -File |
+              Where-Object { $_.Name -match 'latest.*\.json$' } |
+              Select-Object -First 1 -ExpandProperty FullName
+          }
+
+          if (-not $manifest) {
+            gh release download "${{ steps.meta.outputs.tag }}" --pattern "*latest*.json" --dir ".updater"
+            $manifest = Get-ChildItem -Path ".updater" -File |
+              Where-Object { $_.Name -match 'latest.*\.json$' } |
+              Select-Object -First 1 -ExpandProperty FullName
+          }
+
+          if (-not $manifest) {
+            throw "Could not locate updater manifest JSON. Expected a *latest*.json output from tauri build."
+          }
+
+          Copy-Item $manifest ".updater\latest.json" -Force
 
       - name: Publish channel manifest
         uses: actions/github-script@v7

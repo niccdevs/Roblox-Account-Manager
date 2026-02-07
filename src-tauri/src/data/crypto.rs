@@ -2,7 +2,9 @@ use sodiumoxide::crypto::secretbox;
 use sodiumoxide::crypto::hash::sha512;
 use sodiumoxide::crypto::pwhash::argon2i13;
 
-pub const RAM_HEADER: &[u8] = b"Roblox Account Manager created by ic3w0lf2 and continued by niccdevs @ github.com .......";
+pub const RAM_HEADER: &[u8] = b"Roblox Account Manager created by ic3w0lf22 @ github.com .......";
+const TRANSITION_RAM_HEADER: &[u8] =
+    b"Roblox Account Manager created by ic3w0lf2 and continued by niccdevs @ github.com .......";
 
 #[derive(Debug)]
 pub enum CryptoError {
@@ -48,23 +50,23 @@ pub fn derive_key(password_hash: &[u8], salt: &[u8]) -> Result<secretbox::Key, C
 }
 
 pub fn is_encrypted(data: &[u8]) -> bool {
-    if data.len() < RAM_HEADER.len() {
-        return false;
-    }
-    &data[..RAM_HEADER.len()] == RAM_HEADER
+    data.starts_with(RAM_HEADER) || data.starts_with(TRANSITION_RAM_HEADER)
 }
 
 pub fn decrypt(encrypted: &[u8], password_hash: &[u8]) -> Result<Vec<u8>, CryptoError> {
-    if encrypted.len() < RAM_HEADER.len() + 16 + 24 + 16 {
+    let header = if encrypted.starts_with(RAM_HEADER) {
+        RAM_HEADER
+    } else if encrypted.starts_with(TRANSITION_RAM_HEADER) {
+        TRANSITION_RAM_HEADER
+    } else {
+        return Err(CryptoError::MissingHeader);
+    };
+
+    if encrypted.len() < header.len() + 16 + 24 + 16 {
         return Err(CryptoError::InvalidData);
     }
 
-    let header = &encrypted[..RAM_HEADER.len()];
-    if header != RAM_HEADER {
-        return Err(CryptoError::MissingHeader);
-    }
-
-    let offset = RAM_HEADER.len();
+    let offset = header.len();
     let salt = &encrypted[offset..offset + 16];
     let nonce_bytes = &encrypted[offset + 16..offset + 16 + 24];
     let ciphertext = &encrypted[offset + 16 + 24..];
