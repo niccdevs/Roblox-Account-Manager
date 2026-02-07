@@ -4,10 +4,6 @@ on:
   push:
     branches:
       - v4
-    paths:
-      - "src/**"
-      - "src-tauri/**"
-      - "package.json"
   workflow_dispatch:
 
 concurrency:
@@ -132,8 +128,7 @@ jobs:
           releaseBody: ${{ steps.meta.outputs.release_body }}
           prerelease: ${{ steps.controls.outputs.channel == 'beta' }}
           releaseDraft: false
-          uploadUpdaterJson: true
-          updaterJsonPreferNsis: true
+          uploadUpdaterJson: false
 
       - name: Upload portable EXE
         shell: pwsh
@@ -142,47 +137,98 @@ jobs:
         run: |
           gh release upload "${{ steps.meta.outputs.tag }}" "src-tauri/target/release/roblox-account-manager.exe" --clobber
 
-      - name: Resolve updater manifest
+      - name: Upload updater bundle
         shell: pwsh
         env:
-          ARTIFACT_PATHS: ${{ steps.tauri_build.outputs.artifactPaths }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $nsisDir = "src-tauri\target\release\bundle\nsis"
+          $bundle = Get-ChildItem -Path $nsisDir -File |
+            Where-Object { $_.Name -match '\.nsis\.zip$' } |
+            Select-Object -First 1
+
+          if (-not $bundle) {
+            throw "Could not find NSIS updater bundle (*.nsis.zip)."
+          }
+
+          $sigPath = "$($bundle.FullName).sig"
+          if (-not (Test-Path $sigPath)) {
+            throw "Could not find updater signature file: $sigPath"
+          }
+
+          gh release upload "${{ steps.meta.outputs.tag }}" "$($bundle.FullName)" "$sigPath" --clobber
+
+      - name: Build updater manifest
+        shell: pwsh
+        env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           New-Item -ItemType Directory -Path ".updater" -Force | Out-Null
 
-          $manifest = $null
+          $tag = "${{ steps.meta.outputs.tag }}"
+          $repo = "${{ github.repository }}"
+          $version = "${{ steps.meta.outputs.app_version }}"
 
-          if ($env:ARTIFACT_PATHS) {
-            try {
-              $paths = $env:ARTIFACT_PATHS | ConvertFrom-Json
-              foreach ($candidate in $paths) {
-                if ($candidate -match 'latest.*\.json$' -and (Test-Path $candidate)) {
-                  $manifest = $candidate
-                  break
-                }
-              }
-            } catch {
+          $nsisDir = "src-tauri\target\release\bundle\nsis"
+          $bundle = Get-ChildItem -Path $nsisDir -File |
+            Where-Object { $_.Name -match '\.nsis\.zip$' } |
+            Select-Object -First 1
+
+          if (-not $bundle) {
+            throw "Could not find NSIS updater bundle (*.nsis.zip)."
+          }
+
+          $sigPath = "$($bundle.FullName).sig"
+          if (-not (Test-Path $sigPath)) {
+            throw "Could not find updater signature file: $sigPath"
+          }
+
+          $signature = (Get-Content -Path $sigPath -Raw).Trim()
+          if (-not $signature) {
+            throw "Updater signature file is empty: $sigPath"
+          }
+
+          $assetName = $bundle.Name
+          $release = $null
+          $asset = $null
+
+          for ($attempt = 1; $attempt -le 8; $attempt++) {
+            $release = gh release view "$tag" --repo "$repo" --json assets,publishedAt | ConvertFrom-Json
+            $asset = $release.assets | Where-Object { $_.name -eq $assetName } | Select-Object -First 1
+
+            if (-not $asset) {
+              $asset = $release.assets | Where-Object { $_.name -match '\.nsis\.zip$' } | Select-Object -First 1
             }
+
+            if ($asset) {
+              break
+            }
+
+            Start-Sleep -Seconds 2
           }
 
-          if (-not $manifest) {
-            $manifest = Get-ChildItem -Path "src-tauri\target" -Recurse -File |
-              Where-Object { $_.Name -match 'latest.*\.json$' } |
-              Select-Object -First 1 -ExpandProperty FullName
+          if (-not $asset) {
+            throw "Updater bundle asset was not found on release $tag"
           }
 
-          if (-not $manifest) {
-            gh release download "${{ steps.meta.outputs.tag }}" --pattern "*latest*.json" --dir ".updater"
-            $manifest = Get-ChildItem -Path ".updater" -File |
-              Where-Object { $_.Name -match 'latest.*\.json$' } |
-              Select-Object -First 1 -ExpandProperty FullName
+          $pubDate = $release.publishedAt
+          if (-not $pubDate) {
+            $pubDate = (Get-Date).ToUniversalTime().ToString("o")
           }
 
-          if (-not $manifest) {
-            throw "Could not locate updater manifest JSON. Expected a *latest*.json output from tauri build."
-          }
+          $manifest = @{
+            version = $version
+            notes = "Roblox Account Manager $tag"
+            pub_date = $pubDate
+            platforms = @{
+              "windows-x86_64" = @{
+                signature = $signature
+                url = $asset.url
+              }
+            }
+          } | ConvertTo-Json -Depth 8
 
-          Copy-Item $manifest ".updater\latest.json" -Force
+          Set-Content -Path ".updater\latest.json" -Value $manifest -Encoding utf8
 
       - name: Publish channel manifest
         uses: actions/github-script@v7
