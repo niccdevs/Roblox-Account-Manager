@@ -147,32 +147,46 @@ jobs:
           $tag = "${{ steps.meta.outputs.tag }}"
           New-Item -ItemType Directory -Path ".updater" -Force | Out-Null
 
-          gh release download "$tag" --pattern "*-setup.exe" --dir ".updater" --clobber
-
-          $setupExe = Get-ChildItem -Path ".updater" -File |
-            Where-Object { $_.Name -match '-setup\.exe$' } |
+          $updaterAsset = Get-ChildItem -Path "src-tauri\target\release\bundle" -Recurse -File -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -match '\.nsis\.zip$|\.msi\.zip$|-setup\.exe$' } |
+            Sort-Object -Property @{
+              Expression = {
+                if ($_.Name -match '\.nsis\.zip$') { 0 }
+                elseif ($_.Name -match '-setup\.exe$') { 1 }
+                else { 2 }
+              }
+            }, @{ Expression = { $_.LastWriteTimeUtc }; Descending = $true } |
             Select-Object -First 1
 
-          if (-not $setupExe) {
-            throw "Could not find setup executable asset on release $tag"
+          if (-not $updaterAsset) {
+            gh release download "$tag" --pattern "*-setup.exe" --dir ".updater" --clobber
+            $updaterAsset = Get-ChildItem -Path ".updater" -File |
+              Where-Object { $_.Name -match '-setup\.exe$' } |
+              Select-Object -First 1
           }
 
-          $zipBase = [System.IO.Path]::GetFileNameWithoutExtension($setupExe.Name)
-          $zipPath = Join-Path ".updater" "$zipBase.nsis.zip"
-          Compress-Archive -Path $setupExe.FullName -DestinationPath $zipPath -CompressionLevel Optimal -Force
+          if (-not $updaterAsset) {
+            throw "Could not resolve an updater asset (*.nsis.zip, *-setup.exe, or *.msi.zip) for release $tag"
+          }
 
-          bunx tauri signer sign "$zipPath"
-          $sigPath = "$zipPath.sig"
+          $updaterPath = $updaterAsset.FullName
+          $sigPath = "$updaterPath.sig"
 
-          if (-not (Test-Path $zipPath)) {
-            throw "Failed to create updater bundle zip: $zipPath"
+          if (-not (Test-Path $sigPath)) {
+            bunx tauri signer sign "$updaterPath"
+
+            if (-not (Test-Path $sigPath) -and $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD) {
+              Remove-Item Env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD -ErrorAction SilentlyContinue
+              bunx tauri signer sign "$updaterPath"
+            }
           }
 
           if (-not (Test-Path $sigPath)) {
-            throw "Could not find updater signature file: $sigPath"
+            throw "Could not produce updater signature for $($updaterAsset.Name). Verify TAURI_SIGNING_PRIVATE_KEY and TAURI_SIGNING_PRIVATE_KEY_PASSWORD secrets."
           }
 
-          gh release upload "$tag" "$zipPath" "$sigPath" --clobber
+          gh release upload "$tag" "$updaterPath" "$sigPath" --clobber
+          Set-Content -Path ".updater\updater-asset-name.txt" -Value $updaterAsset.Name -Encoding utf8
 
       - name: Build updater manifest
         shell: pwsh
@@ -184,67 +198,48 @@ jobs:
           $tag = "${{ steps.meta.outputs.tag }}"
           $repo = "${{ github.repository }}"
           $version = "${{ steps.meta.outputs.app_version }}"
+          $preferredAssetName = $null
+          if (Test-Path ".updater\updater-asset-name.txt") {
+            $preferredAssetName = (Get-Content ".updater\updater-asset-name.txt" -Raw).Trim()
+          }
 
-          $bundle = Get-ChildItem -Path ".updater" -File -ErrorAction SilentlyContinue |
-            Where-Object { $_.Name -match '\.(nsis|msi)\.zip$' } |
-            Sort-Object -Property @{
-              Expression = { if ($_.Name -match '\.nsis\.zip$') { 0 } else { 1 } }
-            }, @{ Expression = { $_.LastWriteTimeUtc }; Descending = $true } |
-            Select-Object -First 1
+          $release = gh release view "$tag" --repo "$repo" --json assets,publishedAt | ConvertFrom-Json
+          $asset = $null
 
-          if (-not $bundle) {
-            $release = gh release view "$tag" --repo "$repo" --json assets | ConvertFrom-Json
-            $bundleAsset = $release.assets | Where-Object { $_.name -match '\.(nsis|msi)\.zip$' } | Select-Object -First 1
+          if ($preferredAssetName) {
+            $asset = $release.assets | Where-Object { $_.name -eq $preferredAssetName } | Select-Object -First 1
+          }
 
-            if (-not $bundleAsset) {
-              throw "Could not find updater bundle asset (*.nsis.zip or *.msi.zip) on release $tag"
-            }
-
-            gh release download "$tag" --repo "$repo" --pattern "$($bundleAsset.name)" --dir ".updater" --clobber
-            $bundle = Get-ChildItem -Path ".updater" -File |
-              Where-Object { $_.Name -eq $bundleAsset.name } |
+          if (-not $asset) {
+            $asset = $release.assets |
+              Where-Object { $_.name -match '\.nsis\.zip$|-setup\.exe$|\.msi\.zip$' } |
+              Sort-Object -Property @{
+                Expression = {
+                  if ($_.name -match '\.nsis\.zip$') { 0 }
+                  elseif ($_.name -match '-setup\.exe$') { 1 }
+                  else { 2 }
+                }
+              } |
               Select-Object -First 1
           }
 
-          if (-not $bundle) {
-            throw "Could not resolve local updater bundle file for release $tag"
+          if (-not $asset) {
+            throw "Updater asset was not found on release $tag"
           }
 
-          $sigPath = "$($bundle.FullName).sig"
+          $sigAssetName = "$($asset.name).sig"
+          $sigPath = Join-Path ".updater" $sigAssetName
           if (-not (Test-Path $sigPath)) {
-            gh release download "$tag" --repo "$repo" --pattern "$($bundle.Name).sig" --dir ".updater" --clobber
+            gh release download "$tag" --repo "$repo" --pattern "$sigAssetName" --dir ".updater" --clobber
           }
 
           if (-not (Test-Path $sigPath)) {
-            throw "Could not find updater signature file for bundle: $($bundle.Name)"
+            throw "Could not find updater signature asset on release: $sigAssetName"
           }
 
           $signature = (Get-Content -Path $sigPath -Raw).Trim()
           if (-not $signature) {
             throw "Updater signature file is empty: $sigPath"
-          }
-
-          $assetName = $bundle.Name
-          $release = $null
-          $asset = $null
-
-          for ($attempt = 1; $attempt -le 8; $attempt++) {
-            $release = gh release view "$tag" --repo "$repo" --json assets,publishedAt | ConvertFrom-Json
-            $asset = $release.assets | Where-Object { $_.name -eq $assetName } | Select-Object -First 1
-
-            if (-not $asset) {
-              $asset = $release.assets | Where-Object { $_.name -match '\.(nsis|msi)\.zip$' } | Select-Object -First 1
-            }
-
-            if ($asset) {
-              break
-            }
-
-            Start-Sleep -Seconds 2
-          }
-
-          if (-not $asset) {
-            throw "Updater bundle asset was not found on release $tag"
           }
 
           $pubDate = $release.publishedAt
