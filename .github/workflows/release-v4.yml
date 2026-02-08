@@ -150,6 +150,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
           $tag = "${{ steps.meta.outputs.tag }}"
+          $repo = "${{ github.repository }}"
           New-Item -ItemType Directory -Path ".updater" -Force | Out-Null
 
           $updaterAsset = Get-ChildItem -Path "src-tauri\target\release\bundle" -Recurse -File -ErrorAction SilentlyContinue |
@@ -174,14 +175,47 @@ jobs:
             throw "Could not resolve an updater asset (*.nsis.zip, *-setup.exe, or *.msi.zip) for release $tag"
           }
 
+          if ($env:TAURI_SIGNING_PRIVATE_KEY -and $env:TAURI_SIGNING_PRIVATE_KEY.Contains('\n')) {
+            $env:TAURI_SIGNING_PRIVATE_KEY = $env:TAURI_SIGNING_PRIVATE_KEY -replace '\\n', "`n"
+          }
+
           $updaterPath = $updaterAsset.FullName
           $sigPath = "$updaterPath.sig"
+          $sigAssetName = [System.IO.Path]::GetFileName($sigPath)
+          $sigDir = [System.IO.Path]::GetDirectoryName($sigPath)
 
           if (-not (Test-Path $sigPath)) {
-            bunx tauri signer sign "$updaterPath"
+            try {
+              gh release download "$tag" --repo "$repo" --pattern "$sigAssetName" --dir "$sigDir" --clobber
+            } catch {
+              Write-Host "No pre-existing signature asset found for $sigAssetName on $tag. Falling back to local signing."
+            }
+          }
 
-            if (-not (Test-Path $sigPath) -and $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD) {
-              bunx tauri signer sign "$updaterPath" -p ""
+          if (-not (Test-Path $sigPath)) {
+            $rawPassword = [string]($env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD ?? "")
+            $trimmedPassword = $rawPassword.TrimEnd("`r", "`n")
+            $passwordAttempts = @($rawPassword)
+
+            if ($trimmedPassword -ne $rawPassword) {
+              $passwordAttempts += $trimmedPassword
+            }
+            if (-not [string]::IsNullOrEmpty($rawPassword)) {
+              $passwordAttempts += ""
+            }
+
+            $passwordAttempts = $passwordAttempts | Select-Object -Unique
+
+            foreach ($passwordAttempt in $passwordAttempts) {
+              if (Test-Path $sigPath) {
+                break
+              }
+
+              if ([string]::IsNullOrEmpty($passwordAttempt)) {
+                bunx tauri signer sign "$updaterPath" -p ""
+              } else {
+                bunx tauri signer sign "$updaterPath" -p "$passwordAttempt"
+              }
             }
           }
 
