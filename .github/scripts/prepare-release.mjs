@@ -73,17 +73,8 @@ if (bump === "minor") {
   nextPatch += 1;
 }
 
-let betaNumber = null;
-if (channel === "beta") {
-  const previousBeta = parsedTags
-    .filter((item) => item.major === nextMajor && item.minor === nextMinor && item.patch === nextPatch && item.beta !== null)
-    .reduce((max, item) => Math.max(max, item.beta), 0);
-
-  betaNumber = previousBeta + 1;
-}
-
 const coreVersion = `${nextMajor}.${nextMinor}.${nextPatch}`;
-const fullVersion = betaNumber === null ? coreVersion : `${coreVersion}-beta.${betaNumber}`;
+const fullVersion = channel === "beta" ? `${coreVersion}-beta` : coreVersion;
 const appVersion = coreVersion;
 const tag = `v${fullVersion}`;
 const releaseTitle = `Roblox Account Manager ${tag}`;
@@ -141,17 +132,20 @@ function parseTag(tag) {
 }
 
 function parseVersion(input) {
-  const match = /^(\d+)\.(\d+)\.(\d+)(?:-beta\.(\d+))?$/.exec(String(input).trim());
+  const raw = String(input).trim();
+  const match = /^(\d+)\.(\d+)\.(\d+)(?:-beta(?:\.(\d+))?)?$/.exec(raw);
   if (!match) {
     return null;
   }
 
+  const hasBeta = /-beta(?:\.\d+)?$/.test(raw);
+
   return {
-    raw: String(input).trim(),
+    raw,
     major: Number(match[1]),
     minor: Number(match[2]),
     patch: Number(match[3]),
-    beta: match[4] ? Number(match[4]) : null
+    beta: hasBeta ? (match[4] ? Number(match[4]) : 0) : null
   };
 }
 
