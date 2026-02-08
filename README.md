@@ -2,7 +2,7 @@ Full credit to [ic3w0lf22](https://github.com/ic3w0lf22) for the original Roblox
 
 [![Discord](https://img.shields.io/discord/871845273800957982?label=Discord)](https://discord.gg/MsEH7smXY8)
 
-**[Download Latest Release (v4 beta)](https://github.com/niccdevs/Roblox-Account-Manager/releases/latest)**
+**[Download Latest v4 Beta Pre-release](https://github.com/niccdevs/Roblox-Account-Manager/releases?q=beta)**
 
 [Click here to view Roblox Account Manager features](https://github.com/niccdevs/Roblox-Account-Manager/blob/master/README.md#features)
 
