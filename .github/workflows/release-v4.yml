@@ -13,7 +13,7 @@ concurrency:
 jobs:
   release:
     if: ${{ github.event_name != 'push' || !contains(github.event.head_commit.message, '[skip release]') }}
-    runs-on: windows-latest
+    runs-on: blacksmith-4vcpu-windows-2025
     permissions:
       contents: write
       pull-requests: read
