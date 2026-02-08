@@ -65,7 +65,7 @@ export function ArgumentsForm({
   return (
     <div
       ref={panelRef}
-      className="absolute right-0 top-full mt-1.5 w-[280px] bg-zinc-900 border border-zinc-700/60 rounded-xl shadow-2xl z-50 animate-scale-in p-3 space-y-2.5"
+      className="theme-modal-scope theme-panel theme-border absolute right-0 top-full mt-1.5 w-[280px] bg-zinc-900 border border-zinc-700/60 rounded-xl shadow-2xl z-50 animate-scale-in p-3 space-y-2.5"
     >
       <div className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
         Launch Arguments

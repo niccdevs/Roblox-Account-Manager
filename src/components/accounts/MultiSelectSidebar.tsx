@@ -74,20 +74,20 @@ export function MultiSelectSidebar() {
   }
 
   return (
-    <div className="w-72 border-l border-zinc-800/80 bg-zinc-950 flex flex-col shrink-0 animate-slide-right">
-      <div className="p-4 border-b border-zinc-800/60">
+    <div className="theme-surface theme-border w-72 border-l flex flex-col shrink-0 animate-slide-right">
+      <div className="p-4 border-b theme-border">
         <div className="flex items-center justify-between">
           <div>
-            <div className="text-sm font-medium text-zinc-200">
+            <div className="text-sm font-medium text-[var(--panel-fg)]">
               {count} selected
             </div>
-            <div className="text-[11px] text-zinc-600 mt-0.5">
+            <div className="theme-muted text-[11px] mt-0.5">
               Ctrl+click to toggle, Shift+click for range
             </div>
           </div>
           <button
             onClick={store.deselectAll}
-            className="text-[11px] text-zinc-600 hover:text-zinc-400 transition-colors px-2 py-0.5 rounded hover:bg-zinc-800"
+            className="theme-btn-ghost text-[11px] transition-colors px-2 py-0.5 rounded"
           >
             Clear
           </button>
@@ -105,7 +105,7 @@ export function MultiSelectSidebar() {
             />
           ))}
           {remaining > 0 && (
-            <div className="text-[11px] text-zinc-600 px-1 py-0.5">
+            <div className="theme-muted text-[11px] px-1 py-0.5">
               +{remaining} more
             </div>
           )}
@@ -115,9 +115,9 @@ export function MultiSelectSidebar() {
       <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4">
         <SidebarSection title="Launch">
           {store.launchProgress?.mode === "multi" && (
-            <div className="mb-2 rounded-lg border border-sky-500/20 bg-sky-500/8 px-2.5 py-1.5 animate-fade-in">
-              <div className="flex items-center gap-2 text-[11px] text-sky-300">
-                <span className="w-2 h-2 rounded-full bg-sky-400 animate-pulse" />
+            <div className="theme-accent-bg theme-accent-border mb-2 rounded-lg border px-2.5 py-1.5 animate-fade-in">
+              <div className="theme-accent flex items-center gap-2 text-[11px]">
+                <span className="w-2 h-2 rounded-full bg-[var(--accent-color)] animate-pulse" />
                 <span className="font-medium">
                   Joining {store.launchProgress.current}/{store.launchProgress.total}
                 </span>
@@ -126,7 +126,7 @@ export function MultiSelectSidebar() {
           )}
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center gap-1.5">
-              <label className="text-[10px] text-zinc-600 w-10 shrink-0">Place</label>
+              <label className="theme-label text-[10px] w-10 shrink-0">Place</label>
               <input
                 value={store.placeId}
                 onChange={(e) => store.setPlaceId(e.target.value)}
@@ -135,7 +135,7 @@ export function MultiSelectSidebar() {
               />
             </div>
             <div className="flex items-center gap-1.5">
-              <label className="text-[10px] text-zinc-600 w-10 shrink-0">Job</label>
+              <label className="theme-label text-[10px] w-10 shrink-0">Job</label>
               <input
                 value={store.jobId}
                 onChange={(e) => store.setJobId(e.target.value)}
@@ -144,7 +144,7 @@ export function MultiSelectSidebar() {
               />
             </div>
             <div className="flex items-center gap-1.5">
-              <label className="text-[10px] text-zinc-600 w-10 shrink-0">Data</label>
+              <label className="theme-label text-[10px] w-10 shrink-0">Data</label>
               <input
                 value={store.launchData}
                 onChange={(e) => store.setLaunchData(e.target.value)}
@@ -156,7 +156,7 @@ export function MultiSelectSidebar() {
           <button
             onClick={handleJoin}
             disabled={store.launchProgress?.mode === "multi"}
-            className="sidebar-btn bg-sky-600 hover:bg-sky-500 text-white mt-1.5 disabled:opacity-60 disabled:cursor-not-allowed"
+            className="sidebar-btn theme-btn mt-1.5 disabled:opacity-60 disabled:cursor-not-allowed"
           >
             {store.launchProgress?.mode === "multi" ? "Joining..." : `Join All (${count})`}
           </button>
@@ -167,39 +167,39 @@ export function MultiSelectSidebar() {
             <button
               onClick={handleRefreshAll}
               disabled={refreshing}
-              className="sidebar-btn bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700/60 disabled:opacity-50"
+              className="sidebar-btn theme-btn disabled:opacity-50"
             >
               {refreshing ? "Refreshing..." : `Refresh Cookies (${count})`}
             </button>
-            <button onClick={handleCopyCookies} className="sidebar-btn bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700/60">
+            <button onClick={handleCopyCookies} className="sidebar-btn theme-btn">
               Copy All Cookies
             </button>
 
             <div className="relative">
               <button
                 onClick={() => setMoveOpen(!moveOpen)}
-                className="sidebar-btn bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700/60 flex items-center justify-between"
+                className="sidebar-btn theme-btn flex items-center justify-between"
               >
                 <span>Move to Group</span>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-zinc-500">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="theme-muted">
                   <path d="m6 9 6 6 6-6" />
                 </svg>
               </button>
               {moveOpen && (
-                <div className="absolute left-0 right-0 top-full mt-1 bg-zinc-900 border border-zinc-700/60 rounded-lg shadow-xl z-20 py-1 max-h-40 overflow-y-auto animate-scale-in">
+                <div className="theme-panel theme-border absolute left-0 right-0 top-full mt-1 border rounded-lg shadow-xl z-20 py-1 max-h-40 overflow-y-auto animate-scale-in">
                   {allGroups.map((g) => (
                     <button
                       key={g}
                       onClick={() => handleMoveToGroup(g)}
-                      className="w-full text-left px-3 py-1.5 text-[12px] text-zinc-300 hover:bg-zinc-800 truncate"
+                      className="w-full text-left px-3 py-1.5 text-[12px] text-[var(--panel-fg)] hover:bg-[var(--panel-soft)] truncate"
                     >
                       {parseGroupName(g).displayName}
                     </button>
                   ))}
-                  <div className="h-px bg-zinc-800 my-1" />
+                  <div className="theme-border h-px border-t my-1" />
                   <button
                     onClick={handleNewGroup}
-                    className="w-full text-left px-3 py-1.5 text-[12px] text-sky-400 hover:bg-zinc-800"
+                    className="theme-accent w-full text-left px-3 py-1.5 text-[12px] hover:bg-[var(--panel-soft)]"
                   >
                     + New Group...
                   </button>
@@ -216,7 +216,7 @@ export function MultiSelectSidebar() {
                 store.removeAccounts(accounts.map((a) => a.UserID));
               }
             }}
-            className="sidebar-btn bg-zinc-800 hover:bg-red-500/20 hover:text-red-400 text-zinc-500 border border-zinc-700/60"
+            className="sidebar-btn theme-btn text-red-300/80 hover:bg-red-500/15 hover:text-red-300"
           >
             Remove All ({count})
           </button>

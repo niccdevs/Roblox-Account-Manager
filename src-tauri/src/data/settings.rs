@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::fs;
+use std::fs::{self, OpenOptions};
+use std::io::{ErrorKind, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
@@ -429,18 +430,18 @@ pub struct ThemeData {
 impl Default for ThemeData {
     fn default() -> Self {
         Self {
-            accounts_background: "#1E1E2E".to_string(),
-            accounts_foreground: "#CDD6F4".to_string(),
-            buttons_background: "#313244".to_string(),
-            buttons_foreground: "#CDD6F4".to_string(),
-            buttons_border: "#45475A".to_string(),
-            forms_background: "#1E1E2E".to_string(),
-            forms_foreground: "#CDD6F4".to_string(),
-            textboxes_background: "#313244".to_string(),
-            textboxes_foreground: "#CDD6F4".to_string(),
-            textboxes_border: "#45475A".to_string(),
-            label_background: "#1E1E2E".to_string(),
-            label_foreground: "#CDD6F4".to_string(),
+            accounts_background: "#09090B".to_string(),
+            accounts_foreground: "#E4E4E7".to_string(),
+            buttons_background: "#27272A".to_string(),
+            buttons_foreground: "#A1A1AA".to_string(),
+            buttons_border: "#3F3F46".to_string(),
+            forms_background: "#09090B".to_string(),
+            forms_foreground: "#E4E4E7".to_string(),
+            textboxes_background: "#18181B".to_string(),
+            textboxes_foreground: "#D4D4D8".to_string(),
+            textboxes_border: "#27272A".to_string(),
+            label_background: "#09090B".to_string(),
+            label_foreground: "#71717A".to_string(),
             label_transparent: true,
             dark_top_bar: true,
             show_headers: true,
@@ -593,20 +594,235 @@ impl ThemeStore {
     }
 }
 
-pub fn get_settings_path() -> PathBuf {
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ThemePresetData {
+    pub id: String,
+    pub name: String,
+    pub theme: ThemeData,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct ThemePresetExportFile {
+    format: String,
+    name: String,
+    theme: ThemeData,
+}
+
+pub struct ThemePresetStore {
+    presets: Mutex<Vec<ThemePresetData>>,
+    file_path: PathBuf,
+}
+
+impl ThemePresetStore {
+    pub fn new(file_path: PathBuf) -> Self {
+        let presets = Self::load_from_file(&file_path);
+        Self {
+            presets: Mutex::new(presets),
+            file_path,
+        }
+    }
+
+    fn load_from_file(path: &Path) -> Vec<ThemePresetData> {
+        if !path.exists() {
+            return Vec::new();
+        }
+
+        let raw = match fs::read_to_string(path) {
+            Ok(v) => v,
+            Err(_) => return Vec::new(),
+        };
+
+        serde_json::from_str::<Vec<ThemePresetData>>(&raw).unwrap_or_default()
+    }
+
+    fn save_all(&self, presets: &[ThemePresetData]) -> Result<(), String> {
+        let payload =
+            serde_json::to_string_pretty(presets).map_err(|e| format!("Failed to serialize presets: {}", e))?;
+        fs::write(&self.file_path, payload)
+            .map_err(|e| format!("Failed to write preset file {}: {}", self.file_path.display(), e))
+    }
+
+    fn sanitize_preset_name(name: &str) -> String {
+        let trimmed = name.trim();
+        if trimmed.is_empty() {
+            return "Custom Preset".to_string();
+        }
+        trimmed.to_string()
+    }
+
+    fn make_preset_id(name: &str) -> String {
+        let mut slug = String::new();
+        for ch in name.chars() {
+            if ch.is_ascii_alphanumeric() {
+                slug.push(ch.to_ascii_lowercase());
+            } else if ch == ' ' || ch == '-' || ch == '_' {
+                if !slug.ends_with('-') {
+                    slug.push('-');
+                }
+            }
+        }
+        let base = slug.trim_matches('-');
+        let safe = if base.is_empty() { "preset" } else { base };
+        format!("{}-{}", safe, chrono::Utc::now().timestamp_millis())
+    }
+
+    fn sanitize_file_stem(name: &str) -> String {
+        let mut out = String::new();
+        for ch in name.chars() {
+            if ch.is_ascii_alphanumeric() || ch == '-' || ch == '_' {
+                out.push(ch);
+            } else if ch == ' ' {
+                out.push('-');
+            }
+        }
+        let trimmed = out.trim_matches('-');
+        if trimmed.is_empty() {
+            "theme-preset".to_string()
+        } else {
+            trimmed.to_string()
+        }
+    }
+
+    pub fn get_all(&self) -> Result<Vec<ThemePresetData>, String> {
+        let presets = self.presets.lock().map_err(|e| e.to_string())?;
+        Ok(presets.clone())
+    }
+
+    pub fn save_preset(&self, name: &str, theme: ThemeData) -> Result<ThemePresetData, String> {
+        let normalized_name = Self::sanitize_preset_name(name);
+        let mut presets = self.presets.lock().map_err(|e| e.to_string())?;
+
+        if let Some(existing) = presets
+            .iter_mut()
+            .find(|p| p.name.eq_ignore_ascii_case(&normalized_name))
+        {
+            existing.name = normalized_name.clone();
+            existing.theme = theme;
+            let result = existing.clone();
+            let snapshot = presets.clone();
+            drop(presets);
+            self.save_all(&snapshot)?;
+            return Ok(result);
+        }
+
+        let preset = ThemePresetData {
+            id: Self::make_preset_id(&normalized_name),
+            name: normalized_name,
+            theme,
+        };
+        presets.push(preset.clone());
+        let snapshot = presets.clone();
+        drop(presets);
+        self.save_all(&snapshot)?;
+        Ok(preset)
+    }
+
+    pub fn delete_preset(&self, preset_id: &str) -> Result<(), String> {
+        let mut presets = self.presets.lock().map_err(|e| e.to_string())?;
+        let before = presets.len();
+        presets.retain(|p| p.id != preset_id);
+        if before == presets.len() {
+            return Err(format!("Preset '{}' not found", preset_id));
+        }
+        let snapshot = presets.clone();
+        drop(presets);
+        self.save_all(&snapshot)
+    }
+
+    pub fn import_preset_file(&self, path: &str) -> Result<ThemePresetData, String> {
+        let raw = fs::read_to_string(path).map_err(|e| format!("Failed to read preset file: {}", e))?;
+        let value: serde_json::Value =
+            serde_json::from_str(&raw).map_err(|e| format!("Invalid preset JSON: {}", e))?;
+
+        let (name, theme) = if let Some(theme_value) = value.get("theme") {
+            let parsed_theme: ThemeData = serde_json::from_value(theme_value.clone())
+                .map_err(|e| format!("Invalid preset theme payload: {}", e))?;
+            let parsed_name = value
+                .get("name")
+                .and_then(|n| n.as_str())
+                .map(|n| n.to_string())
+                .unwrap_or_default();
+            (parsed_name, parsed_theme)
+        } else {
+            let parsed_theme: ThemeData =
+                serde_json::from_value(value).map_err(|e| format!("Invalid theme data: {}", e))?;
+            (String::new(), parsed_theme)
+        };
+
+        let fallback_name = Path::new(path)
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("Imported Preset")
+            .to_string();
+        let chosen_name = if name.trim().is_empty() {
+            fallback_name
+        } else {
+            name
+        };
+
+        self.save_preset(&chosen_name, theme)
+    }
+
+    pub fn export_preset_file(name: &str, theme: ThemeData) -> Result<String, String> {
+        let normalized_name = Self::sanitize_preset_name(name);
+        let stem = Self::sanitize_file_stem(&normalized_name);
+        let base_dir = get_runtime_data_dir();
+        let mut out_path = base_dir.join(format!("{}.ram-theme.json", stem));
+
+        let payload = ThemePresetExportFile {
+            format: "ram-theme-preset-v1".to_string(),
+            name: normalized_name,
+            theme,
+        };
+
+        let json = serde_json::to_string_pretty(&payload)
+            .map_err(|e| format!("Failed to serialize exported preset: {}", e))?;
+
+        loop {
+            match OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&out_path)
+            {
+                Ok(mut file) => {
+                    file.write_all(json.as_bytes()).map_err(|e| {
+                        format!("Failed to write preset export {}: {}", out_path.display(), e)
+                    })?;
+                    return Ok(out_path.to_string_lossy().into_owned());
+                }
+                Err(e) if e.kind() == ErrorKind::AlreadyExists => {
+                    let suffix = chrono::Utc::now().format("%Y%m%d-%H%M%S-%f");
+                    out_path = base_dir.join(format!("{}-{}.ram-theme.json", stem, suffix));
+                }
+                Err(e) => {
+                    return Err(format!(
+                        "Failed to write preset export {}: {}",
+                        out_path.display(),
+                        e
+                    ));
+                }
+            }
+        }
+    }
+}
+
+fn get_runtime_data_dir() -> PathBuf {
     std::env::current_exe()
         .ok()
         .and_then(|p| p.parent().map(|p| p.to_path_buf()))
         .unwrap_or_else(|| std::env::current_dir().unwrap_or_default())
-        .join("RAMSettings.ini")
+}
+
+pub fn get_settings_path() -> PathBuf {
+    get_runtime_data_dir().join("RAMSettings.ini")
 }
 
 pub fn get_theme_path() -> PathBuf {
-    std::env::current_exe()
-        .ok()
-        .and_then(|p| p.parent().map(|p| p.to_path_buf()))
-        .unwrap_or_else(|| std::env::current_dir().unwrap_or_default())
-        .join("RAMTheme.ini")
+    get_runtime_data_dir().join("RAMTheme.ini")
+}
+
+pub fn get_theme_presets_path() -> PathBuf {
+    get_runtime_data_dir().join("RAMThemePresets.json")
 }
 
 #[tauri::command]
@@ -643,4 +859,39 @@ pub fn get_theme(state: tauri::State<'_, ThemeStore>) -> Result<ThemeData, Strin
 #[tauri::command]
 pub fn update_theme(state: tauri::State<'_, ThemeStore>, theme: ThemeData) -> Result<(), String> {
     state.update(theme)
+}
+
+#[tauri::command]
+pub fn get_theme_presets(state: tauri::State<'_, ThemePresetStore>) -> Result<Vec<ThemePresetData>, String> {
+    state.get_all()
+}
+
+#[tauri::command]
+pub fn save_theme_preset(
+    state: tauri::State<'_, ThemePresetStore>,
+    name: String,
+    theme: ThemeData,
+) -> Result<ThemePresetData, String> {
+    state.save_preset(&name, theme)
+}
+
+#[tauri::command]
+pub fn delete_theme_preset(
+    state: tauri::State<'_, ThemePresetStore>,
+    preset_id: String,
+) -> Result<(), String> {
+    state.delete_preset(&preset_id)
+}
+
+#[tauri::command]
+pub fn import_theme_preset_file(
+    state: tauri::State<'_, ThemePresetStore>,
+    path: String,
+) -> Result<ThemePresetData, String> {
+    state.import_preset_file(&path)
+}
+
+#[tauri::command]
+pub fn export_theme_preset_file(name: String, theme: ThemeData) -> Result<String, String> {
+    ThemePresetStore::export_preset_file(&name, theme)
 }

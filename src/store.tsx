@@ -12,6 +12,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type { Account, ThemeData, ThumbnailData, ParsedGroup } from "./types";
 import { parseGroupName } from "./types";
+import { applyThemeCssVariables, normalizeTheme } from "./theme";
 
 interface PresenceEntry {
   userId?: number;
@@ -91,6 +92,8 @@ export interface StoreValue {
 
   settings: Record<string, Record<string, string>> | null;
   theme: ThemeData | null;
+  applyThemePreview: (theme: ThemeData) => void;
+  saveTheme: (theme: ThemeData) => Promise<void>;
   devMode: boolean;
 
   avatarUrls: Map<number, string>;
@@ -195,7 +198,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [settings, setSettings] = useState<Record<string, Record<string, string>> | null>(null);
-  const [theme, setTheme] = useState<ThemeData | null>(null);
+  const [theme, setThemeState] = useState<ThemeData | null>(null);
   const [avatarUrls, setAvatarUrls] = useState<Map<number, string>>(new Map());
   const [presenceByUserId, setPresenceByUserId] = useState<Map<number, number>>(new Map());
   const [launchedByProgram, setLaunchedByProgram] = useState<Set<number>>(new Set());
@@ -710,21 +713,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  function applyThemeCss(t: ThemeData) {
-    const s = document.documentElement.style;
-    s.setProperty("--accounts-bg", t.accounts_background);
-    s.setProperty("--accounts-fg", t.accounts_foreground);
-    s.setProperty("--buttons-bg", t.buttons_background);
-    s.setProperty("--buttons-fg", t.buttons_foreground);
-    s.setProperty("--buttons-bc", t.buttons_border);
-    s.setProperty("--forms-bg", t.forms_background);
-    s.setProperty("--forms-fg", t.forms_foreground);
-    s.setProperty("--textboxes-bg", t.textboxes_background);
-    s.setProperty("--textboxes-fg", t.textboxes_foreground);
-    s.setProperty("--textboxes-bc", t.textboxes_border);
-    s.setProperty("--labels-bg", t.label_transparent ? "transparent" : t.label_background);
-    s.setProperty("--labels-fg", t.label_foreground);
-  }
+  const applyThemePreview = useCallback((nextTheme: ThemeData) => {
+    const normalized = normalizeTheme(nextTheme);
+    setThemeState(normalized);
+    applyThemeCssVariables(normalized);
+  }, []);
+
+  const saveTheme = useCallback(async (nextTheme: ThemeData) => {
+    const normalized = normalizeTheme(nextTheme);
+    await invoke("update_theme", { theme: normalized });
+    setThemeState(normalized);
+    applyThemeCssVariables(normalized);
+  }, []);
 
   async function reloadSettings() {
     try {
@@ -767,8 +767,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       } catch {}
       try {
         const t = await invoke<ThemeData>("get_theme");
-        setTheme(t);
-        applyThemeCss(t);
+        applyThemePreview(t);
       } catch {}
       setInitialized(true);
     })();
@@ -1048,6 +1047,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     closeContextMenu,
     settings,
     theme,
+    applyThemePreview,
+    saveTheme,
     devMode,
     avatarUrls,
     presenceByUserId,

@@ -1,3 +1,5 @@
+#![cfg_attr(debug_assertions, allow(dead_code))]
+
 mod api;
 mod browser;
 mod data;
@@ -12,7 +14,14 @@ use tauri_plugin_autostart::MacosLauncher;
 use api::batch::ImageCache;
 use data::accounts::{AccountStore, get_account_data_path};
 use data::crypto;
-use data::settings::{SettingsStore, ThemeStore, get_settings_path, get_theme_path};
+use data::settings::{
+    SettingsStore,
+    ThemePresetStore,
+    ThemeStore,
+    get_settings_path,
+    get_theme_path,
+    get_theme_presets_path,
+};
 
 #[tauri::command]
 async fn validate_cookie(cookie: String) -> Result<api::auth::AccountInfo, String> {
@@ -1212,6 +1221,7 @@ pub fn run() {
 
     let settings_store = SettingsStore::new(get_settings_path());
     let theme_store = ThemeStore::new(get_theme_path());
+    let theme_preset_store = ThemePresetStore::new(get_theme_presets_path());
     let image_cache = ImageCache::new();
 
     tauri::Builder::default()
@@ -1229,6 +1239,7 @@ pub fn run() {
         .manage(account_store)
         .manage(settings_store)
         .manage(theme_store)
+        .manage(theme_preset_store)
         .manage(image_cache)
         .setup(|app| {
             let show = MenuItemBuilder::with_id("show", "Show").build(app)?;
@@ -1311,6 +1322,11 @@ pub fn run() {
             data::settings::update_setting,
             data::settings::get_theme,
             data::settings::update_theme,
+            data::settings::get_theme_presets,
+            data::settings::save_theme_preset,
+            data::settings::delete_theme_preset,
+            data::settings::import_theme_preset_file,
+            data::settings::export_theme_preset_file,
             test_auth,
             validate_cookie,
             get_csrf_token,

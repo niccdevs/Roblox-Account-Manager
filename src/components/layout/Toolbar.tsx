@@ -8,6 +8,7 @@ export function Toolbar() {
   const prompt = usePrompt();
   const [addMenuOpen, setAddMenuOpen] = useState(false);
   const addRef = useRef<HTMLDivElement>(null);
+  const activeToggleStyle = "theme-accent theme-accent-bg theme-accent-border";
 
   useEffect(() => {
     if (!addMenuOpen) return;
@@ -94,7 +95,7 @@ export function Toolbar() {
   }
 
   return (
-    <div className="flex items-center gap-3 px-4 py-2 border-b border-zinc-800/80 bg-zinc-950 shrink-0">
+    <div className="theme-panel theme-border flex items-center gap-3 px-4 py-2 border-b shrink-0">
       <div className="relative flex-1 max-w-xs">
         <svg
           width="15"
@@ -103,7 +104,7 @@ export function Toolbar() {
           fill="none"
           stroke="currentColor"
           strokeWidth="2"
-          className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600"
+          className="absolute left-3 top-1/2 -translate-y-1/2 theme-muted"
         >
           <circle cx="11" cy="11" r="8" />
           <path d="m21 21-4.35-4.35" />
@@ -116,12 +117,12 @@ export function Toolbar() {
           placeholder="Filter accounts..."
           autoComplete="off"
           spellCheck={false}
-          className="w-full pl-9 pr-3 py-1.5 bg-zinc-900/60 border border-zinc-800 rounded-lg text-sm text-zinc-300 placeholder-zinc-600 focus:outline-none focus:border-zinc-600 transition-colors"
+          className="theme-input w-full pl-9 pr-3 py-1.5 rounded-lg text-sm transition-colors"
         />
         {store.searchQuery && (
           <button
             onClick={() => store.setSearchQuery("")}
-            className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-600 hover:text-zinc-400"
+            className="absolute right-2 top-1/2 -translate-y-1/2 theme-muted hover:opacity-100"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M18 6 6 18M6 6l12 12" />
@@ -135,8 +136,8 @@ export function Toolbar() {
           onClick={() => store.toggleSelectAll()}
           className={`px-2.5 py-1.5 text-xs rounded-lg border transition-colors ${
             store.selectedIds.size > 0
-              ? "bg-sky-500/10 border-sky-500/30 text-sky-400"
-              : "border-zinc-800 text-zinc-500 hover:text-zinc-400 hover:border-zinc-700"
+              ? activeToggleStyle
+              : "theme-btn-ghost"
           }`}
           title={store.selectedIds.size > 0 ? `Deselect all (${store.selectedIds.size})` : "Select all"}
         >
@@ -157,8 +158,8 @@ export function Toolbar() {
           onClick={() => store.setHideUsernames(!store.hideUsernames)}
           className={`px-2.5 py-1.5 text-xs rounded-lg border transition-colors ${
             store.hideUsernames
-              ? "bg-sky-500/10 border-sky-500/30 text-sky-400"
-              : "border-zinc-800 text-zinc-500 hover:text-zinc-400 hover:border-zinc-700"
+              ? activeToggleStyle
+              : "theme-btn-ghost"
           }`}
         >
           {store.hideUsernames ? "Hidden" : "Names"}
@@ -168,8 +169,8 @@ export function Toolbar() {
           onClick={() => store.setSidebarOpen(!store.sidebarOpen)}
           className={`p-1.5 rounded-lg border transition-colors ${
             store.sidebarOpen
-              ? "bg-sky-500/10 border-sky-500/30 text-sky-400"
-              : "border-zinc-800 text-zinc-500 hover:text-zinc-400"
+              ? activeToggleStyle
+              : "theme-btn-ghost"
           }`}
           title={store.sidebarOpen ? "Hide panel" : "Show panel"}
         >
@@ -179,12 +180,12 @@ export function Toolbar() {
           </svg>
         </button>
 
-        <div className="w-px h-5 bg-zinc-800 mx-1" />
+        <div className="w-px h-5 mx-1 bg-[var(--border-color)]" />
 
         <div ref={addRef} className="relative">
           <button
             onClick={() => setAddMenuOpen(!addMenuOpen)}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-sky-600 hover:bg-sky-500 text-white text-xs font-medium rounded-lg transition-colors"
+            className="theme-btn flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <path d="M12 5v14M5 12h14" />
@@ -195,33 +196,33 @@ export function Toolbar() {
             </svg>
           </button>
           {addMenuOpen && (
-            <div className="absolute right-0 top-full mt-1.5 w-52 bg-zinc-900 border border-zinc-700/60 rounded-xl shadow-2xl z-50 animate-scale-in py-1">
+            <div className="theme-panel theme-border absolute right-0 top-full mt-1.5 w-52 border rounded-xl shadow-2xl z-50 animate-scale-in py-1">
               <button
                 onClick={handleQuickAdd}
-                className="flex items-center gap-2.5 w-full px-3.5 py-2 text-sm text-zinc-300 hover:bg-zinc-800 text-left"
+                className="flex items-center gap-2.5 w-full px-3.5 py-2 text-sm text-[var(--panel-fg)] hover:bg-[var(--panel-soft)] text-left"
               >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-zinc-500">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="theme-muted">
                   <path d="M12 5v14M5 12h14" />
                 </svg>
                 Quick Add
               </button>
               <button
                 onClick={handleBrowserLogin}
-                className="flex items-center gap-2.5 w-full px-3.5 py-2 text-sm text-zinc-300 hover:bg-zinc-800 text-left"
+                className="flex items-center gap-2.5 w-full px-3.5 py-2 text-sm text-[var(--panel-fg)] hover:bg-[var(--panel-soft)] text-left"
               >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-zinc-500">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="theme-muted">
                   <circle cx="12" cy="12" r="10" />
                   <path d="M2 12h20" />
                   <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
                 </svg>
                 Browser Login
               </button>
-              <div className="mx-3 my-0.5 border-t border-zinc-800/60" />
+              <div className="mx-3 my-0.5 border-t theme-border" />
               <button
                 onClick={handleImportCookie}
-                className="flex items-center gap-2.5 w-full px-3.5 py-2 text-sm text-zinc-300 hover:bg-zinc-800 text-left"
+                className="flex items-center gap-2.5 w-full px-3.5 py-2 text-sm text-[var(--panel-fg)] hover:bg-[var(--panel-soft)] text-left"
               >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-zinc-500">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="theme-muted">
                   <path d="M15.5 2H8.6c-.4 0-.8.2-1.1.5-.3.3-.5.7-.5 1.1v16.8c0 .4.2.8.5 1.1.3.3.7.5 1.1.5h10.8c.4 0 .8-.2 1.1-.5.3-.3.5-.7.5-1.1V7.5L15.5 2z" />
                   <polyline points="14 2 14 8 20 8" />
                 </svg>
@@ -229,9 +230,9 @@ export function Toolbar() {
               </button>
               <button
                 onClick={handleImportUserPass}
-                className="flex items-center gap-2.5 w-full px-3.5 py-2 text-sm text-zinc-300 hover:bg-zinc-800 text-left"
+                className="flex items-center gap-2.5 w-full px-3.5 py-2 text-sm text-[var(--panel-fg)] hover:bg-[var(--panel-soft)] text-left"
               >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-zinc-500">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="theme-muted">
                   <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
                   <circle cx="9" cy="7" r="4" />
                   <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
@@ -245,7 +246,7 @@ export function Toolbar() {
 
         <button
           onClick={() => store.setSettingsOpen(true)}
-          className="p-1.5 rounded-lg border border-zinc-800 text-zinc-500 hover:text-zinc-400 hover:border-zinc-700 transition-colors"
+          className="theme-btn-ghost p-1.5 rounded-lg transition-colors"
           title="Settings"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
