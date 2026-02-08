@@ -50,7 +50,7 @@ export function ServerContextMenu({
   return createPortal(
     <div
       ref={ref}
-      className="fixed z-[60] bg-zinc-900/98 border border-zinc-700/60 rounded-xl shadow-2xl py-1 w-44 backdrop-blur-xl animate-scale-in"
+      className="theme-modal-scope theme-panel theme-border fixed z-[60] bg-zinc-900/98 border border-zinc-700/60 rounded-xl shadow-2xl py-1 w-44 backdrop-blur-xl animate-scale-in"
       style={{ top: pos.top, left: pos.left }}
     >
       <button

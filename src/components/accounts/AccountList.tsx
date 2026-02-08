@@ -88,21 +88,21 @@ export function AccountList() {
   if (store.accounts.length === 0 && !store.searchQuery) {
     return (
       <div
-        className="flex-1 flex flex-col items-center justify-center min-h-0 text-center px-8"
+        className="theme-surface flex-1 flex flex-col items-center justify-center min-h-0 text-center px-8"
         onDragOver={handleDragOver}
         onDrop={handleExternalDrop}
       >
-        <div className="w-14 h-14 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center mb-4 animate-fade-in">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-zinc-600">
+        <div className="theme-panel theme-border w-14 h-14 rounded-2xl border flex items-center justify-center mb-4 animate-fade-in">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="theme-muted">
             <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
             <circle cx="9" cy="7" r="4" />
             <line x1="19" y1="8" x2="19" y2="14" />
             <line x1="22" y1="11" x2="16" y2="11" />
           </svg>
         </div>
-        <p className="text-sm text-zinc-500 mb-1 animate-fade-in">No accounts yet</p>
-        <p className="text-xs text-zinc-700 animate-fade-in">
-          Click <span className="text-sky-500">Add</span> or drop a cookie here
+        <p className="theme-muted text-sm mb-1 animate-fade-in">No accounts yet</p>
+        <p className="theme-label text-xs animate-fade-in">
+          Click <span className="theme-accent">Add</span> or drop a cookie here
         </p>
       </div>
     );
@@ -110,8 +110,8 @@ export function AccountList() {
 
   if (store.groups.length === 0 && store.searchQuery) {
     return (
-      <div className="flex-1 flex items-center justify-center min-h-0">
-        <p className="text-sm text-zinc-600 animate-fade-in">No matches for &ldquo;{store.searchQuery}&rdquo;</p>
+      <div className="theme-surface flex-1 flex items-center justify-center min-h-0">
+        <p className="theme-muted text-sm animate-fade-in">No matches for &ldquo;{store.searchQuery}&rdquo;</p>
       </div>
     );
   }

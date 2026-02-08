@@ -10,15 +10,21 @@ export function ColorRow({
   const safeColor = value.startsWith("#") && (value.length === 7 || value.length === 4) ? value : "#000000";
   return (
     <div className="flex items-center justify-between py-1.5">
-      <span className="text-xs text-zinc-300">{label}</span>
-      <div className="flex items-center gap-2">
+      <span className="text-xs text-[var(--panel-fg)]">{label}</span>
+      <div className="flex items-center gap-2 min-w-0">
         <input
           type="color"
           value={safeColor}
           onChange={(e) => onChange(e.target.value)}
-          className="w-7 h-7 rounded border border-zinc-700 cursor-pointer bg-transparent"
+          className="w-7 h-7 rounded border theme-border cursor-pointer bg-transparent shrink-0"
         />
-        <span className="text-[10px] text-zinc-500 font-mono w-16">{value}</span>
+        <input
+          type="text"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="theme-input w-28 px-2 py-1 rounded text-[10px] font-mono"
+          spellCheck={false}
+        />
       </div>
     </div>
   );

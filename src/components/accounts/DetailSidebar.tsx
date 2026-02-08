@@ -11,12 +11,12 @@ export function DetailSidebar() {
 
   if (!store.selectedAccount) {
     return (
-      <div className="w-72 border-l border-zinc-800/80 bg-zinc-950 flex flex-col items-center justify-center shrink-0">
-        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" className="text-zinc-800 mb-3">
+      <div className="theme-surface theme-border w-72 border-l flex flex-col items-center justify-center shrink-0">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" className="theme-muted mb-3">
           <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
           <circle cx="9" cy="7" r="4" />
         </svg>
-        <p className="text-xs text-zinc-700">Select an account</p>
+        <p className="theme-muted text-xs">Select an account</p>
       </div>
     );
   }

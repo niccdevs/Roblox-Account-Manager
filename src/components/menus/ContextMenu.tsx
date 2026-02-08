@@ -308,7 +308,7 @@ export function ContextMenu() {
   return (
     <div
       ref={ref}
-      className="fixed z-50 min-w-[220px] bg-zinc-900/95 backdrop-blur-xl border border-zinc-700/50 rounded-xl shadow-2xl py-1.5 animate-scale-in"
+      className="theme-modal-scope theme-panel theme-border fixed z-50 min-w-[220px] bg-zinc-900/95 backdrop-blur-xl border border-zinc-700/50 rounded-xl shadow-2xl py-1.5 animate-scale-in"
       style={{
         left: menuPos?.left ?? pos.x,
         top: menuPos?.top ?? pos.y,

@@ -30,12 +30,12 @@ export function AccountRow({ account }: { account: Account }) {
 
   const presenceMeta =
     presenceType === 3
-      ? { label: "In Studio", dot: "bg-violet-500" }
+      ? { label: "In Studio", dotClass: "bg-violet-500", dotStyle: undefined as React.CSSProperties | undefined }
       : presenceType >= 2
-      ? { label: "In Game", dot: "bg-emerald-500" }
+      ? { label: "In Game", dotClass: "bg-emerald-500", dotStyle: undefined as React.CSSProperties | undefined }
       : presenceType === 1
-        ? { label: "Online", dot: "bg-sky-500" }
-        : { label: "Offline", dot: "bg-zinc-600" };
+        ? { label: "Online", dotClass: "bg-sky-500", dotStyle: undefined as React.CSSProperties | undefined }
+        : { label: "Offline", dotClass: "", dotStyle: { backgroundColor: "var(--panel-muted)" } };
 
   const statusDots: Array<{ color: string; title: string }> = [];
   if (!account.Valid) {
@@ -85,11 +85,10 @@ export function AccountRow({ account }: { account: Account }) {
 
   return (
     <div
-      className={`group/row flex items-center gap-3 px-3 py-1.5 cursor-default select-none border-l-2 transition-all duration-100 ${
-        selected
-          ? "bg-sky-500/15 border-l-sky-500"
-          : "border-l-transparent hover:bg-zinc-800/40"
+      className={`group/row theme-row-hover flex items-center gap-3 px-3 py-1.5 cursor-default select-none border-l-2 transition-colors duration-100 ${
+        selected ? "theme-row-selected" : "border-l-transparent"
       }`}
+      style={selected ? { borderLeftColor: "var(--accent-color)" } : undefined}
       onClick={handleClick}
       onContextMenu={handleContext}
       draggable
@@ -107,13 +106,25 @@ export function AccountRow({ account }: { account: Account }) {
       <div className={`shrink-0 overflow-hidden transition-all duration-150 ease-out ${
         multiMode ? "w-4 opacity-100" : "w-0 opacity-0"
       }`}>
-        <div className={`w-4 h-4 rounded border flex items-center justify-center transition-all duration-100 ${
-          selected
-            ? "bg-sky-500 border-sky-500"
-            : "border-zinc-600 group-hover/row:border-zinc-500"
-        }`}>
+        <div
+          className={`w-4 h-4 rounded border flex items-center justify-center transition-all duration-100 ${
+            selected ? "" : "theme-border group-hover/row:brightness-110"
+          }`}
+          style={
+            selected
+              ? { backgroundColor: "var(--accent-color)", borderColor: "var(--accent-color)" }
+              : undefined
+          }
+        >
           {selected && (
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3">
+            <svg
+              width="10"
+              height="10"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="var(--forms-bg)"
+              strokeWidth="3"
+            >
               <polyline points="20 6 9 17 4 12" />
             </svg>
           )}
@@ -127,14 +138,14 @@ export function AccountRow({ account }: { account: Account }) {
               <span
                 key={index}
                 title={dot.title}
-                className="w-2 h-2 rounded-full ring-1 ring-zinc-950/90"
-                style={{ backgroundColor: dot.color }}
+                className="w-2 h-2 rounded-full"
+                style={{ boxShadow: "0 0 0 1px var(--app-bg)", backgroundColor: dot.color }}
               />
             ))}
           </div>
         )}
         {hideAvatar ? (
-          <div className="w-8 h-8 rounded-full bg-zinc-800/80 flex items-center justify-center text-zinc-600">
+          <div className="theme-avatar w-8 h-8 rounded-full bg-[var(--panel-soft)] flex items-center justify-center theme-muted">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
               <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
               <circle cx="9" cy="7" r="4" />
@@ -144,11 +155,11 @@ export function AccountRow({ account }: { account: Account }) {
           <img
             src={avatarUrl}
             alt=""
-            className="w-8 h-8 rounded-full bg-zinc-800 transition-transform duration-150 group-hover/row:scale-105"
+            className="theme-avatar w-8 h-8 rounded-full bg-[var(--panel-soft)] transition-transform duration-150 group-hover/row:scale-105"
             loading="lazy"
           />
         ) : (
-          <div className="w-8 h-8 rounded-full bg-zinc-800/80 flex items-center justify-center text-zinc-600 text-xs font-medium">
+          <div className="theme-avatar w-8 h-8 rounded-full bg-[var(--panel-soft)] flex items-center justify-center theme-muted text-xs font-medium">
             {(account.Username || "?").charAt(0).toUpperCase()}
           </div>
         )}
@@ -158,40 +169,39 @@ export function AccountRow({ account }: { account: Account }) {
         <div className="flex items-center gap-1.5 min-w-0">
           {showPresence && presenceType >= 1 && (
             <span
-              className={`w-1.5 h-1.5 rounded-full shrink-0 ${presenceMeta.dot} ${presenceType >= 1 ? "animate-pulse" : ""}`}
+              className={`w-1.5 h-1.5 rounded-full shrink-0 ${presenceMeta.dotClass} ${presenceType >= 1 ? "animate-pulse" : ""}`}
+              style={presenceMeta.dotStyle}
               title={presenceMeta.label}
             />
           )}
-          <div className={`text-[13px] truncate leading-tight transition-colors duration-100 ${selected ? "text-sky-200" : "text-zinc-200"}`}>
+          <div
+            className={`text-[13px] truncate leading-tight transition-colors duration-100 ${
+              selected ? "theme-accent" : "text-[var(--panel-fg)]"
+            }`}
+          >
             {displayName}
           </div>
         </div>
         {showUsername && (
-          <div className="text-[11px] text-zinc-600 truncate leading-tight">
+          <div className="text-[11px] theme-muted truncate leading-tight">
             @{account.Username}
           </div>
         )}
         {description && (
-          <div className="text-[11px] text-zinc-600 truncate leading-tight lg:hidden">
+          <div className="text-[11px] theme-muted truncate leading-tight">
             {description}
           </div>
         )}
       </div>
 
-      {description && (
-        <div className="text-[11px] text-zinc-600 truncate max-w-[180px] hidden lg:block">
-          {description}
-        </div>
-      )}
-
       <div className="text-[11px] w-14 text-right flex-shrink-0 tabular-nums">
         {isJoining ? (
-          <span className="inline-flex items-center gap-1 text-sky-400">
-            <span className="w-2 h-2 border border-sky-400 border-t-transparent rounded-full animate-spin" />
+          <span className="inline-flex items-center gap-1 theme-accent">
+            <span className="w-2 h-2 border border-[var(--accent-color)] border-t-transparent rounded-full animate-spin" />
             <span>Join</span>
           </span>
         ) : (
-          <span className="text-zinc-600">{timeAgo(account.LastUse)}</span>
+          <span className="theme-muted">{timeAgo(account.LastUse)}</span>
         )}
       </div>
     </div>

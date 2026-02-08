@@ -118,47 +118,50 @@ export function SingleSelectSidebar() {
   const isJoining = store.joiningAccounts.has(account.UserID);
   const presenceMeta =
     presenceType === 3
-      ? { label: "In Studio", dot: "bg-violet-500", text: "text-violet-400" }
+      ? { label: "In Studio", dot: "bg-violet-500", dotStyle: undefined as React.CSSProperties | undefined, text: "text-violet-400" }
       : presenceType >= 2
-      ? { label: "In Game", dot: "bg-emerald-500", text: "text-emerald-400" }
+      ? { label: "In Game", dot: "bg-emerald-500", dotStyle: undefined as React.CSSProperties | undefined, text: "text-emerald-400" }
       : presenceType === 1
-        ? { label: "Online", dot: "bg-sky-500", text: "text-sky-400" }
-        : { label: "Offline", dot: "bg-zinc-600", text: "text-zinc-500" };
+        ? { label: "Online", dot: "bg-sky-500", dotStyle: undefined as React.CSSProperties | undefined, text: "text-sky-400" }
+        : { label: "Offline", dot: "", dotStyle: { backgroundColor: "var(--panel-muted)" }, text: "theme-muted" };
 
   return (
-    <div className="w-72 border-l border-zinc-800/80 bg-zinc-950 flex flex-col shrink-0 animate-slide-right">
-      <div className="p-4 border-b border-zinc-800/60">
+    <div className="theme-surface theme-border w-72 border-l flex flex-col shrink-0 animate-slide-right">
+      <div className="p-4 border-b theme-border">
         <div className="flex items-center gap-3">
           {hideAvatar ? (
-            <div className="w-12 h-12 rounded-full bg-zinc-800 flex items-center justify-center text-zinc-600">
+            <div className="theme-avatar w-12 h-12 rounded-full bg-[var(--panel-soft)] flex items-center justify-center theme-muted">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                 <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
                 <circle cx="9" cy="7" r="4" />
               </svg>
             </div>
           ) : avatarUrl ? (
-            <img src={avatarUrl} alt="" className="w-12 h-12 rounded-full bg-zinc-800" />
+            <img src={avatarUrl} alt="" className="theme-avatar w-12 h-12 rounded-full bg-[var(--panel-soft)]" />
           ) : (
-            <div className="w-12 h-12 rounded-full bg-zinc-800 flex items-center justify-center text-zinc-600 text-lg font-medium">
+            <div className="theme-avatar w-12 h-12 rounded-full bg-[var(--panel-soft)] flex items-center justify-center theme-muted text-lg font-medium">
               {(account.Username || "?").charAt(0).toUpperCase()}
             </div>
           )}
           <div className="min-w-0">
             <div className="flex items-center gap-2 min-w-0">
-              <div className="text-sm font-medium text-zinc-200 truncate">
+              <div className="text-sm font-medium text-[var(--panel-fg)] truncate">
                 {displayName}
               </div>
               {store.settings?.General?.ShowPresence === "true" && (
                 <div className={`inline-flex items-center gap-1 text-[10px] ${presenceMeta.text}`}>
-                  <span className={`w-1.5 h-1.5 rounded-full ${presenceMeta.dot} ${presenceType >= 1 ? "animate-pulse" : ""}`} />
+                  <span
+                    className={`w-1.5 h-1.5 rounded-full ${presenceMeta.dot} ${presenceType >= 1 ? "animate-pulse" : ""}`}
+                    style={presenceMeta.dotStyle}
+                  />
                   <span>{presenceMeta.label}</span>
                 </div>
               )}
             </div>
             {account.Alias && !store.hideUsernames && (
-              <div className="text-xs text-zinc-600 truncate">@{account.Username}</div>
+              <div className="text-xs theme-muted truncate">@{account.Username}</div>
             )}
-            <div className="text-[11px] text-zinc-700 font-mono">
+            <div className="text-[11px] theme-muted font-mono">
               {store.hideUsernames ? "ID: ********" : `ID: ${account.UserID}`}
             </div>
           </div>
@@ -166,7 +169,7 @@ export function SingleSelectSidebar() {
 
         <div className="flex items-center gap-3 mt-3 text-xs">
           {robux !== null && (
-            <div className="flex items-center gap-1 text-zinc-400">
+            <div className="flex items-center gap-1 theme-muted">
               <span className="text-amber-500">R$</span>
               <span className="font-mono">
                 {store.hideUsernames && store.hideRobuxWhenHidden ? "****" : robux.toLocaleString()}
@@ -232,7 +235,7 @@ export function SingleSelectSidebar() {
           )}
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center gap-1.5">
-              <label className="text-[10px] text-zinc-600 w-10 shrink-0">Place</label>
+              <label className="theme-label text-[10px] w-10 shrink-0">Place</label>
               <input
                 value={store.placeId}
                 onChange={(e) => store.setPlaceId(e.target.value)}
@@ -241,7 +244,7 @@ export function SingleSelectSidebar() {
               />
             </div>
             <div className="flex items-center gap-1.5">
-              <label className="text-[10px] text-zinc-600 w-10 shrink-0">Job</label>
+              <label className="theme-label text-[10px] w-10 shrink-0">Job</label>
               <input
                 value={store.jobId}
                 onChange={(e) => store.setJobId(e.target.value)}
@@ -253,7 +256,7 @@ export function SingleSelectSidebar() {
                 className={`p-1 rounded text-xs ${
                   store.shuffleJobId
                     ? "text-emerald-400 bg-emerald-500/10"
-                    : "text-zinc-600 hover:text-zinc-400"
+                    : "theme-muted hover:text-[var(--panel-fg)]"
                 }`}
                 title="Shuffle Job ID"
               >
@@ -267,7 +270,7 @@ export function SingleSelectSidebar() {
               </button>
             </div>
             <div className="flex items-center gap-1.5">
-              <label className="text-[10px] text-zinc-600 w-10 shrink-0">Data</label>
+              <label className="theme-label text-[10px] w-10 shrink-0">Data</label>
               <input
                 value={store.launchData}
                 onChange={(e) => store.setLaunchData(e.target.value)}
@@ -276,7 +279,7 @@ export function SingleSelectSidebar() {
               />
               <button
                 onClick={handleSavePlace}
-                className="p-1 rounded text-zinc-600 hover:text-zinc-400"
+                className="theme-muted p-1 rounded hover:text-[var(--panel-fg)]"
                 title="Save to account"
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -291,14 +294,14 @@ export function SingleSelectSidebar() {
             <button
               onClick={handleJoin}
               disabled={isJoining}
-              className="sidebar-btn bg-sky-600 hover:bg-sky-500 text-white flex-1 disabled:opacity-60 disabled:cursor-not-allowed"
+              className="sidebar-btn theme-btn flex-1 disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {isJoining ? "Joining..." : "Join Server"}
             </button>
             <button
               ref={argsRef}
               onClick={() => setArgsOpen(!argsOpen)}
-              className="p-1.5 rounded-lg border border-zinc-700/50 text-zinc-500 hover:text-zinc-300 hover:border-zinc-600 transition-colors"
+              className="theme-btn-ghost p-1.5 rounded-lg transition-colors"
               title="Launch Arguments"
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -309,8 +312,8 @@ export function SingleSelectSidebar() {
             <ArgumentsForm open={argsOpen} onClose={() => setArgsOpen(false)} anchorRef={argsRef} />
           </div>
           {isJoining && (
-            <div className="mt-1.5 inline-flex items-center gap-2 text-[11px] text-sky-300 animate-fade-in">
-              <span className="w-2.5 h-2.5 border border-sky-400 border-t-transparent rounded-full animate-spin" />
+            <div className="theme-accent mt-1.5 inline-flex items-center gap-2 text-[11px] animate-fade-in">
+              <span className="w-2.5 h-2.5 border border-[var(--accent-color)] border-t-transparent rounded-full animate-spin" />
               <span>Preparing Roblox launch for this account...</span>
             </div>
           )}

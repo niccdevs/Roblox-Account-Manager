@@ -46,6 +46,9 @@ If you need maximum stability right now, use the latest legacy release until v4 
 - Cross-platform parity validation (especially macOS runtime behavior)
 - v4-specific documentation and migration notes
 
+## v4 Theming Notes
+- Theme system implementation + maintenance rules: `THEME_SYSTEM.md`
+
 # WARNING
 If someone asks you to generate an "rbx-player link", **DO NOT** do it, they can use these to join any game using your account, or even launch roblox studio with one of your games. They can do many things in game such as spend your robux or even do things that can get your account terminated. **USE THESE FEATURES AT YOUR OWN RISK**
 

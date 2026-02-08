@@ -9,19 +9,10 @@ export function PasswordScreen() {
     <div className="flex h-screen flex-col items-center justify-center bg-zinc-950">
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
-          <div
-            className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-zinc-900 border border-zinc-800 animate-fade-in-up"
-            style={{ animationDelay: "0.05s" }}
-          >
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-zinc-400">
-              <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-            </svg>
-          </div>
-          <h1 className="text-xl font-semibold text-zinc-100 animate-fade-in-up" style={{ animationDelay: "0.1s" }}>
+          <h1 className="text-xl font-semibold text-zinc-100 animate-fade-in-up" style={{ animationDelay: "0.05s" }}>
             Restricted Access
           </h1>
-          <p className="mt-2 text-sm text-zinc-500 animate-fade-in-up" style={{ animationDelay: "0.15s" }}>
+          <p className="mt-2 text-sm text-zinc-500 animate-fade-in-up" style={{ animationDelay: "0.1s" }}>
             Enter your password to continue
           </p>
         </div>

@@ -15,16 +15,16 @@ export function StatusBar() {
   const launchedCount = store.launchedByProgram.size;
 
   return (
-    <div className="flex items-center justify-between gap-3 px-4 py-2 border-t border-zinc-800/80 bg-zinc-950 text-[12px] text-zinc-500 shrink-0">
+    <div className="theme-surface theme-border flex items-center justify-between gap-3 px-4 py-2 border-t text-[12px] shrink-0">
       <div className="flex items-center min-w-0 overflow-hidden pr-1">
         <div
           className={`overflow-hidden transition-[max-width,opacity,margin] duration-150 ease-out ${
             selected > 0 ? "max-w-[120px] opacity-100 mr-4" : "max-w-0 opacity-0 mr-0"
           }`}
         >
-          <span className="flex items-center gap-1.5 shrink-0 whitespace-nowrap">
-            <span className="w-2 h-2 rounded-full bg-sky-500/80" />
-            <span className="text-sky-300">{selected}</span> selected
+          <span className="theme-accent flex items-center gap-1.5 shrink-0 whitespace-nowrap">
+            <span className="w-2 h-2 rounded-full bg-[var(--accent-color)]" />
+            <span>{selected}</span> selected
           </span>
         </div>
 
@@ -33,19 +33,19 @@ export function StatusBar() {
             selected > 0 ? "translate-x-0.5" : "translate-x-0"
           }`}
         >
-          <span className="shrink-0">
+          <span className="theme-muted shrink-0">
           {store.searchQuery ? (
             <>
-              <span className="text-zinc-300">{filtered}</span> / {total} accounts
+              <span className="text-[var(--panel-fg)]">{filtered}</span> / {total} accounts
             </>
           ) : (
             <>
-              <span className="text-zinc-300">{total}</span> account{total !== 1 ? "s" : ""}
+              <span className="text-[var(--panel-fg)]">{total}</span> account{total !== 1 ? "s" : ""}
             </>
           )}
           </span>
           {showPresence && (
-            <span className="inline-flex items-center gap-3 shrink-0">
+            <span className="theme-muted inline-flex items-center gap-3 shrink-0">
               <span className="inline-flex items-center gap-1">
                 <span className="w-2 h-2 rounded-full bg-sky-500/80 animate-pulse" />
                 <span className="text-sky-400/90">{onlineCount}</span> online
@@ -57,37 +57,37 @@ export function StatusBar() {
             </span>
           )}
           {launchedCount > 0 && (
-            <span className="inline-flex items-center gap-1 shrink-0">
+            <span className="theme-muted inline-flex items-center gap-1 shrink-0">
               <span className="w-2 h-2 rounded-full bg-amber-500/90" />
               <span className="text-amber-300/90">{launchedCount}</span> launched
             </span>
           )}
         </div>
       </div>
-      <div className="flex items-center gap-3 shrink-0 text-[12px] text-zinc-400">
-        <span className="text-zinc-500 shrink-0 font-medium">Legend:</span>
+      <div className="theme-muted flex items-center gap-3 shrink-0 text-[12px]">
+        <span className="shrink-0 font-medium">Legend:</span>
         <span className="inline-flex items-center gap-1 shrink-0">
-          <span className="w-2.5 h-2.5 rounded-full bg-red-500 ring-1 ring-zinc-900" />
+          <span className="w-2.5 h-2.5 rounded-full bg-red-500" style={{ boxShadow: "0 0 0 1px var(--app-bg)" }} />
           invalid
         </span>
         <span className="inline-flex items-center gap-1 shrink-0">
-          <span className="w-2.5 h-2.5 rounded-full bg-amber-400 ring-1 ring-zinc-900" />
+          <span className="w-2.5 h-2.5 rounded-full bg-amber-400" style={{ boxShadow: "0 0 0 1px var(--app-bg)" }} />
           aged
         </span>
         <span className="inline-flex items-center gap-1 shrink-0">
-          <span className="w-2.5 h-2.5 rounded-full bg-amber-500 ring-1 ring-zinc-900" />
+          <span className="w-2.5 h-2.5 rounded-full bg-amber-500" style={{ boxShadow: "0 0 0 1px var(--app-bg)" }} />
           launched
         </span>
         <span className="inline-flex items-center gap-1 shrink-0">
-          <span className="w-2.5 h-2.5 rounded-full bg-sky-500 ring-1 ring-zinc-900" />
+          <span className="w-2.5 h-2.5 rounded-full bg-sky-500" style={{ boxShadow: "0 0 0 1px var(--app-bg)" }} />
           online
         </span>
         <span className="inline-flex items-center gap-1 shrink-0">
-          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 ring-1 ring-zinc-900" />
+          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" style={{ boxShadow: "0 0 0 1px var(--app-bg)" }} />
           in game
         </span>
         <span className="inline-flex items-center gap-1 shrink-0">
-          <span className="w-2.5 h-2.5 rounded-full bg-violet-500 ring-1 ring-zinc-900" />
+          <span className="w-2.5 h-2.5 rounded-full bg-violet-500" style={{ boxShadow: "0 0 0 1px var(--app-bg)" }} />
           studio
         </span>
       </div>

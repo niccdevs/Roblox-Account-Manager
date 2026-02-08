@@ -35,7 +35,7 @@ export function Select({ value, options, onChange, className = "" }: SelectProps
   }, [open]);
 
   return (
-    <div ref={ref} className={`relative ${className}`}>
+    <div ref={ref} className={`relative theme-modal-scope ${className}`}>
       <button
         type="button"
         onClick={() => setOpen(!open)}
@@ -47,7 +47,7 @@ export function Select({ value, options, onChange, className = "" }: SelectProps
         </svg>
       </button>
       {open && (
-        <div className="absolute z-50 mt-1 w-full bg-zinc-900 border border-zinc-700/60 rounded-lg shadow-2xl py-0.5 animate-scale-in overflow-hidden">
+        <div className="theme-panel theme-border absolute z-50 mt-1 w-full bg-zinc-900 border border-zinc-700/60 rounded-lg shadow-2xl py-0.5 animate-scale-in overflow-hidden">
           {options.map((o) => (
             <button
               key={o.value}
