@@ -1042,7 +1042,7 @@ function HelpPanel() {
         </button>
         <button
           onClick={() => {
-            window.open("https://github.com/niccdevs/Roblox-Account-Manager/blob/master/RBX%20Alt%20Manager/Nexus/NexusDocs.md");
+            window.open("https://github.com/niccsprojects/Roblox-Account-Manager/blob/v4/RBX%20Alt%20Manager/Nexus/NexusDocs.md");
           }}
           className="px-3 py-1.5 bg-zinc-800 border border-zinc-700/50 rounded-lg text-[11px] text-zinc-300 hover:bg-zinc-700 transition-colors"
         >
