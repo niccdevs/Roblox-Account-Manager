@@ -137,9 +137,10 @@ export function ThemeEditorDialog({ open, onClose }: { open: boolean; onClose: (
   }, [presetMenuOpen]);
 
   useEffect(() => {
+    if (presetOptions.length === 0) return;
     if (presetOptions.some((preset) => preset.key === presetId)) return;
-    const fallback = presetOptions[0]?.key ?? "";
-    if (fallback) {
+    const fallback = presetOptions[0]?.key;
+    if (fallback && presetOptions.some((preset) => preset.key === fallback)) {
       setPresetId(fallback);
     }
   }, [presetOptions, presetId]);

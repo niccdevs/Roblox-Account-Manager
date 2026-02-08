@@ -27,7 +27,7 @@
   "plugins": {
     "updater": {
       "endpoints": [
-        "https://github.com/niccsprojects/Roblox-Account-Manager/releases/latest/download/latest.json"
+        "https://raw.githubusercontent.com/niccsprojects/Roblox-Account-Manager/update-manifests/beta/latest.json"
       ],
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDczRTNBOEYyMzlEQURCQzIKUldUQzI5bzU4cWpqY3hpZklOZnhMV2YyaFJUaUdxV2RtMEZoT1hyZE5wbHN4MzJRRVFLbVNlckQK"
     }

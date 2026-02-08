@@ -1,3 +1,5 @@
+#![cfg_attr(debug_assertions, allow(dead_code))]
+
 mod api;
 mod browser;
 mod data;

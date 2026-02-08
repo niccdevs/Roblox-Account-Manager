@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::fs;
+use std::fs::{self, OpenOptions};
+use std::io::{ErrorKind, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
@@ -768,11 +769,6 @@ impl ThemePresetStore {
         let base_dir = get_runtime_data_dir();
         let mut out_path = base_dir.join(format!("{}.ram-theme.json", stem));
 
-        if out_path.exists() {
-            let suffix = chrono::Utc::now().format("%Y%m%d-%H%M%S");
-            out_path = base_dir.join(format!("{}-{}.ram-theme.json", stem, suffix));
-        }
-
         let payload = ThemePresetExportFile {
             format: "ram-theme-preset-v1".to_string(),
             name: normalized_name,
@@ -781,9 +777,32 @@ impl ThemePresetStore {
 
         let json = serde_json::to_string_pretty(&payload)
             .map_err(|e| format!("Failed to serialize exported preset: {}", e))?;
-        fs::write(&out_path, json)
-            .map_err(|e| format!("Failed to write preset export {}: {}", out_path.display(), e))?;
-        Ok(out_path.to_string_lossy().into_owned())
+
+        loop {
+            match OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&out_path)
+            {
+                Ok(mut file) => {
+                    file.write_all(json.as_bytes()).map_err(|e| {
+                        format!("Failed to write preset export {}: {}", out_path.display(), e)
+                    })?;
+                    return Ok(out_path.to_string_lossy().into_owned());
+                }
+                Err(e) if e.kind() == ErrorKind::AlreadyExists => {
+                    let suffix = chrono::Utc::now().format("%Y%m%d-%H%M%S-%f");
+                    out_path = base_dir.join(format!("{}-{}.ram-theme.json", stem, suffix));
+                }
+                Err(e) => {
+                    return Err(format!(
+                        "Failed to write preset export {}: {}",
+                        out_path.display(),
+                        e
+                    ));
+                }
+            }
+        }
     }
 }
 
