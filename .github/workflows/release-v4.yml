@@ -331,6 +331,116 @@ jobs:
           RELEASE_CHANNEL: ${{ steps.controls.outputs.channel }}
           RELEASE_TAG: ${{ steps.meta.outputs.tag }}
 
+      - name: Finalize release notes
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ env.RELEASE_GITHUB_TOKEN }}
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const tag = process.env.RELEASE_TAG;
+            const channel = String(process.env.RELEASE_CHANNEL || "beta").toLowerCase();
+            const appVersion = process.env.RELEASE_APP_VERSION;
+            const previousTag = process.env.RELEASE_PREVIOUS_TAG;
+            const releaseCommitSha = (context.payload.head_commit?.id || context.sha || "").slice(0, 7);
+
+            let releaseCommitMessage = String(context.payload.head_commit?.message || "").trim();
+            if (!releaseCommitMessage) {
+              try {
+                const commit = await github.rest.repos.getCommit({
+                  owner,
+                  repo,
+                  ref: context.sha
+                });
+                releaseCommitMessage = String(commit.data.commit.message || "").trim();
+              } catch (error) {
+                core.warning(`Could not resolve release commit message from commit API: ${error.message}`);
+              }
+            }
+            releaseCommitMessage = (releaseCommitMessage.split(/\r?\n/)[0] || "N/A").trim();
+
+            const generatedNotes = await github.rest.repos.generateReleaseNotes({
+              owner,
+              repo,
+              tag_name: tag,
+              target_commitish: context.sha,
+              ...(previousTag ? { previous_tag_name: previousTag } : {})
+            });
+            const generatedBody = String(generatedNotes.data.body || "").trim();
+
+            const contributorSet = new Set();
+            if (previousTag) {
+              try {
+                const compare = await github.rest.repos.compareCommitsWithBasehead({
+                  owner,
+                  repo,
+                  basehead: `${previousTag}...${tag}`
+                });
+                for (const commit of compare.data.commits || []) {
+                  const login = commit.author?.login;
+                  if (login) {
+                    contributorSet.add(login);
+                  }
+                }
+              } catch (error) {
+                core.warning(`Could not compute contributor range ${previousTag}...${tag}: ${error.message}`);
+              }
+            }
+
+            const contributors = Array.from(contributorSet);
+            let contributorsBlock = "## Contributors\n- No contributor metadata found for this release range.";
+            if (contributors.length > 0) {
+              const avatars = contributors
+                .map((login) => `<a href=\"https://github.com/${login}\"><img src=\"https://github.com/${login}.png?size=64\" width=\"32\" height=\"32\" alt=\"@${login}\" /></a>`)
+                .join(" ");
+              const names = contributors
+                .map((login) => `[@${login}](https://github.com/${login})`)
+                .join(", ");
+              contributorsBlock = `## Contributors\n${avatars}\n\n${names}`;
+            }
+
+            const channelLabel = channel === "beta" ? "Beta" : "Stable";
+            const warningLine = channel === "beta"
+              ? "This is a beta release. Missing features, bugs, and crashes are possible. Run at your own risk."
+              : "This is a stable release intended for general use.";
+            const calloutType = channel === "beta" ? "WARNING" : "NOTE";
+
+            const topNote = [
+              `> [!${calloutType}]`,
+              `> ${warningLine}`,
+              "",
+              `Channel: ${channelLabel}`,
+              `Release commit: ${releaseCommitSha}`,
+              `Release commit message: ${releaseCommitMessage}`,
+              `App version: ${appVersion}`
+            ].join("\n");
+
+            const finalBody = [
+              topNote,
+              "",
+              generatedBody || "## What's Changed\n- Release notes could not be generated.",
+              "",
+              contributorsBlock
+            ].join("\n");
+
+            const release = await github.rest.repos.getReleaseByTag({
+              owner,
+              repo,
+              tag
+            });
+
+            await github.rest.repos.updateRelease({
+              owner,
+              repo,
+              release_id: release.data.id,
+              body: finalBody
+            });
+        env:
+          RELEASE_CHANNEL: ${{ steps.controls.outputs.channel }}
+          RELEASE_TAG: ${{ steps.meta.outputs.tag }}
+          RELEASE_APP_VERSION: ${{ steps.meta.outputs.app_version }}
+          RELEASE_PREVIOUS_TAG: ${{ steps.meta.outputs.previous_tag }}
+
       - name: Updater signing warning
         if: ${{ steps.updater_bundle.outcome != 'success' }}
         shell: pwsh

@@ -57,6 +57,7 @@ const parsedTags = rawTags
   .filter(Boolean)
   .filter((version) => version.major === current.major);
 
+const latestTagged = parsedTags.length > 0 ? pickLatest(parsedTags) : null;
 const latest = pickLatest([
   ...parsedTags,
   { ...current, tag: `v${current.raw}` }
@@ -99,9 +100,9 @@ fs.writeFileSync(cargoPath, updatedCargoToml, "utf8");
 const shortSha = sha ? sha.slice(0, 7) : "unknown";
 const channelLabel = channel === "beta" ? "Beta" : "Stable";
 const releaseBody = [
-  "> [!NOTE]",
+  channel === "beta" ? "> [!WARNING]" : "> [!NOTE]",
   channel === "beta"
-    ? "This is a beta release. It may include backported bug fixes and may not include all pending canary features/changes."
+    ? "This is a beta release. Missing features, bugs, and crashes are possible. Run at your own risk."
     : "This is a stable release intended for general use.",
   "",
   `Channel: ${channelLabel}`,
@@ -115,6 +116,7 @@ setOutput("tag", tag);
 setOutput("release_title", releaseTitle);
 setMultilineOutput("release_body", releaseBody);
 setOutput("updater_endpoint", updaterEndpoint);
+setOutput("previous_tag", latestTagged?.tag || "");
 
 function parseTag(tag) {
   if (!tag.startsWith("v")) {
