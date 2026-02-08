@@ -99,15 +99,13 @@ fs.writeFileSync(cargoPath, updatedCargoToml, "utf8");
 const shortSha = sha ? sha.slice(0, 7) : "unknown";
 const channelLabel = channel === "beta" ? "Beta" : "Stable";
 const releaseBody = [
-  `Automated ${channelLabel} release for commit ${shortSha}.`,
+  "> [!NOTE]",
+  channel === "beta"
+    ? "This is a beta release. It may include backported bug fixes and may not include all pending canary features/changes."
+    : "This is a stable release intended for general use.",
   "",
-  "Download options (you only need one):",
-  "- `Roblox Account Manager_*_x64-setup.exe` (recommended)",
-  "- `Roblox Account Manager_*_x64_en-US.msi`",
-  "- `roblox-account-manager.exe` (portable binary, advanced use)",
-  "",
-  `Bump mode: ${bump}`,
   `Channel: ${channelLabel}`,
+  `Release commit: ${shortSha}`,
   `App version: ${appVersion}`
 ].join("\n");
 
