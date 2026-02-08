@@ -21,7 +21,7 @@ export function MenuItemView({ item, close }: { item: MenuItem; close: () => voi
             <path d="m9 18 6-6-6-6" />
           </svg>
         </div>
-        <div className="submenu-panel hidden absolute left-full top-0 -mt-1 ml-0.5 min-w-[200px] bg-zinc-900/95 backdrop-blur-xl border border-zinc-700/50 rounded-xl shadow-2xl py-1 z-50 animate-fade-in">
+        <div className="theme-modal-scope theme-panel theme-border submenu-panel hidden absolute left-full top-0 -mt-1 ml-0.5 min-w-[200px] bg-zinc-900/95 backdrop-blur-xl border border-zinc-700/50 rounded-xl shadow-2xl py-1 z-50 animate-fade-in">
           <div className="pl-1">
             {item.submenu.map((sub, i) => (
               <MenuItemView key={i} item={sub} close={close} />

@@ -304,7 +304,7 @@ export function NexusDialog({ open, onClose }: { open: boolean; onClose: () => v
       onClick={handleClose}
     >
       <div
-        className={`bg-zinc-900 border border-zinc-800/80 rounded-2xl shadow-2xl w-[780px] h-[580px] flex flex-col overflow-hidden ${closing ? "animate-scale-out" : "animate-scale-in"}`}
+        className={`theme-modal-scope theme-panel theme-border bg-zinc-900 border border-zinc-800/80 rounded-2xl shadow-2xl w-[780px] h-[580px] flex flex-col overflow-hidden ${closing ? "animate-scale-out" : "animate-scale-in"}`}
         onClick={(e) => {
           e.stopPropagation();
           setContextMenu(null);
@@ -769,7 +769,7 @@ function ControlPanel({
       {contextMenu &&
         createPortal(
           <div
-            className="fixed z-[100] bg-zinc-900 border border-zinc-700/60 rounded-lg shadow-xl py-1 min-w-[140px] animate-scale-in"
+            className="theme-modal-scope theme-panel theme-border fixed z-[100] bg-zinc-900 border border-zinc-700/60 rounded-lg shadow-xl py-1 min-w-[140px] animate-scale-in"
             style={{
               left: Math.max(8, Math.min(contextMenu.x, window.innerWidth - 148)),
               top: Math.max(8, Math.min(contextMenu.y, window.innerHeight - 96)),

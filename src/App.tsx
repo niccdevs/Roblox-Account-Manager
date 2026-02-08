@@ -31,8 +31,8 @@ function AppContent() {
 
   if (!store.initialized) {
     return (
-      <div className="flex h-screen items-center justify-center bg-zinc-950">
-        <div className="text-sm text-zinc-600">Loading...</div>
+      <div className="theme-app flex h-screen items-center justify-center">
+        <div className="text-sm theme-muted">Loading...</div>
       </div>
     );
   }
@@ -42,7 +42,7 @@ function AppContent() {
   }
 
   return (
-    <div className="flex h-screen flex-col bg-zinc-950">
+    <div className="theme-app flex h-screen flex-col">
       <TitleBar />
       {update && <UpdateBanner update={update} />}
       <Toolbar />
@@ -75,7 +75,7 @@ function AppContent() {
           {store.toasts.map((msg, i) => (
             <div
               key={i}
-              className="bg-zinc-800/95 backdrop-blur-lg border border-zinc-700/50 px-4 py-2 rounded-lg text-xs text-zinc-300 shadow-xl animate-toast"
+              className="theme-panel theme-border backdrop-blur-lg px-4 py-2 rounded-lg text-xs shadow-xl animate-toast"
             >
               {msg}
             </div>
@@ -128,21 +128,21 @@ function AppContent() {
           onClick={store.closeModal}
         >
           <div
-            className="bg-zinc-900 border border-zinc-700/60 rounded-xl p-5 max-w-2xl w-full mx-4 max-h-[80vh] flex flex-col shadow-2xl animate-scale-in"
+            className="theme-panel theme-border rounded-xl p-5 max-w-2xl w-full mx-4 max-h-[80vh] flex flex-col shadow-2xl animate-scale-in"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-semibold text-zinc-100">{store.modal.title}</h3>
+              <h3 className="text-sm font-semibold text-[var(--panel-fg)]">{store.modal.title}</h3>
               <button
                 onClick={store.closeModal}
-                className="text-zinc-600 hover:text-zinc-400 transition-colors"
+                className="theme-muted hover:opacity-100 transition-opacity"
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M18 6 6 18M6 6l12 12" />
                 </svg>
               </button>
             </div>
-            <pre className="text-xs text-zinc-300 font-mono bg-zinc-800/50 rounded-lg p-4 overflow-auto flex-1">
+            <pre className="theme-input text-xs font-mono rounded-lg p-4 overflow-auto flex-1">
               {store.modal.content}
             </pre>
           </div>

@@ -174,7 +174,7 @@ export function PromptProvider({ children }: { children: ReactNode }) {
           }}
         >
           <div
-            className={`bg-zinc-900 border border-zinc-800/80 rounded-xl shadow-2xl w-80 overflow-hidden ${closing ? "animate-scale-out" : "animate-scale-in"}`}
+            className={`theme-modal-scope theme-panel theme-border bg-zinc-900 border border-zinc-800/80 rounded-xl shadow-2xl w-80 overflow-hidden ${closing ? "animate-scale-out" : "animate-scale-in"}`}
             onClick={(e) => e.stopPropagation()}
           >
             {promptState && (

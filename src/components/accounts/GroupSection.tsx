@@ -14,7 +14,7 @@ export function GroupSection({
   onDrop: (groupKey: string) => void;
 }) {
   const store = useStore();
-  const showHeader = group.key !== "__all__" && store.showGroups;
+  const showHeader = group.key !== "__all__" && store.showGroups && (store.theme?.show_headers ?? true);
 
   function handleDragOver(e: React.DragEvent) {
     e.preventDefault();
@@ -48,8 +48,8 @@ export function GroupSection({
     <div className="mb-0.5">
       {showHeader && (
         <div
-          className={`flex items-center gap-2 px-3 py-1.5 cursor-pointer select-none text-xs transition-all duration-150 ${
-            store.dragState ? "hover:bg-sky-500/10 hover:pl-4" : "hover:bg-zinc-800/50"
+          className={`theme-group-header flex items-center gap-2 px-3 py-1.5 cursor-pointer select-none text-xs transition-all duration-150 ${
+            store.dragState ? "hover:bg-[var(--accent-soft)] hover:pl-4" : "hover:bg-[var(--row-hover)]"
           }`}
           onClick={onToggle}
           onDragOver={handleDragOver}
@@ -60,21 +60,31 @@ export function GroupSection({
           }`}>
             <div
               className={`w-3.5 h-3.5 rounded border flex items-center justify-center transition-all duration-100 cursor-pointer ${
-                allSelected
-                  ? "bg-sky-500 border-sky-500"
-                  : someSelected
-                  ? "border-sky-500/50 bg-sky-500/20"
-                  : "border-zinc-700 hover:border-zinc-500"
+                allSelected ? "" : someSelected ? "" : "theme-border group-hover:brightness-110"
               }`}
+              style={
+                allSelected
+                  ? { backgroundColor: "var(--accent-color)", borderColor: "var(--accent-color)" }
+                  : someSelected
+                  ? { backgroundColor: "var(--accent-soft)", borderColor: "var(--accent-strong)" }
+                  : undefined
+              }
               onClick={handleGroupCheckbox}
             >
               {allSelected && (
-                <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5">
+                <svg
+                  width="8"
+                  height="8"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="var(--forms-bg)"
+                  strokeWidth="3.5"
+                >
                   <polyline points="20 6 9 17 4 12" />
                 </svg>
               )}
               {someSelected && !allSelected && (
-                <div className="w-1.5 h-1.5 rounded-sm bg-sky-400" />
+                <div className="w-1.5 h-1.5 rounded-sm bg-[var(--accent-color)]" />
               )}
             </div>
           </div>
@@ -83,12 +93,12 @@ export function GroupSection({
             height="12"
             viewBox="0 0 24 24"
             fill="currentColor"
-            className={`text-zinc-600 transition-transform duration-200 ${collapsed ? "" : "rotate-90"}`}
+            className={`theme-muted transition-transform duration-200 ${collapsed ? "" : "rotate-90"}`}
           >
             <path d="M8 5l8 7-8 7z" />
           </svg>
-          <span className="text-zinc-400 font-medium">{group.displayName}</span>
-          <span className="text-zinc-700 text-[10px] tabular-nums">{group.accounts.length}</span>
+          <span className="theme-label font-medium">{group.displayName}</span>
+          <span className="theme-muted text-[10px] tabular-nums">{group.accounts.length}</span>
         </div>
       )}
 

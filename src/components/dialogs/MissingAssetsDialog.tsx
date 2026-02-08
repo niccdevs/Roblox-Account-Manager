@@ -128,7 +128,7 @@ export function MissingAssetsDialog() {
       onClick={handleClose}
     >
       <div
-        className={`bg-zinc-900 border border-zinc-800/80 rounded-2xl shadow-2xl w-[440px] max-h-[400px] flex flex-col overflow-hidden ${closing ? "animate-scale-out" : "animate-scale-in"}`}
+        className={`theme-modal-scope theme-panel theme-border bg-zinc-900 border border-zinc-800/80 rounded-2xl shadow-2xl w-[440px] max-h-[400px] flex flex-col overflow-hidden ${closing ? "animate-scale-out" : "animate-scale-in"}`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-5 pt-4 pb-3 shrink-0">
