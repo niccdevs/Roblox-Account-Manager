@@ -28,7 +28,7 @@ pub struct Account {
     pub fields: HashMap<String, String>,
     #[serde(with = "csharp_datetime")]
     pub last_attempted_refresh: DateTime<Utc>,
-    #[serde(default)]
+    #[serde(rename = "BrowserTrackerID", alias = "BrowserTrackerId", default)]
     pub browser_tracker_id: String,
 }
 
