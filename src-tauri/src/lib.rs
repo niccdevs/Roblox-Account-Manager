@@ -536,6 +536,41 @@ fn save_browser_tracker_id(
 }
 
 #[cfg(target_os = "windows")]
+fn get_or_create_browser_tracker_id(state: &AccountStore, user_id: i64) -> Result<String, String> {
+    let accounts = state.get_all()?;
+    if let Some(existing) = accounts
+        .iter()
+        .find(|a| a.user_id == user_id)
+        .map(|a| a.browser_tracker_id.trim().to_string())
+        .filter(|id| !id.is_empty())
+    {
+        return Ok(existing);
+    }
+
+    let generated = platform::windows::generate_browser_tracker_id();
+    save_browser_tracker_id(state, user_id, &generated)?;
+    Ok(generated)
+}
+
+#[cfg(target_os = "windows")]
+async fn wait_for_new_roblox_pid(
+    pids_before: &[u32],
+    timeout: std::time::Duration,
+) -> Option<u32> {
+    let deadline = std::time::Instant::now() + timeout;
+    loop {
+        let pids_after = platform::windows::get_roblox_pids();
+        if let Some(pid) = pids_after.iter().find(|p| !pids_before.contains(p)).copied() {
+            return Some(pid);
+        }
+        if std::time::Instant::now() >= deadline {
+            return None;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(400)).await;
+    }
+}
+
+#[cfg(target_os = "windows")]
 #[tauri::command]
 async fn launch_roblox(
     state: tauri::State<'_, AccountStore>,
@@ -592,7 +627,7 @@ async fn launch_roblox(
         }
     }
 
-    let browser_tracker_id = windows::generate_browser_tracker_id();
+    let browser_tracker_id = get_or_create_browser_tracker_id(&state, user_id)?;
     let ticket = api::auth::get_auth_ticket(&cookie).await?;
 
     let mut access_code = String::new();
@@ -612,8 +647,6 @@ async fn launch_roblox(
     }
 
     let pids_before = windows::get_roblox_pids();
-
-    let _ = save_browser_tracker_id(&state, user_id, &browser_tracker_id);
 
     if use_old_join {
         windows::launch_old_join(
@@ -643,15 +676,8 @@ async fn launch_roblox(
         windows::launch_url(&url)?;
     }
 
-    tokio::time::sleep(std::time::Duration::from_secs(3)).await;
-
-    let pids_after = windows::get_roblox_pids();
-    let new_pid = pids_after
-        .iter()
-        .find(|p| !pids_before.contains(p))
-        .copied();
-
-    if let Some(pid) = new_pid {
+    if let Some(pid) = wait_for_new_roblox_pid(&pids_before, std::time::Duration::from_secs(12)).await
+    {
         tracker.track(user_id, pid, browser_tracker_id.clone());
 
         let accounts = state.get_all()?;
@@ -720,6 +746,8 @@ async fn launch_multiple(
     use platform::windows;
 
     let delay = settings.get_int("General", "AccountJoinDelay").unwrap_or(8) as u64;
+    let multi_rbx = settings.get_bool("General", "EnableMultiRbx");
+    let delay = if multi_rbx { delay.max(12) } else { delay };
     let async_join = settings.get_bool("General", "AsyncJoin");
     let is_teleport = settings.get_bool("Developer", "IsTeleport");
     let use_old_join = settings.get_bool("Developer", "UseOldJoin");
@@ -758,7 +786,6 @@ async fn launch_multiple(
             Err(_) => continue,
         };
 
-        let multi_rbx = settings.get_bool("General", "EnableMultiRbx");
         if multi_rbx {
             let enabled = windows::enable_multi_roblox()?;
             if !enabled {
@@ -778,11 +805,13 @@ async fn launch_multiple(
             tokio::time::sleep(std::time::Duration::from_secs(1)).await;
         }
 
-        let browser_tracker_id = windows::generate_browser_tracker_id();
-        let _ = save_browser_tracker_id(&state, uid, &browser_tracker_id);
+        let browser_tracker_id = get_or_create_browser_tracker_id(&state, uid)?;
         let ticket = match api::auth::get_auth_ticket(&cookie).await {
             Ok(t) => t,
-            Err(_) => continue,
+            Err(_) => {
+                tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+                continue;
+            }
         };
 
         let pids_before = windows::get_roblox_pids();
@@ -816,13 +845,12 @@ async fn launch_multiple(
         };
 
         if launch_result.is_err() {
+            tokio::time::sleep(std::time::Duration::from_secs(2)).await;
             continue;
         }
 
-        tokio::time::sleep(std::time::Duration::from_secs(3)).await;
-
-        let pids_after = windows::get_roblox_pids();
-        if let Some(&pid) = pids_after.iter().find(|p| !pids_before.contains(p)) {
+        if let Some(pid) = wait_for_new_roblox_pid(&pids_before, std::time::Duration::from_secs(12)).await
+        {
             tracker.track(uid, pid, browser_tracker_id);
         }
 
