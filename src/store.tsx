@@ -709,6 +709,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     } catch (e) {
       setJoiningAccounts(new Set());
       setLaunchProgress(null);
+      setError(String(e));
       setActionStatusMessage(`Launch failed: ${e}`, "error", 5000);
       throw e;
     }

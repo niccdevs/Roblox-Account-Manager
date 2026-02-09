@@ -47,7 +47,7 @@ function AppContent() {
             {showCloseRobloxAction && (
               <button
                 onClick={() => store.killAllRobloxProcesses()}
-                className="px-2 py-1 rounded-md bg-red-500/20 border border-red-500/30 text-red-300 hover:bg-red-500/30 transition-colors"
+                className="px-2 py-1 rounded-md bg-red-500/20 border border-red-500/30 text-red-300 hover:bg-red-500/30 transition-colors animate-pulse"
               >
                 Close Roblox
               </button>

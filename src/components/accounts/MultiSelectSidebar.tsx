@@ -18,6 +18,10 @@ export function MultiSelectSidebar() {
 
   const previewAccounts = accounts.slice(0, 5);
   const remaining = count - previewAccounts.length;
+  const errorLower = (store.error || "").toLowerCase();
+  const pulseCloseAction =
+    errorLower.includes("failed to enable multi roblox") ||
+    (errorLower.includes("multi roblox") && errorLower.includes("close all roblox process"));
 
   const allGroups = useMemo(() => {
     const set = new Set<string>();
@@ -159,6 +163,14 @@ export function MultiSelectSidebar() {
             className="sidebar-btn theme-btn mt-1.5 disabled:opacity-60 disabled:cursor-not-allowed"
           >
             {store.launchProgress?.mode === "multi" ? "Joining..." : `Join All (${count})`}
+          </button>
+          <button
+            onClick={() => store.killAllRobloxProcesses()}
+            className={`sidebar-btn theme-btn mt-1.5 text-amber-200 hover:bg-amber-500/15 ${
+              pulseCloseAction ? "animate-pulse" : ""
+            }`}
+          >
+            Close All Roblox
           </button>
         </SidebarSection>
 
