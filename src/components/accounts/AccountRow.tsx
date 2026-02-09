@@ -187,12 +187,16 @@ export function AccountRow({ account }: { account: Account }) {
             @{account.Username}
           </div>
         )}
-        {description && (
-          <div className="text-[11px] theme-muted truncate leading-tight">
-            {description}
-          </div>
-        )}
       </div>
+
+      {description && (
+        <div
+          className="min-w-0 max-w-[38%] text-[11px] theme-muted truncate leading-tight text-right"
+          title={description}
+        >
+          {description}
+        </div>
+      )}
 
       <div className="text-[11px] w-14 text-right flex-shrink-0 tabular-nums">
         {isJoining ? (

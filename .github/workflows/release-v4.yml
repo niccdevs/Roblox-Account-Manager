@@ -193,6 +193,8 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ env.RELEASE_GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           projectPath: "."
           tauriScript: "bun tauri"
@@ -216,8 +218,11 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ env.RELEASE_GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
           $tag = "${{ steps.meta.outputs.tag }}"
+          $repo = "${{ github.repository }}"
           New-Item -ItemType Directory -Path ".updater" -Force | Out-Null
 
           $updaterAsset = Get-ChildItem -Path "src-tauri\target\release\bundle" -Recurse -File -ErrorAction SilentlyContinue |
@@ -242,11 +247,48 @@ jobs:
             throw "Could not resolve an updater asset (*.nsis.zip, *-setup.exe, or *.msi.zip) for release $tag"
           }
 
+          if ($env:TAURI_SIGNING_PRIVATE_KEY -and $env:TAURI_SIGNING_PRIVATE_KEY.Contains('\n')) {
+            $env:TAURI_SIGNING_PRIVATE_KEY = $env:TAURI_SIGNING_PRIVATE_KEY -replace '\\n', "`n"
+          }
+
           $updaterPath = $updaterAsset.FullName
           $sigPath = "$updaterPath.sig"
+          $sigAssetName = [System.IO.Path]::GetFileName($sigPath)
+          $sigDir = [System.IO.Path]::GetDirectoryName($sigPath)
 
           if (-not (Test-Path $sigPath)) {
-            bunx tauri signer sign "$updaterPath"
+            try {
+              gh release download "$tag" --repo "$repo" --pattern "$sigAssetName" --dir "$sigDir" --clobber
+            } catch {
+              Write-Host "No pre-existing signature asset found for $sigAssetName on $tag. Falling back to local signing."
+            }
+          }
+
+          if (-not (Test-Path $sigPath)) {
+            $rawPassword = [string]($env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD ?? "")
+            $trimmedPassword = $rawPassword.TrimEnd("`r", "`n")
+            $passwordAttempts = @($rawPassword)
+
+            if ($trimmedPassword -ne $rawPassword) {
+              $passwordAttempts += $trimmedPassword
+            }
+            if (-not [string]::IsNullOrEmpty($rawPassword)) {
+              $passwordAttempts += ""
+            }
+
+            $passwordAttempts = $passwordAttempts | Select-Object -Unique
+
+            foreach ($passwordAttempt in $passwordAttempts) {
+              if (Test-Path $sigPath) {
+                break
+              }
+
+              if ([string]::IsNullOrEmpty($passwordAttempt)) {
+                bunx tauri signer sign "$updaterPath" -p ""
+              } else {
+                bunx tauri signer sign "$updaterPath" -p "$passwordAttempt"
+              }
+            }
           }
 
           if (-not (Test-Path $sigPath)) {
@@ -448,6 +490,60 @@ jobs:
                 core.warning(`Could not compute contributor range ${previousTag}...${tag}: ${error.message}`);
               }
             }
+
+            const contributors = Array.from(contributorSet);
+            let contributorsBlock = "## Contributors\n- No contributor metadata found for this release range.";
+            if (contributors.length > 0) {
+              const avatars = contributors
+                .map((login) => `<a href=\"https://github.com/${login}\"><img src=\"https://github.com/${login}.png?size=64\" width=\"32\" height=\"32\" alt=\"@${login}\" /></a>`)
+                .join(" ");
+              const names = contributors
+                .map((login) => `[@${login}](https://github.com/${login})`)
+                .join(", ");
+              contributorsBlock = `## Contributors\n${avatars}\n\n${names}`;
+            }
+
+            const channelLabel = channel === "beta" ? "Beta" : "Stable";
+            const warningLine = channel === "beta"
+              ? "This is a beta release. Missing features, bugs, and crashes are possible. Run at your own risk."
+              : "This is a stable release intended for general use.";
+            const calloutType = channel === "beta" ? "WARNING" : "NOTE";
+
+            const topNote = [
+              `> [!${calloutType}]`,
+              `> ${warningLine}`,
+              "",
+              `Channel: ${channelLabel}`,
+              `Release commit: ${releaseCommitSha}`,
+              `Release commit message: ${releaseCommitMessage}`,
+              `App version: ${appVersion}`
+            ].join("\n");
+
+            const finalBody = [
+              topNote,
+              "",
+              generatedBody || "## What's Changed\n- Release notes could not be generated.",
+              "",
+              contributorsBlock
+            ].join("\n");
+
+            const release = await github.rest.repos.getReleaseByTag({
+              owner,
+              repo,
+              tag
+            });
+
+            await github.rest.repos.updateRelease({
+              owner,
+              repo,
+              release_id: release.data.id,
+              body: finalBody
+            });
+        env:
+          RELEASE_CHANNEL: ${{ steps.controls.outputs.channel }}
+          RELEASE_TAG: ${{ steps.meta.outputs.tag }}
+          RELEASE_APP_VERSION: ${{ steps.meta.outputs.app_version }}
+          RELEASE_PREVIOUS_TAG: ${{ steps.meta.outputs.previous_tag }}
 
             const contributors = Array.from(contributorSet);
             let contributorsBlock = "## Contributors\n- No contributor metadata found for this release range.";

@@ -769,7 +769,7 @@ function ControlPanel({
       {contextMenu &&
         createPortal(
           <div
-            className="theme-modal-scope theme-panel theme-border fixed z-[100] bg-zinc-900 border border-zinc-700/60 rounded-lg shadow-xl py-1 min-w-[140px] animate-scale-in"
+            className="theme-modal-scope theme-panel theme-border fixed z-100 bg-zinc-900 border border-zinc-700/60 rounded-lg shadow-xl py-1 min-w-[140px] animate-scale-in"
             style={{
               left: Math.max(8, Math.min(contextMenu.x, window.innerWidth - 148)),
               top: Math.max(8, Math.min(contextMenu.y, window.innerHeight - 96)),
@@ -952,7 +952,7 @@ function SettingsPanel({
 function SettingToggle({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
   return (
     <div
-      className="flex items-center gap-2.5 py-1.5 px-1 rounded-lg cursor-pointer select-none hover:bg-white/[0.02] transition-colors"
+      className="flex items-center gap-2.5 py-1.5 px-1 rounded-lg cursor-pointer select-none hover:bg-white/2 transition-colors"
       onClick={() => onChange(!checked)}
     >
       <div className="relative shrink-0">
