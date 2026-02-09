@@ -742,8 +742,7 @@ fn emit_botting_status(app: &tauri::AppHandle) {
 
 #[cfg(target_os = "windows")]
 async fn launch_account_for_cycle(
-    state: &AccountStore,
-    settings: &SettingsStore,
+    app: &tauri::AppHandle,
     user_id: i64,
     place_id: i64,
     job_id: &str,
@@ -751,11 +750,17 @@ async fn launch_account_for_cycle(
 ) -> Result<(), String> {
     use platform::windows;
 
-    let cookie = get_cookie(state, user_id)?;
-    let is_teleport = settings.get_bool("Developer", "IsTeleport");
-    let use_old_join = settings.get_bool("Developer", "UseOldJoin");
-    let auto_close_last_process = settings.get_bool("General", "AutoCloseLastProcess");
-    let multi_rbx = settings.get_bool("General", "EnableMultiRbx");
+    let (cookie, is_teleport, use_old_join, auto_close_last_process, multi_rbx) = {
+        let state = app.state::<AccountStore>();
+        let settings = app.state::<SettingsStore>();
+        (
+            get_cookie(&state, user_id)?,
+            settings.get_bool("Developer", "IsTeleport"),
+            settings.get_bool("Developer", "UseOldJoin"),
+            settings.get_bool("General", "AutoCloseLastProcess"),
+            settings.get_bool("General", "EnableMultiRbx"),
+        )
+    };
 
     if multi_rbx {
         let enabled = windows::enable_multi_roblox()?;
@@ -768,7 +773,10 @@ async fn launch_account_for_cycle(
         let _ = windows::disable_multi_roblox();
     }
 
-    patch_client_settings_for_launch(settings);
+    {
+        let settings = app.state::<SettingsStore>();
+        patch_client_settings_for_launch(&settings);
+    }
 
     let tracker = windows::tracker();
     if auto_close_last_process && tracker.get_pid(user_id).is_some() {
@@ -776,7 +784,10 @@ async fn launch_account_for_cycle(
         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
     }
 
-    let browser_tracker_id = get_or_create_browser_tracker_id(state, user_id)?;
+    let browser_tracker_id = {
+        let state = app.state::<AccountStore>();
+        get_or_create_browser_tracker_id(&state, user_id)?
+    };
     let ticket = api::auth::get_auth_ticket(&cookie).await?;
     let pids_before = windows::get_roblox_pids();
 
@@ -827,8 +838,6 @@ async fn run_botting_session(
     stop_flag: Arc<AtomicBool>,
     config: Arc<Mutex<BottingConfig>>,
     accounts: Arc<Mutex<HashMap<i64, BottingAccountRuntime>>>,
-    state: &'static AccountStore,
-    settings: &'static SettingsStore,
 ) {
     let initial_user_ids = config
         .lock()
@@ -854,7 +863,8 @@ async fn run_botting_session(
         };
 
         let launch_result =
-            launch_account_for_cycle(state, settings, *uid, cfg.place_id, &cfg.job_id, &cfg.launch_data).await;
+            launch_account_for_cycle(&app, *uid, cfg.place_id, &cfg.job_id, &cfg.launch_data)
+                .await;
         let now = now_ms();
 
         if let Ok(mut map) = accounts.lock() {
@@ -936,7 +946,8 @@ async fn run_botting_session(
             tokio::time::sleep(std::time::Duration::from_millis(900)).await;
 
             let launch_result =
-                launch_account_for_cycle(state, settings, uid, cfg.place_id, &cfg.job_id, &cfg.launch_data).await;
+                launch_account_for_cycle(&app, uid, cfg.place_id, &cfg.job_id, &cfg.launch_data)
+                    .await;
             let now_after = now_ms();
             let launch_ok = launch_result.is_ok();
             let launch_error = launch_result.err();
@@ -992,7 +1003,7 @@ async fn run_botting_session(
 #[tauri::command]
 async fn start_botting_mode(
     app: tauri::AppHandle,
-    state: tauri::State<'_, AccountStore>,
+    _state: tauri::State<'_, AccountStore>,
     settings: tauri::State<'_, SettingsStore>,
     user_ids: Vec<i64>,
     place_id: i64,
@@ -1094,18 +1105,12 @@ async fn start_botting_mode(
     BOTTING_MANAGER.replace_session(Some(session.clone()));
     emit_botting_status(&app);
 
-    let state_ref: &'static AccountStore = unsafe { &*(state.inner() as *const AccountStore) };
-    let settings_ref: &'static SettingsStore =
-        unsafe { &*(settings.inner() as *const SettingsStore) };
-
     tokio::spawn(run_botting_session(
         app.clone(),
         session_id,
         stop_flag,
         session.config.clone(),
         session.accounts.clone(),
-        state_ref,
-        settings_ref,
     ));
 
     Ok(current_botting_status())
