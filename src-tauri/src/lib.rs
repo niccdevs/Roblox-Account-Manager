@@ -526,6 +526,37 @@ fn patch_client_settings_for_launch(settings: &SettingsStore) {
     }
 }
 
+#[cfg(target_os = "macos")]
+fn fps_unlock_target(settings: &SettingsStore) -> Option<u32> {
+    if !settings.get_bool("General", "UnlockFPS") {
+        return None;
+    }
+    settings
+        .get_int("General", "MaxFPSValue")
+        .filter(|fps| *fps > 0)
+        .map(|fps| fps as u32)
+}
+
+#[cfg(target_os = "macos")]
+fn patch_client_settings_for_launch(settings: &SettingsStore) {
+    use platform::macos;
+
+    let custom_settings = settings.get_string("General", "CustomClientSettings");
+    let custom_settings = custom_settings.trim();
+
+    // Keep the same override precedence as Windows.
+    if !custom_settings.is_empty()
+        && std::path::Path::new(custom_settings).exists()
+        && macos::copy_custom_client_settings(custom_settings).is_ok()
+    {
+        return;
+    }
+
+    if let Some(fps) = fps_unlock_target(settings) {
+        let _ = macos::apply_fps_unlock(fps);
+    }
+}
+
 fn save_browser_tracker_id(
     state: &AccountStore,
     user_id: i64,
@@ -556,6 +587,23 @@ fn get_or_create_browser_tracker_id(state: &AccountStore, user_id: i64) -> Resul
     Ok(generated)
 }
 
+#[cfg(target_os = "macos")]
+fn get_or_create_browser_tracker_id(state: &AccountStore, user_id: i64) -> Result<String, String> {
+    let accounts = state.get_all()?;
+    if let Some(existing) = accounts
+        .iter()
+        .find(|a| a.user_id == user_id)
+        .map(|a| a.browser_tracker_id.trim().to_string())
+        .filter(|id| !id.is_empty())
+    {
+        return Ok(existing);
+    }
+
+    let generated = platform::macos::generate_browser_tracker_id();
+    save_browser_tracker_id(state, user_id, &generated)?;
+    Ok(generated)
+}
+
 #[cfg(target_os = "windows")]
 async fn wait_for_new_roblox_pid(
     pids_before: &[u32],
@@ -564,6 +612,24 @@ async fn wait_for_new_roblox_pid(
     let deadline = std::time::Instant::now() + timeout;
     loop {
         let pids_after = platform::windows::get_roblox_pids();
+        if let Some(pid) = pids_after.iter().find(|p| !pids_before.contains(p)).copied() {
+            return Some(pid);
+        }
+        if std::time::Instant::now() >= deadline {
+            return None;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(400)).await;
+    }
+}
+
+#[cfg(target_os = "macos")]
+async fn wait_for_new_roblox_pid(
+    pids_before: &[u32],
+    timeout: std::time::Duration,
+) -> Option<u32> {
+    let deadline = std::time::Instant::now() + timeout;
+    loop {
+        let pids_after = platform::macos::get_roblox_pids();
         if let Some(pid) = pids_after.iter().find(|p| !pids_before.contains(p)).copied() {
             return Some(pid);
         }
@@ -1409,16 +1475,138 @@ async fn launch_roblox(
 #[cfg(not(target_os = "windows"))]
 #[tauri::command]
 async fn launch_roblox(
-    _user_id: i64,
-    _place_id: i64,
-    _job_id: String,
-    _launch_data: String,
-    _follow_user: bool,
-    _join_vip: bool,
-    _link_code: String,
-    _shuffle_job: bool,
+    state: tauri::State<'_, AccountStore>,
+    settings: tauri::State<'_, SettingsStore>,
+    user_id: i64,
+    place_id: i64,
+    job_id: String,
+    launch_data: String,
+    follow_user: bool,
+    join_vip: bool,
+    link_code: String,
+    shuffle_job: bool,
 ) -> Result<(), String> {
-    Err("Launching is only supported on Windows".into())
+    #[cfg(target_os = "macos")]
+    {
+        use platform::macos;
+
+        let cookie = get_cookie(&state, user_id)?;
+        let is_teleport = settings.get_bool("Developer", "IsTeleport");
+        let use_old_join = settings.get_bool("Developer", "UseOldJoin");
+        let auto_close_last_process = settings.get_bool("General", "AutoCloseLastProcess");
+
+        let multi_rbx = settings.get_bool("General", "EnableMultiRbx");
+        if multi_rbx {
+            let enabled = macos::enable_multi_roblox()?;
+            if !enabled {
+                return Err(
+                    "Failed to enable Multi Roblox. Close all Roblox processes and try again."
+                        .into(),
+                );
+            }
+        } else {
+            let _ = macos::disable_multi_roblox();
+        }
+
+        patch_client_settings_for_launch(&settings);
+
+        let tracker = macos::tracker();
+        if auto_close_last_process && tracker.get_pid(user_id).is_some() {
+            tracker.kill_for_user(user_id);
+            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+        }
+
+        let mut actual_job = job_id.clone();
+        if shuffle_job && !follow_user && !join_vip {
+            if let Ok(response) =
+                api::roblox::get_servers(place_id, "Public", None, Some(&cookie)).await
+            {
+                if !response.data.is_empty() {
+                    let idx = (std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap_or_default()
+                        .as_nanos() as usize)
+                        % response.data.len();
+                    actual_job = response.data[idx].id.clone();
+                }
+            }
+        }
+
+        let browser_tracker_id = get_or_create_browser_tracker_id(&state, user_id)?;
+        let ticket = api::auth::get_auth_ticket(&cookie).await?;
+
+        let mut access_code = String::new();
+        let mut final_link_code = link_code.clone();
+
+        if join_vip && !link_code.is_empty() {
+            if link_code.starts_with("http") {
+                if let Some(code) = link_code.split("code=").nth(1) {
+                    final_link_code = code.split('&').next().unwrap_or(code).to_string();
+                }
+            }
+            if let Ok(code) =
+                api::roblox::parse_private_server_link_code(&cookie, place_id, &final_link_code)
+                    .await
+            {
+                access_code = code;
+            }
+        }
+
+        let pids_before = macos::get_roblox_pids();
+
+        if use_old_join {
+            macos::launch_old_join(
+                &ticket,
+                place_id,
+                &actual_job,
+                &launch_data,
+                follow_user,
+                join_vip,
+                &access_code,
+                &final_link_code,
+                is_teleport,
+            )?;
+        } else {
+            let url = macos::build_launch_url(
+                &ticket,
+                place_id,
+                &actual_job,
+                &browser_tracker_id,
+                &launch_data,
+                follow_user,
+                join_vip,
+                &access_code,
+                &final_link_code,
+                is_teleport,
+            );
+            macos::launch_url(&url)?;
+        }
+
+        if let Some(pid) =
+            wait_for_new_roblox_pid(&pids_before, std::time::Duration::from_secs(12)).await
+        {
+            tracker.track(user_id, pid, browser_tracker_id);
+        }
+
+        return Ok(());
+    }
+
+    #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
+    {
+        let _ = (
+            state,
+            settings,
+            user_id,
+            place_id,
+            job_id,
+            launch_data,
+            follow_user,
+            join_vip,
+            link_code,
+            shuffle_job,
+        );
+        Err("Launching is only supported on Windows and macOS".into())
+    }
 }
 
 #[cfg(target_os = "windows")]
@@ -1566,12 +1754,153 @@ async fn launch_multiple(
 #[cfg(not(target_os = "windows"))]
 #[tauri::command]
 async fn launch_multiple(
-    _user_ids: Vec<i64>,
-    _place_id: i64,
-    _job_id: String,
-    _launch_data: String,
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AccountStore>,
+    settings: tauri::State<'_, SettingsStore>,
+    user_ids: Vec<i64>,
+    place_id: i64,
+    job_id: String,
+    launch_data: String,
 ) -> Result<(), String> {
-    Err("Launching is only supported on Windows".into())
+    #[cfg(target_os = "macos")]
+    {
+        use platform::macos;
+
+        let delay = settings.get_int("General", "AccountJoinDelay").unwrap_or(8) as u64;
+        let multi_rbx = settings.get_bool("General", "EnableMultiRbx");
+        let delay = if multi_rbx { delay.max(12) } else { delay };
+        let async_join = settings.get_bool("General", "AsyncJoin");
+        let is_teleport = settings.get_bool("Developer", "IsTeleport");
+        let use_old_join = settings.get_bool("Developer", "UseOldJoin");
+        let auto_close_last_process = settings.get_bool("General", "AutoCloseLastProcess");
+        let tracker = macos::tracker();
+        tracker.reset_launch_cancelled();
+
+        let accounts = state.get_all()?;
+
+        for (i, &uid) in user_ids.iter().enumerate() {
+            if tracker.is_launch_cancelled() {
+                break;
+            }
+
+            let account = accounts.iter().find(|a| a.user_id == uid);
+            let acct_place = account
+                .and_then(|a| a.fields.get("SavedPlaceId"))
+                .and_then(|v| v.parse::<i64>().ok())
+                .unwrap_or(place_id);
+            let acct_job = account
+                .and_then(|a| a.fields.get("SavedJobId"))
+                .map(|v| v.clone())
+                .unwrap_or_else(|| job_id.clone());
+
+            let _ = app.emit(
+                "launch-progress",
+                serde_json::json!({
+                    "userId": uid,
+                    "index": i,
+                    "total": user_ids.len(),
+                }),
+            );
+
+            let cookie = match get_cookie(&state, uid) {
+                Ok(c) => c,
+                Err(_) => continue,
+            };
+
+            if multi_rbx {
+                let enabled = macos::enable_multi_roblox()?;
+                if !enabled {
+                    return Err(
+                        "Failed to enable Multi Roblox. Close all Roblox processes and try again."
+                            .into(),
+                    );
+                }
+            } else {
+                let _ = macos::disable_multi_roblox();
+            }
+
+            patch_client_settings_for_launch(&settings);
+
+            if auto_close_last_process && tracker.get_pid(uid).is_some() {
+                tracker.kill_for_user(uid);
+                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+            }
+
+            let browser_tracker_id = get_or_create_browser_tracker_id(&state, uid)?;
+            let ticket = match api::auth::get_auth_ticket(&cookie).await {
+                Ok(t) => t,
+                Err(_) => {
+                    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+                    continue;
+                }
+            };
+
+            let pids_before = macos::get_roblox_pids();
+
+            let launch_result = if use_old_join {
+                macos::launch_old_join(
+                    &ticket,
+                    acct_place,
+                    &acct_job,
+                    &launch_data,
+                    false,
+                    false,
+                    "",
+                    "",
+                    is_teleport,
+                )
+            } else {
+                let url = macos::build_launch_url(
+                    &ticket,
+                    acct_place,
+                    &acct_job,
+                    &browser_tracker_id,
+                    &launch_data,
+                    false,
+                    false,
+                    "",
+                    "",
+                    is_teleport,
+                );
+                macos::launch_url(&url)
+            };
+
+            if launch_result.is_err() {
+                tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+                continue;
+            }
+
+            if let Some(pid) =
+                wait_for_new_roblox_pid(&pids_before, std::time::Duration::from_secs(12)).await
+            {
+                tracker.track(uid, pid, browser_tracker_id);
+            }
+
+            if i < user_ids.len() - 1 {
+                if async_join {
+                    tracker.reset_next_account();
+                    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(120);
+                    while !tracker.is_next_account() && !tracker.is_launch_cancelled() {
+                        if std::time::Instant::now() > deadline {
+                            break;
+                        }
+                        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+                    }
+                } else {
+                    tokio::time::sleep(std::time::Duration::from_secs(delay)).await;
+                }
+            }
+        }
+
+        let _ = app.emit("launch-complete", serde_json::json!({}));
+        return Ok(());
+    }
+
+    #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
+    {
+        let _ = (app, state, settings, user_ids, place_id, job_id, launch_data);
+        Err("Launching is only supported on Windows and macOS".into())
+    }
 }
 
 #[tauri::command]
@@ -1579,6 +1908,10 @@ fn cancel_launch() -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
         platform::windows::tracker().cancel_launch();
+    }
+    #[cfg(target_os = "macos")]
+    {
+        platform::macos::tracker().cancel_launch();
     }
     Ok(())
 }
@@ -1589,6 +1922,10 @@ fn next_account() -> Result<(), String> {
     {
         platform::windows::tracker().signal_next_account();
     }
+    #[cfg(target_os = "macos")]
+    {
+        platform::macos::tracker().signal_next_account();
+    }
     Ok(())
 }
 
@@ -1596,9 +1933,13 @@ fn next_account() -> Result<(), String> {
 fn cmd_kill_roblox(user_id: i64) -> Result<bool, String> {
     #[cfg(target_os = "windows")]
     {
-        Ok(platform::windows::tracker().kill_for_user(user_id))
+        return Ok(platform::windows::tracker().kill_for_user(user_id));
     }
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(target_os = "macos")]
+    {
+        return Ok(platform::macos::tracker().kill_for_user(user_id));
+    }
+    #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
     {
         let _ = user_id;
         Err("Not supported on this platform".into())
@@ -1615,9 +1956,19 @@ fn cmd_kill_all_roblox() -> Result<u32, String> {
         for p in all {
             tracker.untrack(p.user_id);
         }
-        Ok(killed)
+        return Ok(killed);
     }
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(target_os = "macos")]
+    {
+        let killed = platform::macos::kill_all_roblox();
+        let tracker = platform::macos::tracker();
+        let all = tracker.get_all();
+        for p in all {
+            tracker.untrack(p.user_id);
+        }
+        return Ok(killed);
+    }
+    #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
     {
         Err("Not supported on this platform".into())
     }
@@ -1634,7 +1985,7 @@ struct RunningInstance {
 fn get_running_instances() -> Result<Vec<RunningInstance>, String> {
     #[cfg(target_os = "windows")]
     {
-        Ok(platform::windows::tracker()
+        return Ok(platform::windows::tracker()
             .get_all()
             .into_iter()
             .map(|p| RunningInstance {
@@ -1642,9 +1993,21 @@ fn get_running_instances() -> Result<Vec<RunningInstance>, String> {
                 user_id: p.user_id,
                 browser_tracker_id: p.browser_tracker_id,
             })
-            .collect())
+            .collect());
     }
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(target_os = "macos")]
+    {
+        return Ok(platform::macos::tracker()
+            .get_all()
+            .into_iter()
+            .map(|p| RunningInstance {
+                pid: p.pid,
+                user_id: p.user_id,
+                browser_tracker_id: p.browser_tracker_id,
+            })
+            .collect());
+    }
+    #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
     {
         Ok(Vec::new())
     }
@@ -1654,9 +2017,13 @@ fn get_running_instances() -> Result<Vec<RunningInstance>, String> {
 fn cmd_enable_multi_roblox() -> Result<bool, String> {
     #[cfg(target_os = "windows")]
     {
-        platform::windows::enable_multi_roblox()
+        return platform::windows::enable_multi_roblox();
     }
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(target_os = "macos")]
+    {
+        return platform::macos::enable_multi_roblox();
+    }
+    #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
     {
         Err("Not supported on this platform".into())
     }
@@ -1666,9 +2033,13 @@ fn cmd_enable_multi_roblox() -> Result<bool, String> {
 fn cmd_disable_multi_roblox() -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
-        platform::windows::disable_multi_roblox()
+        return platform::windows::disable_multi_roblox();
     }
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(target_os = "macos")]
+    {
+        return platform::macos::disable_multi_roblox();
+    }
+    #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
     {
         Ok(())
     }
@@ -1678,9 +2049,13 @@ fn cmd_disable_multi_roblox() -> Result<(), String> {
 fn cmd_get_roblox_path() -> Result<String, String> {
     #[cfg(target_os = "windows")]
     {
-        platform::windows::get_roblox_path()
+        return platform::windows::get_roblox_path();
     }
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(target_os = "macos")]
+    {
+        return platform::macos::get_roblox_path();
+    }
+    #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
     {
         Err("Not supported on this platform".into())
     }
@@ -1690,9 +2065,13 @@ fn cmd_get_roblox_path() -> Result<String, String> {
 fn cmd_apply_fps_unlock(max_fps: u32) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
-        platform::windows::apply_fps_unlock(max_fps)
+        return platform::windows::apply_fps_unlock(max_fps);
     }
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(target_os = "macos")]
+    {
+        return platform::macos::apply_fps_unlock(max_fps);
+    }
+    #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
     {
         let _ = max_fps;
         Err("Not supported on this platform".into())
@@ -1862,8 +2241,121 @@ async fn start_watcher(
 
 #[cfg(not(target_os = "windows"))]
 #[tauri::command]
-async fn start_watcher() -> Result<(), String> {
-    Err("Watcher is only supported on Windows".into())
+async fn start_watcher(
+    app: tauri::AppHandle,
+    settings: tauri::State<'_, SettingsStore>,
+) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        use platform::macos;
+
+        let tracker = macos::tracker();
+        if tracker.is_watcher_active() {
+            return Ok(());
+        }
+        tracker.set_watcher_active(true);
+
+        let interval = settings.get_int("Watcher", "ScanInterval").unwrap_or(6) as u64;
+        let read_interval_ms = settings
+            .get_int("Watcher", "ReadInterval")
+            .unwrap_or(250)
+            .max(50) as u64;
+        let exit_if_no_connection = settings.get_bool("Watcher", "ExitIfNoConnection");
+        let no_connection_timeout = settings
+            .get_int("Watcher", "NoConnectionTimeout")
+            .unwrap_or(60)
+            .max(1) as u64;
+        let exit_on_beta = settings.get_bool("Watcher", "ExitOnBeta");
+
+        let app_handle = app.clone();
+        tokio::spawn(async move {
+            let mut disconnected_since: HashMap<i64, std::time::Instant> = HashMap::new();
+            let mut log_offsets: HashMap<std::path::PathBuf, u64> = HashMap::new();
+
+            while tracker.is_watcher_active() {
+                let sleep_ms = (interval * 1000).max(read_interval_ms);
+                tokio::time::sleep(std::time::Duration::from_millis(sleep_ms)).await;
+
+                if !tracker.is_watcher_active() {
+                    break;
+                }
+
+                let dead_users = tracker.cleanup_dead_processes();
+                for uid in &dead_users {
+                    let _ = app_handle.emit(
+                        "roblox-process-died",
+                        serde_json::json!({
+                            "userId": uid,
+                        }),
+                    );
+                }
+
+                let instances = tracker.get_all();
+                for inst in &instances {
+                    if !exit_if_no_connection && !exit_on_beta {
+                        continue;
+                    }
+
+                    let Some(log_path) = macos::latest_log_file_for_pid(inst.pid) else {
+                        continue;
+                    };
+                    let cursor = log_offsets.entry(log_path.clone()).or_insert(0);
+                    let chunk = match macos::read_log_delta(&log_path, cursor) {
+                        Ok(s) => s,
+                        Err(_) => continue,
+                    };
+
+                    let lower = chunk.to_lowercase();
+                    if exit_on_beta && lower.contains("beta") {
+                        tracker.kill_for_user(inst.user_id);
+                        let _ = app_handle.emit(
+                            "roblox-beta-detected",
+                            serde_json::json!({
+                                "userId": inst.user_id,
+                                "logPath": log_path.to_string_lossy(),
+                            }),
+                        );
+                    }
+
+                    if exit_if_no_connection {
+                        let looks_disconnected = lower.contains("disconnected")
+                            || lower.contains("connection error")
+                            || lower.contains("lost connection")
+                            || lower.contains("no connection")
+                            || lower.contains("error code: 277");
+
+                        if looks_disconnected {
+                            let since = disconnected_since
+                                .entry(inst.user_id)
+                                .or_insert_with(std::time::Instant::now);
+                            if since.elapsed().as_secs() >= no_connection_timeout {
+                                tracker.kill_for_user(inst.user_id);
+                                let _ = app_handle.emit(
+                                    "roblox-no-connection",
+                                    serde_json::json!({
+                                        "userId": inst.user_id,
+                                        "timeout": no_connection_timeout,
+                                        "logPath": log_path.to_string_lossy(),
+                                    }),
+                                );
+                                disconnected_since.remove(&inst.user_id);
+                            }
+                        } else {
+                            disconnected_since.remove(&inst.user_id);
+                        }
+                    }
+                }
+            }
+        });
+
+        return Ok(());
+    }
+
+    #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
+    {
+        let _ = (app, settings);
+        Err("Watcher is only supported on Windows and macOS".into())
+    }
 }
 
 #[tauri::command]
@@ -1871,6 +2363,10 @@ fn stop_watcher() -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
         platform::windows::tracker().set_watcher_active(false);
+    }
+    #[cfg(target_os = "macos")]
+    {
+        platform::macos::tracker().set_watcher_active(false);
     }
     Ok(())
 }
@@ -2015,6 +2511,26 @@ fn cleanup_multi_roblox_on_exit(app: &AppHandle<Wry>) {
     }
 
     let _ = platform::windows::disable_multi_roblox();
+}
+
+#[cfg(target_os = "macos")]
+fn cleanup_multi_roblox_on_exit(app: &AppHandle<Wry>) {
+    let settings = app.state::<SettingsStore>();
+    if !settings.get_bool("General", "EnableMultiRbx") {
+        return;
+    }
+
+    let pids = platform::macos::get_roblox_pids();
+    if pids.len() > 1 {
+        let _ = platform::macos::kill_all_roblox();
+    }
+
+    let tracker = platform::macos::tracker();
+    for process in tracker.get_all() {
+        tracker.untrack(process.user_id);
+    }
+
+    let _ = platform::macos::disable_multi_roblox();
 }
 
 pub fn run() {
@@ -2244,9 +2760,13 @@ pub fn run() {
             tauri::RunEvent::ExitRequested { .. } => {
                 #[cfg(target_os = "windows")]
                 cleanup_multi_roblox_on_exit(app);
+                #[cfg(target_os = "macos")]
+                cleanup_multi_roblox_on_exit(app);
             }
             tauri::RunEvent::Exit => {
                 #[cfg(target_os = "windows")]
+                cleanup_multi_roblox_on_exit(app);
+                #[cfg(target_os = "macos")]
                 cleanup_multi_roblox_on_exit(app);
             }
             _ => {}
