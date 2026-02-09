@@ -96,6 +96,12 @@ export function GeneralTab({ s }: { s: UseSettingsReturn }) {
         description="Allow multiple Roblox instances to run simultaneously"
       />
       <Toggle
+        checked={s.getBool("General", "BottingEnabled")}
+        onChange={(v) => s.setBool("General", "BottingEnabled", v)}
+        label={<>Botting Mode<WarningBadge>advanced</WarningBadge></>}
+        description="Enable account cycling tools to keep selected alts rejoining automatically"
+      />
+      <Toggle
         checked={s.getBool("General", "ShowPresence")}
         onChange={(v) => s.setBool("General", "ShowPresence", v)}
         label="Show Presence"

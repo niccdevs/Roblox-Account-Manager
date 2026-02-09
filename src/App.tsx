@@ -15,6 +15,7 @@ import { AccountUtilsDialog } from "./components/dialogs/AccountUtilsDialog";
 import { MissingAssetsDialog } from "./components/dialogs/MissingAssetsDialog";
 import { ThemeEditorDialog } from "./components/dialogs/ThemeEditorDialog";
 import { NexusDialog } from "./components/dialogs/NexusDialog";
+import { BottingDialog } from "./components/dialogs/BottingDialog";
 
 function AppContent() {
   const store = useStore();
@@ -118,6 +119,11 @@ function AppContent() {
       <ThemeEditorDialog
         open={store.themeEditorOpen}
         onClose={() => store.setThemeEditorOpen(false)}
+      />
+
+      <BottingDialog
+        open={store.bottingDialogOpen}
+        onClose={() => store.setBottingDialogOpen(false)}
       />
 
       <NexusDialog

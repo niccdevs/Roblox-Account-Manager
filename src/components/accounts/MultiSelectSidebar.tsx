@@ -18,6 +18,8 @@ export function MultiSelectSidebar() {
 
   const previewAccounts = accounts.slice(0, 5);
   const remaining = count - previewAccounts.length;
+  const bottingEnabled = store.settings?.General?.BottingEnabled === "true";
+  const showBottingButton = bottingEnabled || store.bottingStatus?.active === true;
   const errorLower = (store.error || "").toLowerCase();
   const pulseCloseAction =
     errorLower.includes("failed to enable multi roblox") ||
@@ -164,6 +166,14 @@ export function MultiSelectSidebar() {
           >
             {store.launchProgress?.mode === "multi" ? "Joining..." : `Join All (${count})`}
           </button>
+          {showBottingButton && (
+            <button
+              onClick={() => store.setBottingDialogOpen(true)}
+              className="sidebar-btn theme-btn mt-1.5 bg-[var(--buttons-bg)]/80 border-[var(--buttons-bc)] animate-fade-in"
+            >
+              Open Botting Mode
+            </button>
+          )}
           <button
             onClick={() => store.killAllRobloxProcesses()}
             className={`sidebar-btn theme-btn mt-1.5 text-amber-200 hover:bg-amber-500/15 ${
