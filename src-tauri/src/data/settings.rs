@@ -224,6 +224,7 @@ impl SettingsStore {
         let mut ini = self.ini.lock().unwrap();
 
         let defaults: &[(&str, &str, Option<&str>)] = &[
+            ("CheckForUpdates", "true", None),
             ("AccountJoinDelay", "8", None),
             ("AsyncJoin", "false", None),
             ("DisableAgingAlert", "false", None),

@@ -1,7 +1,10 @@
+import { useState, useEffect } from "react";
+import { check, type Update } from "@tauri-apps/plugin-updater";
 import { StoreProvider, useStore } from "./store";
 import { PromptProvider } from "./hooks/usePrompt";
 import { PasswordScreen } from "./components/layout/PasswordScreen";
 import { TitleBar } from "./components/layout/TitleBar";
+import { UpdateBanner } from "./components/layout/UpdateBanner";
 import { Toolbar } from "./components/layout/Toolbar";
 import { AccountList } from "./components/accounts/AccountList";
 import { ContextMenu } from "./components/menus/ContextMenu";
@@ -18,6 +21,13 @@ import { NexusDialog } from "./components/dialogs/NexusDialog";
 
 function AppContent() {
   const store = useStore();
+  const [update, setUpdate] = useState<Update | null>(null);
+
+  useEffect(() => {
+    if (!store.initialized || store.needsPassword) return;
+    if (store.settings?.General?.CheckForUpdates === "false") return;
+    check().then((u) => { if (u?.available) setUpdate(u); }).catch(() => {});
+  }, [store.initialized, store.needsPassword]);
 
   if (!store.initialized) {
     return (
@@ -34,6 +44,7 @@ function AppContent() {
   return (
     <div className="theme-app flex h-screen flex-col">
       <TitleBar />
+      {update && <UpdateBanner update={update} />}
       <Toolbar />
 
       {store.error && (

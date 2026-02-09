@@ -11,6 +11,12 @@ export function GeneralTab({ s }: { s: UseSettingsReturn }) {
   return (
     <div className="space-y-0">
       <Toggle
+        checked={s.getBool("General", "CheckForUpdates")}
+        onChange={(v) => s.setBool("General", "CheckForUpdates", v)}
+        label="Check for Updates"
+        description="Automatically check for new versions on launch"
+      />
+      <Toggle
         checked={s.getBool("General", "AsyncJoin")}
         onChange={(v) => s.setBool("General", "AsyncJoin", v)}
         label="Async Launching"
