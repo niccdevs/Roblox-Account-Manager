@@ -252,6 +252,17 @@ impl SettingsStore {
             ("UseCefSharpBrowser", "false", None),
             ("StartOnPCStartup", "false", None),
             ("MinimizeToTray", "false", None),
+            ("BottingEnabled", "false", None),
+            ("BottingDefaultIntervalMinutes", "19", None),
+            ("BottingLaunchDelaySeconds", "20", None),
+            ("BottingRetryMax", "6", None),
+            ("BottingRetryBaseSeconds", "8", None),
+            ("BottingPlayerGraceMinutes", "15", None),
+            ("BottingDraftPlaceId", "", None),
+            ("BottingDraftJobId", "", None),
+            ("BottingDraftLaunchData", "", None),
+            ("BottingDraftPlayerAccountId", "", None),
+            ("BottingDraftSelectedUserIds", "", None),
         ];
 
         let general = ini.section("General");

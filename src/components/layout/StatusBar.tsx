@@ -1,7 +1,9 @@
+import { useEffect, useState } from "react";
 import { useStore } from "../../store";
 
 export function StatusBar() {
   const store = useStore();
+  const [tickNow, setTickNow] = useState(Date.now());
   const selected = store.selectedIds.size;
   const total = store.accounts.length;
   const filtered = store.searchQuery ? store.groups.reduce((n, g) => n + g.accounts.length, 0) : total;
@@ -13,6 +15,26 @@ export function StatusBar() {
     ? store.accounts.filter((a) => (store.presenceByUserId.get(a.UserID) ?? 0) >= 2).length
     : 0;
   const launchedCount = store.launchedByProgram.size;
+  const bottingActive = store.bottingStatus?.active === true;
+  const nextRestartMs = bottingActive
+    ? store.bottingStatus?.accounts
+        ?.map((a) => a.nextRestartAtMs)
+        .filter((v): v is number => typeof v === "number")
+        .sort((a, b) => a - b)[0] ?? null
+    : null;
+  const bottingCountdown = nextRestartMs
+    ? Math.max(0, Math.ceil((nextRestartMs - tickNow) / 1000))
+    : null;
+  const bottingLabel =
+    bottingCountdown === null
+      ? "-"
+      : `${Math.floor(bottingCountdown / 60)}:${String(bottingCountdown % 60).padStart(2, "0")}`;
+
+  useEffect(() => {
+    if (!bottingActive) return;
+    const timer = window.setInterval(() => setTickNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [bottingActive]);
 
   return (
     <div className="theme-surface theme-border flex items-center justify-between gap-3 px-4 py-2 border-t text-[12px] shrink-0">
@@ -60,6 +82,13 @@ export function StatusBar() {
             <span className="theme-muted inline-flex items-center gap-1 shrink-0">
               <span className="w-2 h-2 rounded-full bg-amber-500/90" />
               <span className="text-amber-300/90">{launchedCount}</span> launched
+            </span>
+          )}
+          {bottingActive && (
+            <span className="theme-muted inline-flex items-center gap-1 shrink-0">
+              <span className="w-2 h-2 rounded-full bg-fuchsia-400 animate-pulse" />
+              <span className="text-fuchsia-300/90">botting</span>
+              <span className="text-fuchsia-200/90">next {bottingLabel}</span>
             </span>
           )}
         </div>

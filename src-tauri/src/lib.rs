@@ -13,7 +13,11 @@ use data::settings::{
     get_settings_path, get_theme_path, get_theme_presets_path, SettingsStore, ThemePresetStore,
     ThemeStore,
 };
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+#[cfg(target_os = "windows")]
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+#[cfg(target_os = "windows")]
+use std::sync::{Arc, LazyLock, Mutex};
 use tauri::menu::{MenuBuilder, MenuEvent, MenuItemBuilder};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Emitter, Manager, Wry};
@@ -568,6 +572,691 @@ async fn wait_for_new_roblox_pid(
         }
         tokio::time::sleep(std::time::Duration::from_millis(400)).await;
     }
+}
+
+#[derive(Debug, Clone, serde::Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+struct BottingAccountStatusPayload {
+    user_id: i64,
+    is_player: bool,
+    phase: String,
+    retry_count: u32,
+    next_restart_at_ms: Option<i64>,
+    player_grace_until_ms: Option<i64>,
+    last_error: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+struct BottingStatusPayload {
+    active: bool,
+    started_at_ms: Option<i64>,
+    place_id: i64,
+    job_id: String,
+    launch_data: String,
+    interval_minutes: i64,
+    launch_delay_seconds: i64,
+    player_user_id: Option<i64>,
+    user_ids: Vec<i64>,
+    accounts: Vec<BottingAccountStatusPayload>,
+}
+
+#[cfg(target_os = "windows")]
+#[derive(Debug, Clone)]
+struct BottingConfig {
+    user_ids: Vec<i64>,
+    place_id: i64,
+    job_id: String,
+    launch_data: String,
+    player_user_id: Option<i64>,
+    interval_minutes: u64,
+    launch_delay_seconds: u64,
+    retry_max: u32,
+    retry_base_seconds: u64,
+    player_grace_minutes: u64,
+}
+
+#[cfg(target_os = "windows")]
+#[derive(Debug, Clone)]
+struct BottingAccountRuntime {
+    user_id: i64,
+    is_player: bool,
+    phase: &'static str,
+    retry_count: u32,
+    next_restart_at_ms: Option<i64>,
+    player_grace_until_ms: Option<i64>,
+    last_error: Option<String>,
+}
+
+#[cfg(target_os = "windows")]
+#[derive(Clone)]
+struct BottingSession {
+    id: u64,
+    stop_flag: Arc<AtomicBool>,
+    stopped_notify: Arc<tokio::sync::Notify>,
+    started_at_ms: i64,
+    config: Arc<Mutex<BottingConfig>>,
+    accounts: Arc<Mutex<HashMap<i64, BottingAccountRuntime>>>,
+}
+
+#[cfg(target_os = "windows")]
+struct BottingManager {
+    session: Mutex<Option<BottingSession>>,
+    next_id: AtomicU64,
+}
+
+#[cfg(target_os = "windows")]
+impl BottingManager {
+    fn new() -> Self {
+        Self {
+            session: Mutex::new(None),
+            next_id: AtomicU64::new(1),
+        }
+    }
+
+    fn next_session_id(&self) -> u64 {
+        self.next_id.fetch_add(1, Ordering::Relaxed)
+    }
+
+    fn get_session(&self) -> Option<BottingSession> {
+        self.session.lock().ok().and_then(|s| s.as_ref().cloned())
+    }
+
+    fn replace_session(&self, session: Option<BottingSession>) {
+        if let Ok(mut guard) = self.session.lock() {
+            *guard = session;
+        }
+    }
+}
+
+#[cfg(target_os = "windows")]
+static BOTTING_MANAGER: LazyLock<BottingManager> = LazyLock::new(BottingManager::new);
+
+fn now_ms() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as i64
+}
+
+#[cfg(target_os = "windows")]
+fn backoff_delay_seconds(base: u64, retry_count: u32, retry_max: u32) -> u64 {
+    let exp = retry_count.saturating_sub(1).min(retry_max.max(1));
+    let scaled = base.saturating_mul(1_u64 << exp.min(12));
+    scaled.clamp(5, 300)
+}
+
+#[cfg(target_os = "windows")]
+fn botting_status_from_session(session: &BottingSession) -> BottingStatusPayload {
+    let config = match session.config.lock() {
+        Ok(c) => c.clone(),
+        Err(_) => {
+            return BottingStatusPayload {
+                active: false,
+                ..BottingStatusPayload::default()
+            }
+        }
+    };
+    let mut accounts: Vec<BottingAccountStatusPayload> = match session.accounts.lock() {
+        Ok(map) => map
+            .values()
+            .map(|a| BottingAccountStatusPayload {
+                user_id: a.user_id,
+                is_player: a.is_player,
+                phase: a.phase.to_string(),
+                retry_count: a.retry_count,
+                next_restart_at_ms: a.next_restart_at_ms,
+                player_grace_until_ms: a.player_grace_until_ms,
+                last_error: a.last_error.clone(),
+            })
+            .collect(),
+        Err(_) => Vec::new(),
+    };
+    accounts.sort_by_key(|a| a.user_id);
+    BottingStatusPayload {
+        active: !session.stop_flag.load(Ordering::Relaxed),
+        started_at_ms: Some(session.started_at_ms),
+        place_id: config.place_id,
+        job_id: config.job_id,
+        launch_data: config.launch_data,
+        interval_minutes: config.interval_minutes as i64,
+        launch_delay_seconds: config.launch_delay_seconds as i64,
+        player_user_id: config.player_user_id,
+        user_ids: config.user_ids,
+        accounts,
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn current_botting_status() -> BottingStatusPayload {
+    if let Some(session) = BOTTING_MANAGER.get_session() {
+        botting_status_from_session(&session)
+    } else {
+        BottingStatusPayload::default()
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn emit_botting_status(app: &tauri::AppHandle) {
+    let _ = app.emit("botting-status", current_botting_status());
+}
+
+#[cfg(target_os = "windows")]
+async fn launch_account_for_cycle(
+    app: &tauri::AppHandle,
+    user_id: i64,
+    place_id: i64,
+    job_id: &str,
+    launch_data: &str,
+) -> Result<(), String> {
+    use platform::windows;
+
+    let (cookie, is_teleport, use_old_join, auto_close_last_process, multi_rbx) = {
+        let state = app.state::<AccountStore>();
+        let settings = app.state::<SettingsStore>();
+        (
+            get_cookie(&state, user_id)?,
+            settings.get_bool("Developer", "IsTeleport"),
+            settings.get_bool("Developer", "UseOldJoin"),
+            settings.get_bool("General", "AutoCloseLastProcess"),
+            settings.get_bool("General", "EnableMultiRbx"),
+        )
+    };
+
+    if multi_rbx {
+        let enabled = windows::enable_multi_roblox()?;
+        if !enabled {
+            return Err(
+                "Failed to enable Multi Roblox. Close all Roblox processes and try again.".into(),
+            );
+        }
+    } else {
+        let _ = windows::disable_multi_roblox();
+    }
+
+    {
+        let settings = app.state::<SettingsStore>();
+        patch_client_settings_for_launch(&settings);
+    }
+
+    let tracker = windows::tracker();
+    if auto_close_last_process && tracker.get_pid(user_id).is_some() {
+        tracker.kill_for_user(user_id);
+        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+    }
+
+    let browser_tracker_id = {
+        let state = app.state::<AccountStore>();
+        get_or_create_browser_tracker_id(&state, user_id)?
+    };
+    let ticket = api::auth::get_auth_ticket(&cookie).await?;
+    let pids_before = windows::get_roblox_pids();
+
+    let launch_result = if use_old_join {
+        windows::launch_old_join(
+            &ticket,
+            place_id,
+            job_id,
+            launch_data,
+            false,
+            false,
+            "",
+            "",
+            is_teleport,
+        )
+    } else {
+        let url = windows::build_launch_url(
+            &ticket,
+            place_id,
+            job_id,
+            &browser_tracker_id,
+            launch_data,
+            false,
+            false,
+            "",
+            "",
+            is_teleport,
+        );
+        windows::launch_url(&url)
+    };
+
+    if let Err(e) = launch_result {
+        return Err(format!("Launch failed: {}", e));
+    }
+
+    if let Some(pid) = wait_for_new_roblox_pid(&pids_before, std::time::Duration::from_secs(12)).await
+    {
+        tracker.track(user_id, pid, browser_tracker_id);
+    }
+
+    Ok(())
+}
+
+#[cfg(target_os = "windows")]
+async fn run_botting_session(
+    app: tauri::AppHandle,
+    session_id: u64,
+    stop_flag: Arc<AtomicBool>,
+    stopped_notify: Arc<tokio::sync::Notify>,
+    config: Arc<Mutex<BottingConfig>>,
+    accounts: Arc<Mutex<HashMap<i64, BottingAccountRuntime>>>,
+) {
+    let initial_user_ids = config
+        .lock()
+        .map(|c| c.user_ids.clone())
+        .unwrap_or_else(|_| Vec::new());
+
+    for (i, uid) in initial_user_ids.iter().enumerate() {
+        if stop_flag.load(Ordering::Relaxed) {
+            break;
+        }
+
+        if let Ok(mut map) = accounts.lock() {
+            if let Some(entry) = map.get_mut(uid) {
+                entry.phase = "launching";
+                entry.last_error = None;
+            }
+        }
+        emit_botting_status(&app);
+
+        let cfg = match config.lock() {
+            Ok(c) => c.clone(),
+            Err(_) => break,
+        };
+
+        let launch_result =
+            launch_account_for_cycle(&app, *uid, cfg.place_id, &cfg.job_id, &cfg.launch_data)
+                .await;
+        let now = now_ms();
+
+        if let Ok(mut map) = accounts.lock() {
+            if let Some(entry) = map.get_mut(uid) {
+                if launch_result.is_ok() {
+                    entry.retry_count = 0;
+                    entry.last_error = None;
+                    if entry.is_player {
+                        entry.phase = "running-player";
+                        entry.next_restart_at_ms = None;
+                        entry.player_grace_until_ms = None;
+                    } else {
+                        entry.phase = "running";
+                        entry.next_restart_at_ms =
+                            Some(now + (cfg.interval_minutes as i64 * 60_000));
+                    }
+                } else {
+                    entry.retry_count = entry.retry_count.saturating_add(1);
+                    let delay = backoff_delay_seconds(
+                        cfg.retry_base_seconds,
+                        entry.retry_count,
+                        cfg.retry_max,
+                    ) as i64;
+                    entry.phase = "retry-backoff";
+                    entry.last_error = launch_result.err();
+                    entry.next_restart_at_ms = Some(now + delay * 1000);
+                }
+            }
+        }
+        emit_botting_status(&app);
+
+        if i + 1 < initial_user_ids.len() {
+            tokio::time::sleep(std::time::Duration::from_secs(cfg.launch_delay_seconds)).await;
+        }
+    }
+
+    loop {
+        if stop_flag.load(Ordering::Relaxed) {
+            break;
+        }
+
+        let cfg = match config.lock() {
+            Ok(c) => c.clone(),
+            Err(_) => break,
+        };
+        let now = now_ms();
+        let user_ids = cfg.user_ids.clone();
+
+        for uid in user_ids {
+            if stop_flag.load(Ordering::Relaxed) {
+                break;
+            }
+
+            let mut should_launch = false;
+            let mut skip_for_player = false;
+            if let Ok(mut map) = accounts.lock() {
+                if let Some(entry) = map.get_mut(&uid) {
+                    if entry.is_player {
+                        entry.phase = "running-player";
+                        entry.next_restart_at_ms = None;
+                        skip_for_player = true;
+                    } else if let Some(next_ms) = entry.next_restart_at_ms {
+                        if now >= next_ms {
+                            entry.phase = "restarting";
+                            should_launch = true;
+                        }
+                    } else {
+                        entry.next_restart_at_ms =
+                            Some(now + (cfg.interval_minutes as i64 * 60_000));
+                    }
+                }
+            }
+            if skip_for_player || !should_launch {
+                continue;
+            }
+            emit_botting_status(&app);
+
+            let _ = platform::windows::tracker().kill_for_user(uid);
+            tokio::time::sleep(std::time::Duration::from_millis(900)).await;
+
+            let launch_result =
+                launch_account_for_cycle(&app, uid, cfg.place_id, &cfg.job_id, &cfg.launch_data)
+                    .await;
+            let now_after = now_ms();
+            let launch_ok = launch_result.is_ok();
+            let launch_error = launch_result.err();
+
+            if let Ok(mut map) = accounts.lock() {
+                if let Some(entry) = map.get_mut(&uid) {
+                    if launch_ok {
+                        entry.retry_count = 0;
+                        entry.last_error = None;
+                        entry.phase = "running";
+                        entry.player_grace_until_ms = None;
+                        entry.next_restart_at_ms =
+                            Some(now_after + (cfg.interval_minutes as i64 * 60_000));
+                    } else {
+                        entry.retry_count = entry.retry_count.saturating_add(1);
+                        let delay = backoff_delay_seconds(
+                            cfg.retry_base_seconds,
+                            entry.retry_count,
+                            cfg.retry_max,
+                        ) as i64;
+                        entry.phase = "retry-backoff";
+                        entry.last_error = launch_error;
+                        entry.next_restart_at_ms = Some(now_after + delay * 1000);
+                    }
+                }
+            }
+
+            let _ = app.emit(
+                "botting-account-cycle",
+                serde_json::json!({
+                    "userId": uid,
+                    "ok": launch_ok,
+                }),
+            );
+            emit_botting_status(&app);
+        }
+
+        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+    }
+
+    let should_clear = BOTTING_MANAGER
+        .get_session()
+        .map(|s| s.id == session_id)
+        .unwrap_or(false);
+    if should_clear {
+        BOTTING_MANAGER.replace_session(None);
+    }
+    stopped_notify.notify_waiters();
+    let _ = app.emit("botting-stopped", serde_json::json!({}));
+    emit_botting_status(&app);
+}
+
+#[cfg(target_os = "windows")]
+#[tauri::command]
+async fn start_botting_mode(
+    app: tauri::AppHandle,
+    _state: tauri::State<'_, AccountStore>,
+    settings: tauri::State<'_, SettingsStore>,
+    user_ids: Vec<i64>,
+    place_id: i64,
+    job_id: String,
+    launch_data: String,
+    player_user_id: Option<i64>,
+    interval_minutes: i64,
+    launch_delay_seconds: i64,
+) -> Result<BottingStatusPayload, String> {
+    if user_ids.len() < 2 {
+        return Err("Select at least two accounts for Botting Mode".into());
+    }
+    if place_id <= 0 {
+        return Err("Place ID must be greater than 0".into());
+    }
+
+    let mut dedup = Vec::new();
+    let mut seen = HashSet::new();
+    for id in user_ids {
+        if seen.insert(id) {
+            dedup.push(id);
+        }
+    }
+    if dedup.len() < 2 {
+        return Err("Select at least two unique accounts for Botting Mode".into());
+    }
+
+    if let Some(player) = player_user_id {
+        if !dedup.contains(&player) {
+            return Err("Player Account must be one of the selected accounts".into());
+        }
+    }
+
+    if let Some(existing) = BOTTING_MANAGER.get_session() {
+        existing.stop_flag.store(true, Ordering::Relaxed);
+        let _ = tokio::time::timeout(
+            std::time::Duration::from_secs(2),
+            existing.stopped_notify.notified(),
+        )
+        .await;
+        let should_clear = BOTTING_MANAGER
+            .get_session()
+            .map(|s| s.id == existing.id)
+            .unwrap_or(false);
+        if should_clear {
+            BOTTING_MANAGER.replace_session(None);
+        }
+    }
+
+    let retry_max = settings
+        .get_int("General", "BottingRetryMax")
+        .unwrap_or(6)
+        .clamp(1, 20) as u32;
+    let retry_base_seconds = settings
+        .get_int("General", "BottingRetryBaseSeconds")
+        .unwrap_or(8)
+        .clamp(5, 120) as u64;
+    let player_grace_minutes = settings
+        .get_int("General", "BottingPlayerGraceMinutes")
+        .unwrap_or(15)
+        .clamp(1, 60) as u64;
+
+    let interval_minutes = interval_minutes.clamp(10, 120) as u64;
+    let launch_delay_seconds = launch_delay_seconds.clamp(5, 120) as u64;
+
+    let cfg = BottingConfig {
+        user_ids: dedup.clone(),
+        place_id,
+        job_id,
+        launch_data,
+        player_user_id,
+        interval_minutes,
+        launch_delay_seconds,
+        retry_max,
+        retry_base_seconds,
+        player_grace_minutes,
+    };
+
+    let mut runtime_map = HashMap::new();
+    for uid in &dedup {
+        let is_player = player_user_id == Some(*uid);
+        runtime_map.insert(
+            *uid,
+            BottingAccountRuntime {
+                user_id: *uid,
+                is_player,
+                phase: if is_player {
+                    "queued-player"
+                } else {
+                    "queued"
+                },
+                retry_count: 0,
+                next_restart_at_ms: None,
+                player_grace_until_ms: None,
+                last_error: None,
+            },
+        );
+    }
+
+    let session_id = BOTTING_MANAGER.next_session_id();
+    let stop_flag = Arc::new(AtomicBool::new(false));
+    let stopped_notify = Arc::new(tokio::sync::Notify::new());
+    let session = BottingSession {
+        id: session_id,
+        stop_flag: stop_flag.clone(),
+        stopped_notify: stopped_notify.clone(),
+        started_at_ms: now_ms(),
+        config: Arc::new(Mutex::new(cfg)),
+        accounts: Arc::new(Mutex::new(runtime_map)),
+    };
+
+    BOTTING_MANAGER.replace_session(Some(session.clone()));
+    emit_botting_status(&app);
+
+    tokio::spawn(run_botting_session(
+        app.clone(),
+        session_id,
+        stop_flag,
+        stopped_notify,
+        session.config.clone(),
+        session.accounts.clone(),
+    ));
+
+    Ok(current_botting_status())
+}
+
+#[cfg(not(target_os = "windows"))]
+#[tauri::command]
+async fn start_botting_mode(
+    _app: tauri::AppHandle,
+    _state: tauri::State<'_, AccountStore>,
+    _settings: tauri::State<'_, SettingsStore>,
+    _user_ids: Vec<i64>,
+    _place_id: i64,
+    _job_id: String,
+    _launch_data: String,
+    _player_user_id: Option<i64>,
+    _interval_minutes: i64,
+    _launch_delay_seconds: i64,
+) -> Result<BottingStatusPayload, String> {
+    Err("Botting Mode is only supported on Windows".into())
+}
+
+#[cfg(target_os = "windows")]
+#[tauri::command]
+fn stop_botting_mode(app: tauri::AppHandle, close_bot_accounts: bool) -> Result<(), String> {
+    let session = BOTTING_MANAGER.get_session();
+    if let Some(session) = session {
+        session.stop_flag.store(true, Ordering::Relaxed);
+        if close_bot_accounts {
+            let cfg = session
+                .config
+                .lock()
+                .map_err(|e| e.to_string())?
+                .clone();
+            let tracker = platform::windows::tracker();
+            for uid in cfg.user_ids {
+                if cfg.player_user_id == Some(uid) {
+                    continue;
+                }
+                let _ = tracker.kill_for_user(uid);
+            }
+        }
+        BOTTING_MANAGER.replace_session(None);
+    }
+    let _ = app.emit("botting-stopped", serde_json::json!({}));
+    emit_botting_status(&app);
+    Ok(())
+}
+
+#[cfg(not(target_os = "windows"))]
+#[tauri::command]
+fn stop_botting_mode(_app: tauri::AppHandle, _close_bot_accounts: bool) -> Result<(), String> {
+    Ok(())
+}
+
+#[cfg(target_os = "windows")]
+#[tauri::command]
+fn get_botting_mode_status() -> Result<BottingStatusPayload, String> {
+    Ok(current_botting_status())
+}
+
+#[cfg(not(target_os = "windows"))]
+#[tauri::command]
+fn get_botting_mode_status() -> Result<BottingStatusPayload, String> {
+    Ok(BottingStatusPayload::default())
+}
+
+#[cfg(target_os = "windows")]
+#[tauri::command]
+fn set_botting_player_account(
+    app: tauri::AppHandle,
+    player_user_id: Option<i64>,
+) -> Result<BottingStatusPayload, String> {
+    let Some(session) = BOTTING_MANAGER.get_session() else {
+        return Err("Botting Mode is not running".into());
+    };
+
+    let mut cfg = session.config.lock().map_err(|e| e.to_string())?;
+    if let Some(uid) = player_user_id {
+        if !cfg.user_ids.contains(&uid) {
+            return Err("Player Account must be one of the botting accounts".into());
+        }
+    }
+
+    let old_player = cfg.player_user_id;
+    cfg.player_user_id = player_user_id;
+    let grace_ms = cfg.player_grace_minutes as i64 * 60_000;
+    drop(cfg);
+
+    let tracker = platform::windows::tracker();
+    let mut accounts = session.accounts.lock().map_err(|e| e.to_string())?;
+    for entry in accounts.values_mut() {
+        if Some(entry.user_id) == player_user_id {
+            entry.is_player = true;
+            entry.phase = "running-player";
+            entry.next_restart_at_ms = None;
+            entry.player_grace_until_ms = None;
+            entry.retry_count = 0;
+            entry.last_error = None;
+            continue;
+        }
+
+        if Some(entry.user_id) == old_player && player_user_id != Some(entry.user_id) {
+            entry.is_player = false;
+            if tracker.get_pid(entry.user_id).is_some() {
+                let due = now_ms() + grace_ms;
+                entry.phase = "player-grace";
+                entry.player_grace_until_ms = Some(due);
+                entry.next_restart_at_ms = Some(due);
+            } else {
+                entry.phase = "queued";
+                entry.player_grace_until_ms = None;
+                entry.next_restart_at_ms = Some(now_ms());
+            }
+        }
+    }
+    drop(accounts);
+
+    emit_botting_status(&app);
+    Ok(current_botting_status())
+}
+
+#[cfg(not(target_os = "windows"))]
+#[tauri::command]
+fn set_botting_player_account(
+    _app: tauri::AppHandle,
+    _player_user_id: Option<i64>,
+) -> Result<BottingStatusPayload, String> {
+    Ok(BottingStatusPayload::default())
 }
 
 #[cfg(target_os = "windows")]
@@ -1308,6 +1997,26 @@ fn get_cookie(state: &AccountStore, user_id: i64) -> Result<String, String> {
         .ok_or_else(|| format!("Account {} not found", user_id))
 }
 
+#[cfg(target_os = "windows")]
+fn cleanup_multi_roblox_on_exit(app: &AppHandle<Wry>) {
+    let settings = app.state::<SettingsStore>();
+    if !settings.get_bool("General", "EnableMultiRbx") {
+        return;
+    }
+
+    let pids = platform::windows::get_roblox_pids();
+    if pids.len() > 1 {
+        let _ = platform::windows::kill_all_roblox();
+    }
+
+    let tracker = platform::windows::tracker();
+    for process in tracker.get_all() {
+        tracker.untrack(process.user_id);
+    }
+
+    let _ = platform::windows::disable_multi_roblox();
+}
+
 pub fn run() {
     crypto::init();
 
@@ -1494,6 +2203,10 @@ pub fn run() {
             launch_multiple,
             cancel_launch,
             next_account,
+            start_botting_mode,
+            stop_botting_mode,
+            get_botting_mode_status,
+            set_botting_player_account,
             cmd_kill_roblox,
             cmd_kill_all_roblox,
             get_running_instances,
@@ -1525,6 +2238,17 @@ pub fn run() {
             set_nexus_element_value,
             export_nexus_lua,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app, event| match event {
+            tauri::RunEvent::ExitRequested { .. } => {
+                #[cfg(target_os = "windows")]
+                cleanup_multi_roblox_on_exit(app);
+            }
+            tauri::RunEvent::Exit => {
+                #[cfg(target_os = "windows")]
+                cleanup_multi_roblox_on_exit(app);
+            }
+            _ => {}
+        });
 }

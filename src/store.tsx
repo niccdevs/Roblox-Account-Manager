@@ -42,6 +42,39 @@ interface ActionStatusState {
   at: number;
 }
 
+export interface BottingAccountStatus {
+  userId: number;
+  isPlayer: boolean;
+  phase: string;
+  retryCount: number;
+  nextRestartAtMs: number | null;
+  playerGraceUntilMs: number | null;
+  lastError: string | null;
+}
+
+export interface BottingStatus {
+  active: boolean;
+  startedAtMs: number | null;
+  placeId: number;
+  jobId: string;
+  launchData: string;
+  intervalMinutes: number;
+  launchDelaySeconds: number;
+  playerUserId: number | null;
+  userIds: number[];
+  accounts: BottingAccountStatus[];
+}
+
+export interface BottingStartConfig {
+  userIds: number[];
+  placeId: number;
+  jobId: string;
+  launchData: string;
+  playerUserId: number | null;
+  intervalMinutes: number;
+  launchDelaySeconds: number;
+}
+
 export interface StoreValue {
   accounts: Account[];
   groups: ParsedGroup[];
@@ -103,6 +136,10 @@ export interface StoreValue {
   joinServer: (userId: number) => Promise<void>;
   launchMultiple: (userIds: number[]) => Promise<void>;
   killAllRobloxProcesses: () => Promise<void>;
+  startBottingMode: (config: BottingStartConfig) => Promise<void>;
+  stopBottingMode: (closeBotAccounts: boolean) => Promise<void>;
+  setBottingPlayerAccount: (userId: number | null) => Promise<void>;
+  refreshBottingStatus: () => Promise<void>;
   refreshCookie: (userId: number) => Promise<boolean>;
   moveToGroup: (userIds: number[], group: string) => Promise<void>;
   sortGroupAlphabetically: (groupKey: string) => void;
@@ -144,6 +181,9 @@ export interface StoreValue {
   setImportDialogTab: (tab: "cookie" | "legacy") => void;
   themeEditorOpen: boolean;
   setThemeEditorOpen: (open: boolean) => void;
+  bottingDialogOpen: boolean;
+  setBottingDialogOpen: (open: boolean) => void;
+  bottingStatus: BottingStatus | null;
   missingAssets: { userId: number; username: string; assetIds: number[] } | null;
   setMissingAssets: (v: { userId: number; username: string; assetIds: number[] } | null) => void;
 
@@ -217,6 +257,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [importDialogTab, setImportDialogTab] = useState<"cookie" | "legacy">("cookie");
   const [themeEditorOpen, setThemeEditorOpen] = useState(false);
+  const [bottingDialogOpen, setBottingDialogOpen] = useState(false);
+  const [bottingStatus, setBottingStatus] = useState<BottingStatus | null>(null);
   const [missingAssets, setMissingAssets] = useState<{ userId: number; username: string; assetIds: number[] } | null>(null);
   const [nexusOpen, setNexusOpen] = useState(false);
   const [joiningAccounts, setJoiningAccounts] = useState<Set<number>>(new Set());
@@ -730,6 +772,64 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  async function refreshBottingStatus() {
+    try {
+      const status = await invoke<BottingStatus>("get_botting_mode_status");
+      setBottingStatus(status);
+    } catch (e) {
+      setError(String(e));
+    }
+  }
+
+  async function startBottingMode(config: BottingStartConfig) {
+    try {
+      const status = await invoke<BottingStatus>("start_botting_mode", {
+        userIds: config.userIds,
+        placeId: config.placeId,
+        jobId: config.jobId,
+        launchData: config.launchData,
+        playerUserId: config.playerUserId,
+        intervalMinutes: config.intervalMinutes,
+        launchDelaySeconds: config.launchDelaySeconds,
+      });
+      setBottingStatus(status);
+      addToast(`Botting Mode started (${config.userIds.length} accounts)`);
+    } catch (e) {
+      setError(String(e));
+      throw e;
+    }
+  }
+
+  async function stopBottingMode(closeBotAccounts: boolean) {
+    try {
+      await invoke("stop_botting_mode", { closeBotAccounts });
+      await refreshBottingStatus();
+      addToast(
+        closeBotAccounts
+          ? "Botting Mode stopped and bot accounts closed"
+          : "Botting Mode stopped"
+      );
+    } catch (e) {
+      setError(String(e));
+      throw e;
+    }
+  }
+
+  async function setBottingPlayerAccount(userId: number | null) {
+    try {
+      const status = await invoke<BottingStatus>("set_botting_player_account", {
+        playerUserId: userId,
+      });
+      setBottingStatus(status);
+      addToast(
+        userId === null ? "Player Account cleared" : "Player Account updated"
+      );
+    } catch (e) {
+      setError(String(e));
+      throw e;
+    }
+  }
+
   const applyThemePreview = useCallback((nextTheme: ThemeData) => {
     const normalized = normalizeTheme(nextTheme);
     setThemeState(normalized);
@@ -843,6 +943,35 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }),
     ];
 
+    Promise.all(listeners).then((fns) => fns.forEach((fn) => unsubs.push(fn)));
+
+    return () => {
+      unsubs.forEach((fn) => fn());
+    };
+  }, [needsPassword, initialized, setActionStatusMessage]);
+
+  useEffect(() => {
+    if (needsPassword || !initialized) return;
+
+    refreshBottingStatus();
+    const unsubs: Array<() => void> = [];
+    const listeners = [
+      listen<BottingStatus>("botting-status", (e) => {
+        setBottingStatus(e.payload);
+      }),
+      listen("botting-stopped", () => {
+        setBottingStatus((prev) =>
+          prev ? { ...prev, active: false } : { active: false, startedAtMs: null, placeId: 0, jobId: "", launchData: "", intervalMinutes: 19, launchDelaySeconds: 20, playerUserId: null, userIds: [], accounts: [] }
+        );
+      }),
+      listen<{ userId?: number; ok?: boolean }>("botting-account-cycle", (e) => {
+        const uid = e.payload?.userId;
+        const ok = e.payload?.ok;
+        if (typeof uid === "number" && ok === false) {
+          setActionStatusMessage(`Botting rejoin failed for ${uid}`, "warn", 2500);
+        }
+      }),
+    ];
     Promise.all(listeners).then((fns) => fns.forEach((fn) => unsubs.push(fn)));
 
     return () => {
@@ -1073,6 +1202,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     joinServer,
     launchMultiple,
     killAllRobloxProcesses,
+    startBottingMode,
+    stopBottingMode,
+    setBottingPlayerAccount,
+    refreshBottingStatus,
     refreshCookie,
     moveToGroup,
     sortGroupAlphabetically,
@@ -1108,6 +1241,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setImportDialogTab,
     themeEditorOpen,
     setThemeEditorOpen,
+    bottingDialogOpen,
+    setBottingDialogOpen,
+    bottingStatus,
     missingAssets,
     setMissingAssets,
     nexusOpen,
