@@ -2551,6 +2551,18 @@ pub fn run() {
         .manage(theme_preset_store)
         .manage(image_cache)
         .setup(|app| {
+            #[cfg(target_os = "macos")]
+            {
+                if let Some(main) = app.get_webview_window("main") {
+                    let _ = main.set_decorations(true);
+                }
+            }
+
+            if let Some(main) = app.get_webview_window("main") {
+                let _ = main.show();
+                let _ = main.set_focus();
+            }
+
             let show = MenuItemBuilder::with_id("show", "Show").build(app)?;
             let quit = MenuItemBuilder::with_id("quit", "Quit").build(app)?;
             let menu = MenuBuilder::new(app).items(&[&show, &quit]).build()?;

@@ -1,10 +1,51 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::time::Duration;
 
 use cookie::Cookie;
 use tauri::{AppHandle, Emitter, Manager, Url, WebviewUrl, WebviewWindowBuilder};
 
 use crate::data::accounts::AccountStore;
+
+async fn extract_and_emit_cookie(app: AppHandle) {
+    let url: Url = match "https://www.roblox.com".parse() {
+        Ok(u) => u,
+        Err(_) => {
+            app.emit("browser-login-failed", "Failed to parse URL").ok();
+            return;
+        }
+    };
+
+    tokio::time::sleep(Duration::from_millis(300)).await;
+
+    for _ in 0..20 {
+        let Some(browser) = app.get_webview_window("login-browser") else {
+            app.emit("browser-login-failed", "Browser window closed").ok();
+            return;
+        };
+
+        match browser.cookies_for_url(url.clone()) {
+            Ok(cookies) => {
+                if let Some(c) = cookies
+                    .iter()
+                    .find(|c| c.name() == ".ROBLOSECURITY" && !c.value().is_empty())
+                {
+                    app.emit("browser-login-complete", c.value().to_string()).ok();
+                    return;
+                }
+            }
+            Err(_) => {}
+        }
+
+        tokio::time::sleep(Duration::from_millis(500)).await;
+    }
+
+    app.emit(
+        "browser-login-failed",
+        "No .ROBLOSECURITY cookie found after login. Please try again.",
+    )
+    .ok();
+}
 
 #[tauri::command]
 pub async fn open_login_browser(app: AppHandle) -> Result<(), String> {
@@ -40,13 +81,45 @@ pub async fn open_login_browser(app: AppHandle) -> Result<(), String> {
                 && path != "/login"
                 && !detected_clone.swap(true, Ordering::SeqCst)
             {
-                app_clone.emit("browser-login-detected", ()).ok();
+                let app_handle = app_clone.clone();
+                tauri::async_runtime::spawn(extract_and_emit_cookie(app_handle));
             }
         }
         true
     })
     .build()
     .map_err(|e| e.to_string())?;
+
+    let poll_detected = detected.clone();
+    let poll_app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        let url: Url = match "https://www.roblox.com".parse() {
+            Ok(value) => value,
+            Err(_) => return,
+        };
+        for _ in 0..240 {
+            if poll_detected.load(Ordering::SeqCst) {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(750)).await;
+
+            let Some(browser) = poll_app.get_webview_window("login-browser") else {
+                break;
+            };
+            let has_cookie = browser
+                .cookies_for_url(url.clone())
+                .map(|cookies| {
+                    cookies
+                        .iter()
+                        .any(|c| c.name() == ".ROBLOSECURITY" && !c.value().is_empty())
+                })
+                .unwrap_or(false);
+            if has_cookie && !poll_detected.swap(true, Ordering::SeqCst) {
+                tauri::async_runtime::spawn(extract_and_emit_cookie(poll_app.clone()));
+                break;
+            }
+        }
+    });
 
     Ok(())
 }

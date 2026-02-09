@@ -19,6 +19,9 @@ import { BottingDialog } from "./components/dialogs/BottingDialog";
 
 function AppContent() {
   const store = useStore();
+  const isMac =
+    typeof navigator !== "undefined" &&
+    /Mac|iPhone|iPad|iPod/.test(navigator.platform);
   const errorLower = (store.error || "").toLowerCase();
   const showCloseRobloxAction =
     errorLower.includes("failed to enable multi roblox") ||
@@ -38,7 +41,7 @@ function AppContent() {
 
   return (
     <div className="theme-app flex h-screen flex-col">
-      <TitleBar />
+      {!isMac && <TitleBar />}
       <Toolbar />
 
       {store.error && (

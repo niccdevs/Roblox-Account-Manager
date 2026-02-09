@@ -891,18 +891,29 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    const unlisten = listen("browser-login-detected", async () => {
-      await new Promise((r) => setTimeout(r, 500));
-      try {
-        const cookie = await invoke<string>("extract_browser_cookie");
-        await addAccountByCookie(cookie);
-        await invoke("close_login_browser");
-      } catch (e) {
-        addToast(String(e));
-      }
-    });
+    const cleanups: Promise<() => void>[] = [];
+
+    cleanups.push(
+      listen<string>("browser-login-complete", async (e) => {
+        try {
+          await addAccountByCookie(e.payload);
+        } catch (err) {
+          addToast(String(err));
+        } finally {
+          await invoke("close_login_browser").catch(() => {});
+        }
+      })
+    );
+
+    cleanups.push(
+      listen<string>("browser-login-failed", async (e) => {
+        addToast(e.payload);
+        await invoke("close_login_browser").catch(() => {});
+      })
+    );
+
     return () => {
-      unlisten.then((fn) => fn());
+      cleanups.forEach((p) => p.then((fn) => fn()));
     };
   }, []);
 
