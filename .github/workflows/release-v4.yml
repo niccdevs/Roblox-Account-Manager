@@ -138,12 +138,17 @@ jobs:
           }
 
       - name: Inject updater pubkey from secret
-        if: ${{ secrets.TAURI_SIGNING_PUBLIC_KEY != '' }}
         shell: pwsh
         env:
           RAW_TAURI_SIGNING_PUBLIC_KEY: ${{ secrets.TAURI_SIGNING_PUBLIC_KEY }}
         run: |
-          $pubkey = $env:RAW_TAURI_SIGNING_PUBLIC_KEY -replace "`r", ""
+          $rawPubkey = $env:RAW_TAURI_SIGNING_PUBLIC_KEY
+          if ([string]::IsNullOrWhiteSpace($rawPubkey)) {
+            Write-Host "TAURI_SIGNING_PUBLIC_KEY is not set; keeping existing updater pubkey."
+            exit 0
+          }
+
+          $pubkey = $rawPubkey -replace "`r", ""
           $pubkey = $pubkey -replace "\\n", "`n"
           if ($pubkey -notmatch "untrusted comment") {
             try {
