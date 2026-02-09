@@ -115,36 +115,45 @@ jobs:
           $privateKey = $env:RAW_TAURI_SIGNING_PRIVATE_KEY -replace "`r", ""
           $privateKey = $privateKey -replace "\\n", "`n"
           $privateKey = $privateKey.Trim()
+
           if ($privateKey -notmatch "untrusted comment") {
+            $candidate = $privateKey -replace "\s", ""
+            $candidatePadding = $candidate.Length % 4
+            if ($candidatePadding -ne 0) {
+              $candidate += ("=" * (4 - $candidatePadding))
+            }
             try {
-              $decoded = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($privateKey.Trim()))
+              $decoded = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($candidate))
               if ($decoded -match "untrusted comment") {
                 $privateKey = $decoded
+              } else {
+                $privateKey = $candidate
               }
             } catch {
+              $privateKey = $candidate
             }
           }
 
-          $privateKeyLines = @(
-            $privateKey -split "`n" |
-            ForEach-Object { $_.Trim() } |
-            Where-Object { $_ -ne "" }
-          )
-
-          if ($privateKeyLines.Count -eq 1 -and $privateKeyLines[0] -match "^[A-Za-z0-9+/=]+$") {
-            $base64Line = $privateKeyLines[0]
-            $padding = $base64Line.Length % 4
-            if ($padding -ne 0) {
-              $base64Line += ("=" * (4 - $padding))
-            }
-            $privateKey = "untrusted comment: minisign encrypted secret key`n$base64Line"
+          $privateKeyLine = $privateKey
+          if ($privateKey -match "untrusted comment") {
+            $privateKeyLine = (
+              $privateKey -split "`n" |
+              ForEach-Object { $_.Trim() } |
+              Where-Object { $_ -and $_ -notmatch "^untrusted comment" } |
+              Select-Object -Last 1
+            )
           }
-
-          $privateKeyPath = Join-Path $env:RUNNER_TEMP "tauri-signing-private.key"
-          Set-Content -Path $privateKeyPath -Value $privateKey -NoNewline -Encoding utf8
+          $privateKeyLine = $privateKeyLine -replace "\s", ""
+          if (-not $privateKeyLine -or $privateKeyLine -notmatch "^[A-Za-z0-9+/=]+$") {
+            throw "TAURI_SIGNING_PRIVATE_KEY normalization failed. Expected a base64 secret key line."
+          }
+          $padding = $privateKeyLine.Length % 4
+          if ($padding -ne 0) {
+            $privateKeyLine += ("=" * (4 - $padding))
+          }
 
           Add-Content -Path $env:GITHUB_ENV -Value "TAURI_SIGNING_PRIVATE_KEY<<EOF"
-          Add-Content -Path $env:GITHUB_ENV -Value $privateKey
+          Add-Content -Path $env:GITHUB_ENV -Value $privateKeyLine
           Add-Content -Path $env:GITHUB_ENV -Value "EOF"
 
           if ($null -ne $env:RAW_TAURI_SIGNING_PRIVATE_KEY_PASSWORD) {
