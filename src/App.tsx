@@ -18,6 +18,10 @@ import { NexusDialog } from "./components/dialogs/NexusDialog";
 
 function AppContent() {
   const store = useStore();
+  const errorLower = (store.error || "").toLowerCase();
+  const showCloseRobloxAction =
+    errorLower.includes("failed to enable multi roblox") ||
+    (errorLower.includes("multi roblox") && errorLower.includes("close all roblox process"));
 
   if (!store.initialized) {
     return (
@@ -39,14 +43,24 @@ function AppContent() {
       {store.error && (
         <div className="mx-4 mt-2 rounded-lg bg-red-500/10 border border-red-500/20 px-4 py-2 text-sm text-red-400 flex items-center justify-between animate-fade-in">
           <span className="truncate">{store.error}</span>
-          <button
-            onClick={() => store.setError(null)}
-            className="ml-2 text-red-500/60 hover:text-red-400 shrink-0 transition-colors"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M18 6 6 18M6 6l12 12" />
-            </svg>
-          </button>
+          <div className="ml-2 flex items-center gap-2 shrink-0">
+            {showCloseRobloxAction && (
+              <button
+                onClick={() => store.killAllRobloxProcesses()}
+                className="px-2 py-1 rounded-md bg-red-500/20 border border-red-500/30 text-red-300 hover:bg-red-500/30 transition-colors"
+              >
+                Close Roblox
+              </button>
+            )}
+            <button
+              onClick={() => store.setError(null)}
+              className="text-red-500/60 hover:text-red-400 transition-colors"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M18 6 6 18M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
         </div>
       )}
 

@@ -102,6 +102,7 @@ export interface StoreValue {
 
   joinServer: (userId: number) => Promise<void>;
   launchMultiple: (userIds: number[]) => Promise<void>;
+  killAllRobloxProcesses: () => Promise<void>;
   refreshCookie: (userId: number) => Promise<boolean>;
   moveToGroup: (userIds: number[], group: string) => Promise<void>;
   sortGroupAlphabetically: (groupKey: string) => void;
@@ -713,6 +714,21 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  async function killAllRobloxProcesses() {
+    try {
+      const killed = await invoke<number>("cmd_kill_all_roblox");
+      addToast(
+        killed > 0
+          ? `Closed ${killed} Roblox process${killed === 1 ? "" : "es"}`
+          : "No open Roblox processes found"
+      );
+      setError(null);
+    } catch (e) {
+      setError(String(e));
+      setActionStatusMessage(`Failed to close Roblox: ${e}`, "error", 5000);
+    }
+  }
+
   const applyThemePreview = useCallback((nextTheme: ThemeData) => {
     const normalized = normalizeTheme(nextTheme);
     setThemeState(normalized);
@@ -1055,6 +1071,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     launchedByProgram,
     joinServer,
     launchMultiple,
+    killAllRobloxProcesses,
     refreshCookie,
     moveToGroup,
     sortGroupAlphabetically,
