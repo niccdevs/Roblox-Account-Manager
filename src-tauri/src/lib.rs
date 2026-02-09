@@ -6,22 +6,18 @@ mod data;
 mod nexus;
 mod platform;
 
-use std::collections::HashMap;
-use tauri::{Emitter, Manager, AppHandle, Wry};
-use tauri::menu::{MenuBuilder, MenuItemBuilder, MenuEvent};
-use tauri::tray::{TrayIconBuilder, TrayIconEvent, TrayIcon, MouseButton, MouseButtonState};
-use tauri_plugin_autostart::MacosLauncher;
 use api::batch::ImageCache;
-use data::accounts::{AccountStore, get_account_data_path};
+use data::accounts::{get_account_data_path, AccountStore};
 use data::crypto;
 use data::settings::{
-    SettingsStore,
-    ThemePresetStore,
+    get_settings_path, get_theme_path, get_theme_presets_path, SettingsStore, ThemePresetStore,
     ThemeStore,
-    get_settings_path,
-    get_theme_path,
-    get_theme_presets_path,
 };
+use std::collections::HashMap;
+use tauri::menu::{MenuBuilder, MenuEvent, MenuItemBuilder};
+use tauri::tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent};
+use tauri::{AppHandle, Emitter, Manager, Wry};
+use tauri_plugin_autostart::MacosLauncher;
 
 #[tauri::command]
 async fn validate_cookie(cookie: String) -> Result<api::auth::AccountInfo, String> {
@@ -29,13 +25,19 @@ async fn validate_cookie(cookie: String) -> Result<api::auth::AccountInfo, Strin
 }
 
 #[tauri::command]
-async fn get_csrf_token(state: tauri::State<'_, AccountStore>, user_id: i64) -> Result<String, String> {
+async fn get_csrf_token(
+    state: tauri::State<'_, AccountStore>,
+    user_id: i64,
+) -> Result<String, String> {
     let cookie = get_cookie(&state, user_id)?;
     api::auth::get_csrf_token(&cookie).await
 }
 
 #[tauri::command]
-async fn get_auth_ticket(state: tauri::State<'_, AccountStore>, user_id: i64) -> Result<String, String> {
+async fn get_auth_ticket(
+    state: tauri::State<'_, AccountStore>,
+    user_id: i64,
+) -> Result<String, String> {
     let cookie = get_cookie(&state, user_id)?;
     api::auth::get_auth_ticket(&cookie).await
 }
@@ -47,13 +49,20 @@ async fn check_pin(state: tauri::State<'_, AccountStore>, user_id: i64) -> Resul
 }
 
 #[tauri::command]
-async fn unlock_pin(state: tauri::State<'_, AccountStore>, user_id: i64, pin: String) -> Result<bool, String> {
+async fn unlock_pin(
+    state: tauri::State<'_, AccountStore>,
+    user_id: i64,
+    pin: String,
+) -> Result<bool, String> {
     let cookie = get_cookie(&state, user_id)?;
     api::auth::unlock_pin(&cookie, &pin).await
 }
 
 #[tauri::command]
-async fn refresh_cookie(state: tauri::State<'_, AccountStore>, user_id: i64) -> Result<bool, String> {
+async fn refresh_cookie(
+    state: tauri::State<'_, AccountStore>,
+    user_id: i64,
+) -> Result<bool, String> {
     let cookie = get_cookie(&state, user_id)?;
     let result = api::auth::log_out_other_sessions(&cookie).await?;
 
@@ -91,7 +100,10 @@ async fn test_auth(cookie: String) -> Result<String, String> {
     results.push(format!("Cookie length: {}", cookie.len()));
 
     match api::auth::validate_cookie(&cookie).await {
-        Ok(info) => results.push(format!("Validate: OK - {} (ID: {})", info.name, info.user_id)),
+        Ok(info) => results.push(format!(
+            "Validate: OK - {} (ID: {})",
+            info.name, info.user_id
+        )),
         Err(e) => results.push(format!("Validate: FAILED - {}", e)),
     }
 
@@ -101,7 +113,10 @@ async fn test_auth(cookie: String) -> Result<String, String> {
     }
 
     match api::auth::get_auth_ticket(&cookie).await {
-        Ok(ticket) => results.push(format!("Ticket: OK - {}...", &ticket[..ticket.len().min(20)])),
+        Ok(ticket) => results.push(format!(
+            "Ticket: OK - {}...",
+            &ticket[..ticket.len().min(20)]
+        )),
         Err(e) => results.push(format!("Ticket: FAILED - {}", e)),
     }
 
@@ -250,7 +265,11 @@ async fn join_game(
 }
 
 #[tauri::command]
-async fn search_games(security_token: Option<String>, keyword: String, start: i32) -> Result<serde_json::Value, String> {
+async fn search_games(
+    security_token: Option<String>,
+    keyword: String,
+    start: i32,
+) -> Result<serde_json::Value, String> {
     api::roblox::search_games(security_token.as_deref(), &keyword, start).await
 }
 
@@ -408,7 +427,9 @@ async fn batched_get_image(
     size: String,
     format: String,
 ) -> Result<Option<String>, String> {
-    Ok(image_cache.get_image(target_id, &thumbnail_type, &size, &format).await)
+    Ok(image_cache
+        .get_image(target_id, &thumbnail_type, &size, &format)
+        .await)
 }
 
 #[tauri::command]
@@ -419,7 +440,14 @@ async fn batched_get_avatar_headshots(
 ) -> Result<Vec<api::batch::CachedThumbnail>, String> {
     let requests: Vec<(i64, String, String, String)> = user_ids
         .iter()
-        .map(|&id| (id, "AvatarHeadShot".to_string(), size.clone(), "png".to_string()))
+        .map(|&id| {
+            (
+                id,
+                "AvatarHeadShot".to_string(),
+                size.clone(),
+                "png".to_string(),
+            )
+        })
         .collect();
 
     let batch_results = image_cache.get_images_batch(requests).await;
@@ -452,13 +480,13 @@ async fn get_cached_thumbnail(
     thumbnail_type: String,
     size: String,
 ) -> Result<Option<String>, String> {
-    Ok(image_cache.get_cached_url(target_id, &thumbnail_type, &size).await)
+    Ok(image_cache
+        .get_cached_url(target_id, &thumbnail_type, &size)
+        .await)
 }
 
 #[tauri::command]
-async fn clear_image_cache(
-    image_cache: tauri::State<'_, ImageCache>,
-) -> Result<(), String> {
+async fn clear_image_cache(image_cache: tauri::State<'_, ImageCache>) -> Result<(), String> {
     image_cache.clear_cache().await;
     Ok(())
 }
@@ -532,7 +560,9 @@ async fn launch_roblox(
     if multi_rbx {
         let enabled = windows::enable_multi_roblox()?;
         if !enabled {
-            return Err("Failed to enable Multi Roblox. Close all Roblox processes and try again.".into());
+            return Err(
+                "Failed to enable Multi Roblox. Close all Roblox processes and try again.".into(),
+            );
         }
     } else {
         let _ = windows::disable_multi_roblox();
@@ -548,7 +578,9 @@ async fn launch_roblox(
 
     let mut actual_job = job_id.clone();
     if shuffle_job && !follow_user && !join_vip {
-        if let Ok(response) = api::roblox::get_servers(place_id, "Public", None, Some(&cookie)).await {
+        if let Ok(response) =
+            api::roblox::get_servers(place_id, "Public", None, Some(&cookie)).await
+        {
             if !response.data.is_empty() {
                 let idx = (std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
@@ -572,7 +604,8 @@ async fn launch_roblox(
                 final_link_code = code.split('&').next().unwrap_or(code).to_string();
             }
         }
-        match api::roblox::parse_private_server_link_code(&cookie, place_id, &final_link_code).await {
+        match api::roblox::parse_private_server_link_code(&cookie, place_id, &final_link_code).await
+        {
             Ok(code) => access_code = code,
             Err(_) => {}
         }
@@ -623,10 +656,22 @@ async fn launch_roblox(
 
         let accounts = state.get_all()?;
         if let Some(account) = accounts.iter().find(|a| a.user_id == user_id) {
-            let x = account.fields.get("Window_Position_X").and_then(|v| v.parse::<i32>().ok());
-            let y = account.fields.get("Window_Position_Y").and_then(|v| v.parse::<i32>().ok());
-            let w = account.fields.get("Window_Width").and_then(|v| v.parse::<i32>().ok());
-            let h = account.fields.get("Window_Height").and_then(|v| v.parse::<i32>().ok());
+            let x = account
+                .fields
+                .get("Window_Position_X")
+                .and_then(|v| v.parse::<i32>().ok());
+            let y = account
+                .fields
+                .get("Window_Position_Y")
+                .and_then(|v| v.parse::<i32>().ok());
+            let w = account
+                .fields
+                .get("Window_Width")
+                .and_then(|v| v.parse::<i32>().ok());
+            let h = account
+                .fields
+                .get("Window_Height")
+                .and_then(|v| v.parse::<i32>().ok());
 
             if let (Some(x), Some(y), Some(w), Some(h)) = (x, y, w, h) {
                 let target_pid = pid;
@@ -699,11 +744,14 @@ async fn launch_multiple(
             .map(|v| v.clone())
             .unwrap_or_else(|| job_id.clone());
 
-        let _ = app.emit("launch-progress", serde_json::json!({
-            "userId": uid,
-            "index": i,
-            "total": user_ids.len(),
-        }));
+        let _ = app.emit(
+            "launch-progress",
+            serde_json::json!({
+                "userId": uid,
+                "index": i,
+                "total": user_ids.len(),
+            }),
+        );
 
         let cookie = match get_cookie(&state, uid) {
             Ok(c) => c,
@@ -714,7 +762,10 @@ async fn launch_multiple(
         if multi_rbx {
             let enabled = windows::enable_multi_roblox()?;
             if !enabled {
-                return Err("Failed to enable Multi Roblox. Close all Roblox processes and try again.".into());
+                return Err(
+                    "Failed to enable Multi Roblox. Close all Roblox processes and try again."
+                        .into(),
+                );
             }
         } else {
             let _ = windows::disable_multi_roblox();
@@ -976,9 +1027,12 @@ async fn start_watcher(
 
             let dead_users = tracker.cleanup_dead_processes();
             for uid in &dead_users {
-                let _ = app_handle.emit("roblox-process-died", serde_json::json!({
-                    "userId": uid,
-                }));
+                let _ = app_handle.emit(
+                    "roblox-process-died",
+                    serde_json::json!({
+                        "userId": uid,
+                    }),
+                );
             }
 
             let instances = tracker.get_all();
@@ -994,10 +1048,13 @@ async fn start_watcher(
                         if let Some(mem) = windows::get_process_memory_mb(inst.pid) {
                             if mem < mem_limit {
                                 tracker.kill_for_user(inst.user_id);
-                                let _ = app_handle.emit("roblox-low-memory", serde_json::json!({
-                                    "userId": inst.user_id,
-                                    "memoryMb": mem,
-                                }));
+                                let _ = app_handle.emit(
+                                    "roblox-low-memory",
+                                    serde_json::json!({
+                                        "userId": inst.user_id,
+                                        "memoryMb": mem,
+                                    }),
+                                );
                             }
                         }
                     }
@@ -1006,11 +1063,14 @@ async fn start_watcher(
                         let title = windows::get_window_title(hwnd);
                         if !title.is_empty() && title != expected_title {
                             tracker.kill_for_user(inst.user_id);
-                            let _ = app_handle.emit("roblox-title-mismatch", serde_json::json!({
-                                "userId": inst.user_id,
-                                "title": title,
-                                "expected": expected_title,
-                            }));
+                            let _ = app_handle.emit(
+                                "roblox-title-mismatch",
+                                serde_json::json!({
+                                    "userId": inst.user_id,
+                                    "title": title,
+                                    "expected": expected_title,
+                                }),
+                            );
                         }
                     }
 
@@ -1018,10 +1078,13 @@ async fn start_watcher(
                         let title = windows::get_window_title(hwnd);
                         if title.to_lowercase().contains("beta") {
                             tracker.kill_for_user(inst.user_id);
-                            let _ = app_handle.emit("roblox-beta-detected", serde_json::json!({
-                                "userId": inst.user_id,
-                                "title": title,
-                            }));
+                            let _ = app_handle.emit(
+                                "roblox-beta-detected",
+                                serde_json::json!({
+                                    "userId": inst.user_id,
+                                    "title": title,
+                                }),
+                            );
                         }
                     }
 
@@ -1037,11 +1100,14 @@ async fn start_watcher(
                                 .or_insert_with(std::time::Instant::now);
                             if since.elapsed().as_secs() >= no_connection_timeout {
                                 tracker.kill_for_user(inst.user_id);
-                                let _ = app_handle.emit("roblox-no-connection", serde_json::json!({
-                                    "userId": inst.user_id,
-                                    "title": title,
-                                    "timeout": no_connection_timeout,
-                                }));
+                                let _ = app_handle.emit(
+                                    "roblox-no-connection",
+                                    serde_json::json!({
+                                        "userId": inst.user_id,
+                                        "title": title,
+                                        "timeout": no_connection_timeout,
+                                    }),
+                                );
                                 disconnected_since.remove(&inst.user_id);
                             }
                         } else {
@@ -1053,9 +1119,15 @@ async fn start_watcher(
                         if let Some((x, y, w, h)) = windows::get_window_position(hwnd) {
                             let store = app_handle.state::<AccountStore>();
                             if let Ok(accounts) = store.get_all() {
-                                if let Some(mut account) = accounts.into_iter().find(|a| a.user_id == inst.user_id) {
-                                    account.fields.insert("Window_Position_X".into(), x.to_string());
-                                    account.fields.insert("Window_Position_Y".into(), y.to_string());
+                                if let Some(mut account) =
+                                    accounts.into_iter().find(|a| a.user_id == inst.user_id)
+                                {
+                                    account
+                                        .fields
+                                        .insert("Window_Position_X".into(), x.to_string());
+                                    account
+                                        .fields
+                                        .insert("Window_Position_Y".into(), y.to_string());
                                     account.fields.insert("Window_Width".into(), w.to_string());
                                     account.fields.insert("Window_Height".into(), h.to_string());
                                     let _ = store.update(account);
@@ -1088,12 +1160,10 @@ fn stop_watcher() -> Result<(), String> {
 
 #[tauri::command]
 async fn start_web_server(app: tauri::AppHandle) -> Result<u16, String> {
-    let accounts: &'static AccountStore = unsafe {
-        &*(app.state::<AccountStore>().inner() as *const AccountStore)
-    };
-    let settings: &'static SettingsStore = unsafe {
-        &*(app.state::<SettingsStore>().inner() as *const SettingsStore)
-    };
+    let accounts: &'static AccountStore =
+        unsafe { &*(app.state::<AccountStore>().inner() as *const AccountStore) };
+    let settings: &'static SettingsStore =
+        unsafe { &*(app.state::<SettingsStore>().inner() as *const SettingsStore) };
     api::server::start(accounts, settings).await
 }
 
@@ -1111,10 +1181,17 @@ fn get_web_server_status() -> Result<api::server::WebServerStatus, String> {
 }
 
 #[tauri::command]
-async fn start_nexus_server(app: tauri::AppHandle, settings: tauri::State<'_, SettingsStore>) -> Result<u16, String> {
-    let port = settings.get_int("AccountControl", "NexusPort").unwrap_or(5242) as u16;
+async fn start_nexus_server(
+    app: tauri::AppHandle,
+    settings: tauri::State<'_, SettingsStore>,
+) -> Result<u16, String> {
+    let port = settings
+        .get_int("AccountControl", "NexusPort")
+        .unwrap_or(5242) as u16;
     let allow_external = settings.get_bool("AccountControl", "AllowExternalConnections");
-    nexus::websocket::nexus().start(port, allow_external, app).await
+    nexus::websocket::nexus()
+        .start(port, allow_external, app)
+        .await
 }
 
 #[tauri::command]
@@ -1190,8 +1267,7 @@ fn export_nexus_lua() -> Result<String, String> {
         .map_err(|e| format!("Failed to read current directory: {}", e))?
         .join("Nexus.lua");
     let content = include_str!("../assets/Nexus.lua");
-    std::fs::write(&out_path, content)
-        .map_err(|e| format!("Failed to write Nexus.lua: {}", e))?;
+    std::fs::write(&out_path, content).map_err(|e| format!("Failed to write Nexus.lua: {}", e))?;
     Ok(out_path.to_string_lossy().into_owned())
 }
 
@@ -1233,7 +1309,10 @@ pub fn run() {
             }
         }))
         .plugin(tauri_plugin_window_state::Builder::new().build())
-        .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, None))
+        .plugin(tauri_plugin_autostart::init(
+            MacosLauncher::LaunchAgent,
+            None,
+        ))
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .manage(account_store)
@@ -1250,8 +1329,8 @@ pub fn run() {
                 .icon(app.default_window_icon().unwrap().clone())
                 .tooltip("Roblox Account Manager")
                 .menu(&menu)
-                .on_menu_event(|app: &AppHandle<Wry>, event: MenuEvent| {
-                    match event.id().as_ref() {
+                .on_menu_event(
+                    |app: &AppHandle<Wry>, event: MenuEvent| match event.id().as_ref() {
                         "show" => {
                             if let Some(w) = app.get_webview_window("main") {
                                 let _ = w.show();
@@ -1263,10 +1342,15 @@ pub fn run() {
                             app.exit(0);
                         }
                         _ => {}
-                    }
-                })
+                    },
+                )
                 .on_tray_icon_event(|tray: &TrayIcon<Wry>, event: TrayIconEvent| {
-                    if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = event {
+                    if let TrayIconEvent::Click {
+                        button: MouseButton::Left,
+                        button_state: MouseButtonState::Up,
+                        ..
+                    } = event
+                    {
                         let app = tray.app_handle();
                         if let Some(w) = app.get_webview_window("main") {
                             let _ = w.show();
@@ -1280,10 +1364,16 @@ pub fn run() {
             let settings = app.state::<SettingsStore>();
             if settings.get_bool("AccountControl", "StartOnLaunch") {
                 let handle = app.handle().clone();
-                let port = settings.get_int("AccountControl", "NexusPort").unwrap_or(5242) as u16;
-                let allow_external = settings.get_bool("AccountControl", "AllowExternalConnections");
+                let port = settings
+                    .get_int("AccountControl", "NexusPort")
+                    .unwrap_or(5242) as u16;
+                let allow_external =
+                    settings.get_bool("AccountControl", "AllowExternalConnections");
                 tauri::async_runtime::spawn(async move {
-                    match nexus::websocket::nexus().start(port, allow_external, handle).await {
+                    match nexus::websocket::nexus()
+                        .start(port, allow_external, handle)
+                        .await
+                    {
                         Ok(port) => eprintln!("Nexus server started on port {}", port),
                         Err(e) => eprintln!("Failed to start Nexus server: {}", e),
                     }
@@ -1317,6 +1407,7 @@ pub fn run() {
             data::accounts::needs_password,
             data::accounts::set_encryption_password,
             data::accounts::reorder_accounts,
+            data::accounts::import_old_account_data,
             data::settings::get_all_settings,
             data::settings::get_setting,
             data::settings::update_setting,

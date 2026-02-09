@@ -1,7 +1,7 @@
 use crate::data::crypto;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Mutex;
@@ -129,6 +129,17 @@ pub struct AccountStore {
     file_path: PathBuf,
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OldAccountImportSummary {
+    pub total: usize,
+    pub added: usize,
+    pub replaced: usize,
+    pub skipped: usize,
+}
+
+const IMPORT_PASSWORD_REQUIRED: &str = "IMPORT_PASSWORD_REQUIRED";
+
 impl AccountStore {
     pub fn new(file_path: PathBuf) -> Self {
         Self {
@@ -169,37 +180,7 @@ impl AccountStore {
             return Ok(());
         }
 
-        let json_str = if crypto::is_encrypted(&data) {
-            let password_hash = self.password_hash.lock().map_err(|e| e.to_string())?;
-            let hash = password_hash
-                .as_ref()
-                .ok_or_else(|| "Password required for encrypted file".to_string())?;
-
-            let decrypted =
-                crypto::decrypt(&data, hash).map_err(|e| format!("Failed to decrypt: {}", e))?;
-
-            String::from_utf8(decrypted)
-                .map_err(|e| format!("Invalid UTF-8 in decrypted data: {}", e))?
-        } else {
-            let mut plain_json = String::from_utf8(data.clone()).ok();
-
-            let needs_fallback = match plain_json.as_ref() {
-                Some(raw) => serde_json::from_str::<Vec<Account>>(raw).is_err(),
-                None => true,
-            };
-
-            if needs_fallback {
-                plain_json = crypto::try_decrypt_legacy_dpapi(&data)
-                    .and_then(|decrypted| String::from_utf8(decrypted).ok());
-            }
-
-            plain_json.ok_or_else(|| {
-                "Invalid account data format (failed plaintext and legacy DPAPI decode)".to_string()
-            })?
-        };
-
-        let accounts: Vec<Account> = serde_json::from_str(&json_str)
-            .map_err(|e| format!("Failed to parse account JSON: {}", e))?;
+        let accounts = self.decode_accounts_for_load(&data)?;
 
         let mut store = self.accounts.lock().map_err(|e| e.to_string())?;
         *store = accounts;
@@ -314,6 +295,130 @@ impl AccountStore {
         drop(accounts);
         self.save()
     }
+
+    fn decode_plain_or_legacy_accounts(data: &[u8]) -> Result<Vec<Account>, String> {
+        if let Ok(accounts) = serde_json::from_slice::<Vec<Account>>(data) {
+            return Ok(accounts);
+        }
+
+        if let Some(legacy_decrypted) = crypto::try_decrypt_legacy_dpapi(data) {
+            return serde_json::from_slice::<Vec<Account>>(&legacy_decrypted)
+                .map_err(|e| format!("Failed to parse account JSON: {}", e));
+        }
+
+        Err("Invalid account data format (failed plaintext and legacy DPAPI decode)".to_string())
+    }
+
+    fn decode_accounts_for_load(&self, data: &[u8]) -> Result<Vec<Account>, String> {
+        if data.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        if crypto::is_encrypted(data) {
+            let password_hash = self.password_hash.lock().map_err(|e| e.to_string())?;
+            let hash = password_hash
+                .as_ref()
+                .ok_or_else(|| "Password required for encrypted file".to_string())?;
+            let decrypted =
+                crypto::decrypt(data, hash).map_err(|e| format!("Failed to decrypt: {}", e))?;
+            return serde_json::from_slice::<Vec<Account>>(&decrypted)
+                .map_err(|e| format!("Failed to parse account JSON: {}", e));
+        }
+
+        Self::decode_plain_or_legacy_accounts(data)
+    }
+
+    fn decode_accounts_for_import(
+        &self,
+        data: &[u8],
+        import_password: Option<&str>,
+    ) -> Result<Vec<Account>, String> {
+        if data.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        if crypto::is_encrypted(data) {
+            let Some(password) = import_password else {
+                return Err(IMPORT_PASSWORD_REQUIRED.to_string());
+            };
+            let hash = crypto::hash_password(password);
+            let decrypted =
+                crypto::decrypt(data, &hash).map_err(|_| "Import password is incorrect".to_string())?;
+            return serde_json::from_slice::<Vec<Account>>(&decrypted)
+                .map_err(|e| format!("Failed to parse account JSON: {}", e));
+        }
+
+        Self::decode_plain_or_legacy_accounts(data)
+    }
+
+    pub fn import_old_account_data(
+        &self,
+        data: &[u8],
+        import_password: Option<&str>,
+    ) -> Result<OldAccountImportSummary, String> {
+        let imported_accounts = self.decode_accounts_for_import(data, import_password)?;
+        let total = imported_accounts.len();
+        let mut skipped = 0usize;
+
+        let mut imported_by_user_id: HashMap<i64, Account> = HashMap::new();
+        let mut imported_order: Vec<i64> = Vec::new();
+
+        for account in imported_accounts {
+            let user_id = account.user_id;
+            if user_id <= 0 {
+                skipped += 1;
+                continue;
+            }
+
+            if imported_by_user_id.contains_key(&user_id) {
+                skipped += 1;
+            } else {
+                imported_order.push(user_id);
+            }
+            imported_by_user_id.insert(user_id, account);
+        }
+
+        let mut accounts = self.accounts.lock().map_err(|e| e.to_string())?;
+        let mut current_index_by_user_id: HashMap<i64, usize> = accounts
+            .iter()
+            .enumerate()
+            .map(|(idx, account)| (account.user_id, idx))
+            .collect();
+
+        let mut added = 0usize;
+        let mut replaced = 0usize;
+
+        for user_id in imported_order {
+            let Some(account) = imported_by_user_id.remove(&user_id) else {
+                continue;
+            };
+            if let Some(existing_index) = current_index_by_user_id.get(&user_id).copied() {
+                accounts[existing_index] = account;
+                replaced += 1;
+            } else {
+                let next_index = accounts.len();
+                current_index_by_user_id.insert(user_id, next_index);
+                accounts.push(account);
+                added += 1;
+            }
+        }
+
+        let mut seen_user_ids = HashSet::new();
+        accounts.retain(|account| seen_user_ids.insert(account.user_id));
+
+        drop(accounts);
+
+        if added > 0 || replaced > 0 {
+            self.save()?;
+        }
+
+        Ok(OldAccountImportSummary {
+            total,
+            added,
+            replaced,
+            skipped,
+        })
+    }
 }
 
 pub fn get_account_data_path() -> PathBuf {
@@ -390,4 +495,13 @@ pub fn reorder_accounts(
     user_ids: Vec<i64>,
 ) -> Result<(), String> {
     state.reorder(&user_ids)
+}
+
+#[tauri::command]
+pub fn import_old_account_data(
+    state: tauri::State<'_, AccountStore>,
+    file_data: Vec<u8>,
+    password: Option<String>,
+) -> Result<OldAccountImportSummary, String> {
+    state.import_old_account_data(&file_data, password.as_deref())
 }

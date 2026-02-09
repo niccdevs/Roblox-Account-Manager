@@ -139,8 +139,8 @@ export interface StoreValue {
   setAccountFieldsOpen: (open: boolean) => void;
   importDialogOpen: boolean;
   setImportDialogOpen: (open: boolean) => void;
-  importDialogTab: "cookie" | "userpass";
-  setImportDialogTab: (tab: "cookie" | "userpass") => void;
+  importDialogTab: "cookie" | "legacy";
+  setImportDialogTab: (tab: "cookie" | "legacy") => void;
   themeEditorOpen: boolean;
   setThemeEditorOpen: (open: boolean) => void;
   missingAssets: { userId: number; username: string; assetIds: number[] } | null;
@@ -214,7 +214,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [accountUtilsOpen, setAccountUtilsOpen] = useState(false);
   const [accountFieldsOpen, setAccountFieldsOpen] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
-  const [importDialogTab, setImportDialogTab] = useState<"cookie" | "userpass">("cookie");
+  const [importDialogTab, setImportDialogTab] = useState<"cookie" | "legacy">("cookie");
   const [themeEditorOpen, setThemeEditorOpen] = useState(false);
   const [missingAssets, setMissingAssets] = useState<{ userId: number; username: string; assetIds: number[] } | null>(null);
   const [nexusOpen, setNexusOpen] = useState(false);
