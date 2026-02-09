@@ -37,12 +37,12 @@ If you need maximum stability right now, use the latest legacy release until v4 
 - Server list experience (games, servers, favorites, recent tabs)
 - Roblox launch/process-management foundation and multi-instance settings
 - Local API/server and Nexus websocket foundations
-- Signed Windows build/release automation for v4 beta updates
+- Signed Windows build/release automation for v4 beta
 
 ## Still in progress
 - Full legacy feature parity validation and edge-case behavior
 - Additional polish and reliability fixes across account utilities
-- More testing coverage and hardening for updater/release flows
+- More testing coverage and hardening for release flows
 - Cross-platform parity validation (especially macOS runtime behavior)
 - v4-specific documentation and migration notes
 

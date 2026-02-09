@@ -24,14 +24,6 @@
       "csp": null
     }
   },
-  "plugins": {
-    "updater": {
-      "endpoints": [
-        "https://raw.githubusercontent.com/niccsprojects/Roblox-Account-Manager/update-manifests/beta/latest.json"
-      ],
-      "pubkey": "RWSsEQ0uab+K154ckDzDmkhGnITTudcYXWBRmar064/m/MXMsovRNos5"
-    }
-  },
   "bundle": {
     "active": true,
     "targets": "all",
