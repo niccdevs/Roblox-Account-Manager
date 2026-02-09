@@ -114,6 +114,7 @@ jobs:
 
           $privateKey = $env:RAW_TAURI_SIGNING_PRIVATE_KEY -replace "`r", ""
           $privateKey = $privateKey -replace "\\n", "`n"
+          $privateKey = $privateKey.Trim()
           if ($privateKey -notmatch "untrusted comment") {
             try {
               $decoded = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($privateKey.Trim()))
@@ -123,12 +124,29 @@ jobs:
             } catch {
             }
           }
+
+          $privateKeyLines = @(
+            $privateKey -split "`n" |
+            ForEach-Object { $_.Trim() } |
+            Where-Object { $_ -ne "" }
+          )
+
+          if ($privateKeyLines.Count -eq 1 -and $privateKeyLines[0] -match "^[A-Za-z0-9+/=]+$") {
+            $base64Line = $privateKeyLines[0]
+            $padding = $base64Line.Length % 4
+            if ($padding -ne 0) {
+              $base64Line += ("=" * (4 - $padding))
+            }
+            $privateKey = "untrusted comment: minisign encrypted secret key`n$base64Line"
+          }
+
           $privateKeyPath = Join-Path $env:RUNNER_TEMP "tauri-signing-private.key"
           Set-Content -Path $privateKeyPath -Value $privateKey -NoNewline -Encoding utf8
 
           Add-Content -Path $env:GITHUB_ENV -Value "TAURI_SIGNING_PRIVATE_KEY<<EOF"
           Add-Content -Path $env:GITHUB_ENV -Value $privateKey
           Add-Content -Path $env:GITHUB_ENV -Value "EOF"
+          Add-Content -Path $env:GITHUB_ENV -Value "TAURI_SIGNING_PRIVATE_KEY_PATH=$privateKeyPath"
 
           if ($null -ne $env:RAW_TAURI_SIGNING_PRIVATE_KEY_PASSWORD) {
             $password = $env:RAW_TAURI_SIGNING_PRIVATE_KEY_PASSWORD -replace "`r", ""
@@ -185,8 +203,17 @@ jobs:
         run: |
           New-Item -ItemType Directory -Path ".updater" -Force | Out-Null
           $probePath = ".updater\signing-smoke-test.bin"
+          $privateKeyPath = [string]($env:TAURI_SIGNING_PRIVATE_KEY_PATH ?? "")
+          if ([string]::IsNullOrWhiteSpace($privateKeyPath) -or -not (Test-Path $privateKeyPath)) {
+            throw "TAURI_SIGNING_PRIVATE_KEY_PATH is missing or invalid after normalization."
+          }
+          $password = [string]($env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD ?? "")
           Set-Content -Path $probePath -Value "ram-updater-signing-smoke-test" -NoNewline -Encoding utf8
-          bunx tauri signer sign "$probePath"
+          if ([string]::IsNullOrEmpty($password)) {
+            bunx tauri signer sign "$probePath" -k "$privateKeyPath"
+          } else {
+            bunx tauri signer sign "$probePath" -k "$privateKeyPath" -p "$password"
+          }
           if (-not (Test-Path "$probePath.sig")) {
             throw "Updater signing smoke test failed (no signature output). Verify TAURI_SIGNING_PRIVATE_KEY(_PASSWORD) secrets."
           }
@@ -198,8 +225,6 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ env.RELEASE_GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           projectPath: "."
           tauriScript: "bun tauri"
@@ -223,12 +248,14 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ env.RELEASE_GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
           $tag = "${{ steps.meta.outputs.tag }}"
           $repo = "${{ github.repository }}"
           New-Item -ItemType Directory -Path ".updater" -Force | Out-Null
+          $privateKeyPath = [string]($env:TAURI_SIGNING_PRIVATE_KEY_PATH ?? "")
+          if ([string]::IsNullOrWhiteSpace($privateKeyPath) -or -not (Test-Path $privateKeyPath)) {
+            throw "TAURI_SIGNING_PRIVATE_KEY_PATH is missing or invalid before updater signing."
+          }
 
           $updaterAsset = Get-ChildItem -Path "src-tauri\target\release\bundle" -Recurse -File -ErrorAction SilentlyContinue |
             Where-Object { $_.Name -match '\.nsis\.zip$|\.msi\.zip$|-setup\.exe$' } |
@@ -250,10 +277,6 @@ jobs:
 
           if (-not $updaterAsset) {
             throw "Could not resolve an updater asset (*.nsis.zip, *-setup.exe, or *.msi.zip) for release $tag"
-          }
-
-          if ($env:TAURI_SIGNING_PRIVATE_KEY -and $env:TAURI_SIGNING_PRIVATE_KEY.Contains('\n')) {
-            $env:TAURI_SIGNING_PRIVATE_KEY = $env:TAURI_SIGNING_PRIVATE_KEY -replace '\\n', "`n"
           }
 
           $updaterPath = $updaterAsset.FullName
@@ -289,9 +312,9 @@ jobs:
               }
 
               if ([string]::IsNullOrEmpty($passwordAttempt)) {
-                bunx tauri signer sign "$updaterPath" -p ""
+                bunx tauri signer sign "$updaterPath" -k "$privateKeyPath" -p ""
               } else {
-                bunx tauri signer sign "$updaterPath" -p "$passwordAttempt"
+                bunx tauri signer sign "$updaterPath" -k "$privateKeyPath" -p "$passwordAttempt"
               }
             }
           }
