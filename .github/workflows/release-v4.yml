@@ -101,27 +101,98 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      - name: Validate updater signing secrets
+      - name: Normalize updater signing secrets
+        id: signing_secrets
         shell: pwsh
         env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          RAW_TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          RAW_TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
-          if (-not $env:TAURI_SIGNING_PRIVATE_KEY) {
+          if (-not $env:RAW_TAURI_SIGNING_PRIVATE_KEY) {
             throw "Missing secret: TAURI_SIGNING_PRIVATE_KEY"
           }
 
-          if (-not $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD) {
-            throw "Missing secret: TAURI_SIGNING_PRIVATE_KEY_PASSWORD"
+          $privateKey = $env:RAW_TAURI_SIGNING_PRIVATE_KEY -replace "`r", ""
+          $privateKey = $privateKey -replace "\\n", "`n"
+          if ($privateKey -notmatch "untrusted comment") {
+            try {
+              $decoded = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($privateKey.Trim()))
+              if ($decoded -match "untrusted comment") {
+                $privateKey = $decoded
+              }
+            } catch {
+            }
           }
+          $privateKeyPath = Join-Path $env:RUNNER_TEMP "tauri-signing-private.key"
+          Set-Content -Path $privateKeyPath -Value $privateKey -NoNewline -Encoding utf8
+
+          Add-Content -Path $env:GITHUB_ENV -Value "TAURI_SIGNING_PRIVATE_KEY<<EOF"
+          Add-Content -Path $env:GITHUB_ENV -Value $privateKey
+          Add-Content -Path $env:GITHUB_ENV -Value "EOF"
+
+          if ($null -ne $env:RAW_TAURI_SIGNING_PRIVATE_KEY_PASSWORD) {
+            $password = $env:RAW_TAURI_SIGNING_PRIVATE_KEY_PASSWORD -replace "`r", ""
+            Add-Content -Path $env:GITHUB_ENV -Value "TAURI_SIGNING_PRIVATE_KEY_PASSWORD<<EOF"
+            Add-Content -Path $env:GITHUB_ENV -Value $password
+            Add-Content -Path $env:GITHUB_ENV -Value "EOF"
+          }
+
+      - name: Inject updater pubkey from secret
+        if: ${{ secrets.TAURI_SIGNING_PUBLIC_KEY != '' }}
+        shell: pwsh
+        env:
+          RAW_TAURI_SIGNING_PUBLIC_KEY: ${{ secrets.TAURI_SIGNING_PUBLIC_KEY }}
+        run: |
+          $pubkey = $env:RAW_TAURI_SIGNING_PUBLIC_KEY -replace "`r", ""
+          $pubkey = $pubkey -replace "\\n", "`n"
+          if ($pubkey -notmatch "untrusted comment") {
+            try {
+              $decoded = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($pubkey.Trim()))
+              if ($decoded -match "untrusted comment") {
+                $pubkey = $decoded
+              }
+            } catch {
+            }
+          }
+          $pubkey = $pubkey.Trim()
+
+          if (-not $pubkey) {
+            throw "TAURI_SIGNING_PUBLIC_KEY is set but empty after normalization."
+          }
+
+          $configPath = "src-tauri/tauri.conf.json"
+          $config = Get-Content -Path $configPath -Raw | ConvertFrom-Json -AsHashtable
+
+          if (-not $config.ContainsKey("plugins")) {
+            $config["plugins"] = @{}
+          }
+          if (-not $config["plugins"].ContainsKey("updater")) {
+            $config["plugins"]["updater"] = @{}
+          }
+
+          $config["plugins"]["updater"]["pubkey"] = $pubkey
+
+          $updated = $config | ConvertTo-Json -Depth 64
+          Set-Content -Path $configPath -Value "$updated`n" -Encoding utf8
+
+      - name: Smoke-test updater signing key
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path ".updater" -Force | Out-Null
+          $probePath = ".updater\signing-smoke-test.bin"
+          Set-Content -Path $probePath -Value "ram-updater-signing-smoke-test" -NoNewline -Encoding utf8
+          bunx tauri signer sign "$probePath"
+          if (-not (Test-Path "$probePath.sig")) {
+            throw "Updater signing smoke test failed (no signature output). Verify TAURI_SIGNING_PRIVATE_KEY(_PASSWORD) secrets."
+          }
+          Remove-Item "$probePath" -Force -ErrorAction SilentlyContinue
+          Remove-Item "$probePath.sig" -Force -ErrorAction SilentlyContinue
 
       - name: Build and publish release
         id: tauri_build
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ env.RELEASE_GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           projectPath: "."
           tauriScript: "bun tauri"
@@ -142,12 +213,9 @@ jobs:
 
       - name: Upload updater bundle
         id: updater_bundle
-        continue-on-error: true
         shell: pwsh
         env:
           GH_TOKEN: ${{ env.RELEASE_GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
           $tag = "${{ steps.meta.outputs.tag }}"
           New-Item -ItemType Directory -Path ".updater" -Force | Out-Null
@@ -179,10 +247,6 @@ jobs:
 
           if (-not (Test-Path $sigPath)) {
             bunx tauri signer sign "$updaterPath"
-
-            if (-not (Test-Path $sigPath) -and $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD) {
-              bunx tauri signer sign "$updaterPath" -p ""
-            }
           }
 
           if (-not (Test-Path $sigPath)) {
@@ -193,7 +257,6 @@ jobs:
           Set-Content -Path ".updater\updater-asset-name.txt" -Value $updaterAsset.Name -Encoding utf8
 
       - name: Build updater manifest
-        if: ${{ steps.updater_bundle.outcome == 'success' }}
         shell: pwsh
         env:
           GH_TOKEN: ${{ env.RELEASE_GITHUB_TOKEN }}
@@ -259,7 +322,7 @@ jobs:
             platforms = @{
               "windows-x86_64" = @{
                 signature = $signature
-                url = $asset.url
+                url = "https://github.com/$repo/releases/download/$tag/$($asset.name)"
               }
             }
           } | ConvertTo-Json -Depth 8
@@ -267,7 +330,6 @@ jobs:
           Set-Content -Path ".updater\latest.json" -Value $manifest -Encoding utf8
 
       - name: Publish channel manifest
-        if: ${{ steps.updater_bundle.outcome == 'success' }}
         uses: actions/github-script@v7
         with:
           github-token: ${{ env.RELEASE_GITHUB_TOKEN }}
@@ -331,9 +393,112 @@ jobs:
           RELEASE_CHANNEL: ${{ steps.controls.outputs.channel }}
           RELEASE_TAG: ${{ steps.meta.outputs.tag }}
 
-      - name: Updater signing warning
-        if: ${{ steps.updater_bundle.outcome != 'success' }}
-        shell: pwsh
-        run: |
-          Write-Warning "Updater bundle/signature upload was skipped because signing failed. Release binaries were still published."
-          Write-Warning "Fix TAURI_SIGNING_PRIVATE_KEY and TAURI_SIGNING_PRIVATE_KEY_PASSWORD secrets to re-enable updater manifest publishing."
+      - name: Finalize release notes
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ env.RELEASE_GITHUB_TOKEN }}
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const tag = process.env.RELEASE_TAG;
+            const channel = String(process.env.RELEASE_CHANNEL || "beta").toLowerCase();
+            const appVersion = process.env.RELEASE_APP_VERSION;
+            const previousTag = process.env.RELEASE_PREVIOUS_TAG;
+            const releaseCommitSha = (context.payload.head_commit?.id || context.sha || "").slice(0, 7);
+
+            let releaseCommitMessage = String(context.payload.head_commit?.message || "").trim();
+            if (!releaseCommitMessage) {
+              try {
+                const commit = await github.rest.repos.getCommit({
+                  owner,
+                  repo,
+                  ref: context.sha
+                });
+                releaseCommitMessage = String(commit.data.commit.message || "").trim();
+              } catch (error) {
+                core.warning(`Could not resolve release commit message from commit API: ${error.message}`);
+              }
+            }
+            releaseCommitMessage = (releaseCommitMessage.split(/\r?\n/)[0] || "N/A").trim();
+
+            const generatedNotes = await github.rest.repos.generateReleaseNotes({
+              owner,
+              repo,
+              tag_name: tag,
+              target_commitish: context.sha,
+              ...(previousTag ? { previous_tag_name: previousTag } : {})
+            });
+            const generatedBody = String(generatedNotes.data.body || "").trim();
+
+            const contributorSet = new Set();
+            if (previousTag) {
+              try {
+                const compare = await github.rest.repos.compareCommitsWithBasehead({
+                  owner,
+                  repo,
+                  basehead: `${previousTag}...${tag}`
+                });
+                for (const commit of compare.data.commits || []) {
+                  const login = commit.author?.login;
+                  if (login) {
+                    contributorSet.add(login);
+                  }
+                }
+              } catch (error) {
+                core.warning(`Could not compute contributor range ${previousTag}...${tag}: ${error.message}`);
+              }
+            }
+
+            const contributors = Array.from(contributorSet);
+            let contributorsBlock = "## Contributors\n- No contributor metadata found for this release range.";
+            if (contributors.length > 0) {
+              const avatars = contributors
+                .map((login) => `<a href=\"https://github.com/${login}\"><img src=\"https://github.com/${login}.png?size=64\" width=\"32\" height=\"32\" alt=\"@${login}\" /></a>`)
+                .join(" ");
+              const names = contributors
+                .map((login) => `[@${login}](https://github.com/${login})`)
+                .join(", ");
+              contributorsBlock = `## Contributors\n${avatars}\n\n${names}`;
+            }
+
+            const channelLabel = channel === "beta" ? "Beta" : "Stable";
+            const warningLine = channel === "beta"
+              ? "This is a beta release. Missing features, bugs, and crashes are possible. Run at your own risk."
+              : "This is a stable release intended for general use.";
+            const calloutType = channel === "beta" ? "WARNING" : "NOTE";
+
+            const topNote = [
+              `> [!${calloutType}]`,
+              `> ${warningLine}`,
+              "",
+              `Channel: ${channelLabel}`,
+              `Release commit: ${releaseCommitSha}`,
+              `Release commit message: ${releaseCommitMessage}`,
+              `App version: ${appVersion}`
+            ].join("\n");
+
+            const finalBody = [
+              topNote,
+              "",
+              generatedBody || "## What's Changed\n- Release notes could not be generated.",
+              "",
+              contributorsBlock
+            ].join("\n");
+
+            const release = await github.rest.repos.getReleaseByTag({
+              owner,
+              repo,
+              tag
+            });
+
+            await github.rest.repos.updateRelease({
+              owner,
+              repo,
+              release_id: release.data.id,
+              body: finalBody
+            });
+        env:
+          RELEASE_CHANNEL: ${{ steps.controls.outputs.channel }}
+          RELEASE_TAG: ${{ steps.meta.outputs.tag }}
+          RELEASE_APP_VERSION: ${{ steps.meta.outputs.app_version }}
+          RELEASE_PREVIOUS_TAG: ${{ steps.meta.outputs.previous_tag }}
