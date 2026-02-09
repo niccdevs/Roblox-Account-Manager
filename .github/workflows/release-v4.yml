@@ -146,7 +146,6 @@ jobs:
           Add-Content -Path $env:GITHUB_ENV -Value "TAURI_SIGNING_PRIVATE_KEY<<EOF"
           Add-Content -Path $env:GITHUB_ENV -Value $privateKey
           Add-Content -Path $env:GITHUB_ENV -Value "EOF"
-          Add-Content -Path $env:GITHUB_ENV -Value "TAURI_SIGNING_PRIVATE_KEY_PATH=$privateKeyPath"
 
           if ($null -ne $env:RAW_TAURI_SIGNING_PRIVATE_KEY_PASSWORD) {
             $password = $env:RAW_TAURI_SIGNING_PRIVATE_KEY_PASSWORD -replace "`r", ""
@@ -203,16 +202,12 @@ jobs:
         run: |
           New-Item -ItemType Directory -Path ".updater" -Force | Out-Null
           $probePath = ".updater\signing-smoke-test.bin"
-          $privateKeyPath = [string]($env:TAURI_SIGNING_PRIVATE_KEY_PATH ?? "")
-          if ([string]::IsNullOrWhiteSpace($privateKeyPath) -or -not (Test-Path $privateKeyPath)) {
-            throw "TAURI_SIGNING_PRIVATE_KEY_PATH is missing or invalid after normalization."
-          }
           $password = [string]($env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD ?? "")
           Set-Content -Path $probePath -Value "ram-updater-signing-smoke-test" -NoNewline -Encoding utf8
           if ([string]::IsNullOrEmpty($password)) {
-            bunx tauri signer sign "$probePath" -k "$privateKeyPath"
+            bunx tauri signer sign "$probePath"
           } else {
-            bunx tauri signer sign "$probePath" -k "$privateKeyPath" -p "$password"
+            bunx tauri signer sign "$probePath" -p "$password"
           }
           if (-not (Test-Path "$probePath.sig")) {
             throw "Updater signing smoke test failed (no signature output). Verify TAURI_SIGNING_PRIVATE_KEY(_PASSWORD) secrets."
@@ -252,10 +247,6 @@ jobs:
           $tag = "${{ steps.meta.outputs.tag }}"
           $repo = "${{ github.repository }}"
           New-Item -ItemType Directory -Path ".updater" -Force | Out-Null
-          $privateKeyPath = [string]($env:TAURI_SIGNING_PRIVATE_KEY_PATH ?? "")
-          if ([string]::IsNullOrWhiteSpace($privateKeyPath) -or -not (Test-Path $privateKeyPath)) {
-            throw "TAURI_SIGNING_PRIVATE_KEY_PATH is missing or invalid before updater signing."
-          }
 
           $updaterAsset = Get-ChildItem -Path "src-tauri\target\release\bundle" -Recurse -File -ErrorAction SilentlyContinue |
             Where-Object { $_.Name -match '\.nsis\.zip$|\.msi\.zip$|-setup\.exe$' } |
@@ -312,9 +303,9 @@ jobs:
               }
 
               if ([string]::IsNullOrEmpty($passwordAttempt)) {
-                bunx tauri signer sign "$updaterPath" -k "$privateKeyPath" -p ""
+                bunx tauri signer sign "$updaterPath" -p ""
               } else {
-                bunx tauri signer sign "$updaterPath" -k "$privateKeyPath" -p "$passwordAttempt"
+                bunx tauri signer sign "$updaterPath" -p "$passwordAttempt"
               }
             }
           }
