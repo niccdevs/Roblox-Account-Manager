@@ -633,6 +633,7 @@ struct BottingAccountRuntime {
 struct BottingSession {
     id: u64,
     stop_flag: Arc<AtomicBool>,
+    stopped_notify: Arc<tokio::sync::Notify>,
     started_at_ms: i64,
     config: Arc<Mutex<BottingConfig>>,
     accounts: Arc<Mutex<HashMap<i64, BottingAccountRuntime>>>,
@@ -836,6 +837,7 @@ async fn run_botting_session(
     app: tauri::AppHandle,
     session_id: u64,
     stop_flag: Arc<AtomicBool>,
+    stopped_notify: Arc<tokio::sync::Notify>,
     config: Arc<Mutex<BottingConfig>>,
     accounts: Arc<Mutex<HashMap<i64, BottingAccountRuntime>>>,
 ) {
@@ -995,6 +997,7 @@ async fn run_botting_session(
     if should_clear {
         BOTTING_MANAGER.replace_session(None);
     }
+    stopped_notify.notify_waiters();
     let _ = app.emit("botting-stopped", serde_json::json!({}));
     emit_botting_status(&app);
 }
@@ -1039,7 +1042,18 @@ async fn start_botting_mode(
 
     if let Some(existing) = BOTTING_MANAGER.get_session() {
         existing.stop_flag.store(true, Ordering::Relaxed);
-        BOTTING_MANAGER.replace_session(None);
+        let _ = tokio::time::timeout(
+            std::time::Duration::from_secs(2),
+            existing.stopped_notify.notified(),
+        )
+        .await;
+        let should_clear = BOTTING_MANAGER
+            .get_session()
+            .map(|s| s.id == existing.id)
+            .unwrap_or(false);
+        if should_clear {
+            BOTTING_MANAGER.replace_session(None);
+        }
     }
 
     let retry_max = settings
@@ -1094,9 +1108,11 @@ async fn start_botting_mode(
 
     let session_id = BOTTING_MANAGER.next_session_id();
     let stop_flag = Arc::new(AtomicBool::new(false));
+    let stopped_notify = Arc::new(tokio::sync::Notify::new());
     let session = BottingSession {
         id: session_id,
         stop_flag: stop_flag.clone(),
+        stopped_notify: stopped_notify.clone(),
         started_at_ms: now_ms(),
         config: Arc::new(Mutex::new(cfg)),
         accounts: Arc::new(Mutex::new(runtime_map)),
@@ -1109,6 +1125,7 @@ async fn start_botting_mode(
         app.clone(),
         session_id,
         stop_flag,
+        stopped_notify,
         session.config.clone(),
         session.accounts.clone(),
     ));
