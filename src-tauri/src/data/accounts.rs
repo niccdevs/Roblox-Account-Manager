@@ -404,9 +404,7 @@ impl AccountStore {
         }
 
         let mut seen_user_ids = HashSet::new();
-        let before_dedup = accounts.len();
         accounts.retain(|account| seen_user_ids.insert(account.user_id));
-        skipped += before_dedup.saturating_sub(accounts.len());
 
         drop(accounts);
 
