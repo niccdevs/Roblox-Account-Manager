@@ -6,8 +6,8 @@ Full credit to [ic3w0lf22](https://github.com/ic3w0lf22) for the original Roblox
 
 ## Downloads
 [![Total Downloads](https://img.shields.io/github/downloads/niccsprojects/Roblox-Account-Manager/total?label=Total%20Downloads&color=2ea043)](https://github.com/niccsprojects/Roblox-Account-Manager/releases)
-[![Latest Release Downloads](https://img.shields.io/github/downloads/niccsprojects/Roblox-Account-Manager/latest/total?label=Latest%20Release%20Downloads&color=3b82f6)](https://github.com/niccsprojects/Roblox-Account-Manager/releases/latest)
-[![Latest Release](https://img.shields.io/github/v/release/niccsprojects/Roblox-Account-Manager?include_prereleases&label=Latest%20Release)](https://github.com/niccsprojects/Roblox-Account-Manager/releases/latest)
+[![Latest v4 Beta Downloads](https://img.shields.io/github/downloads-pre/niccsprojects/Roblox-Account-Manager/latest/total?label=Latest%20v4%20Beta%20Downloads&color=3b82f6)](https://github.com/niccsprojects/Roblox-Account-Manager/releases?q=beta)
+[![Latest v4 Beta](https://img.shields.io/github/v/release/niccsprojects/Roblox-Account-Manager?include_prereleases&label=Latest%20v4%20Beta)](https://github.com/niccsprojects/Roblox-Account-Manager/releases?q=beta)
 
 Release download counts are based on GitHub release asset downloads across tags and are not unique installs.
 
@@ -52,6 +52,25 @@ If you need maximum stability right now, use the latest legacy release until v4 
 - More testing coverage and hardening for release flows
 - Cross-platform parity validation (especially macOS runtime behavior)
 - v4-specific documentation and migration notes
+
+## v4 Theme System
+v4 uses a centralized theme pipeline. If you change theme behavior, keep frontend defaults, backend defaults, and CSS startup vars aligned.
+
+Source of truth files:
+- Frontend default theme + built-in presets: `src/theme.ts`
+- Backend persisted defaults for fresh installs: `src-tauri/src/data/settings.rs` (`impl Default for ThemeData`)
+- CSS startup fallback variables: `src/index.css` (`:root`)
+- User custom presets file: `RAMThemePresets.json` in the app runtime directory
+
+Current default:
+- The default theme is **Legacy v4 (Original)** to preserve the pre-refactor v4 look.
+- Catppuccin and other styles are presets, not defaults.
+
+When changing themes:
+1. Changing default colors: update `DEFAULT_THEME` in `src/theme.ts`, `ThemeData::default()` in `src-tauri/src/data/settings.rs`, and `:root` vars in `src/index.css`.
+2. Changing presets: update `THEME_PRESETS` in `src/theme.ts` and keep preset IDs stable once used.
+3. Changing theme application: update `applyThemeCssVariables` in `src/theme.ts` and prefer `theme-*` + CSS vars over hardcoded utility colors.
+4. Theme editor behavior: live preview uses `store.applyThemePreview(...)`, persist uses `store.saveTheme(...)`, and cancel should restore the opening snapshot.
 
 # WARNING
 If someone asks you to generate an "rbx-player link", **DO NOT** do it, they can use these to join any game using your account, or even launch roblox studio with one of your games. They can do many things in game such as spend your robux or even do things that can get your account terminated. **USE THESE FEATURES AT YOUR OWN RISK**
