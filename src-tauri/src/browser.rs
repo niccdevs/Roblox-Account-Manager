@@ -1,10 +1,36 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::time::Duration;
 
 use cookie::Cookie;
 use tauri::{AppHandle, Emitter, Manager, Url, WebviewUrl, WebviewWindowBuilder};
 
 use crate::data::accounts::AccountStore;
+
+fn find_roblosecurity(app: &AppHandle) -> Option<String> {
+    let browser = app.get_webview_window("login-browser")?;
+    let urls: [&str; 4] = [
+        "https://www.roblox.com",
+        "https://www.roblox.com/home",
+        "https://roblox.com",
+        "https://web.roblox.com",
+    ];
+
+    for raw in urls {
+        if let Ok(url) = raw.parse::<Url>() {
+            if let Ok(cookies) = browser.cookies_for_url(url) {
+                if let Some(cookie) = cookies
+                    .iter()
+                    .find(|c| c.name() == ".ROBLOSECURITY" && !c.value().is_empty())
+                {
+                    return Some(cookie.value().to_string());
+                }
+            }
+        }
+    }
+
+    None
+}
 
 #[tauri::command]
 pub async fn open_login_browser(app: AppHandle) -> Result<(), String> {
@@ -21,6 +47,7 @@ pub async fn open_login_browser(app: AppHandle) -> Result<(), String> {
         "login-browser",
         WebviewUrl::External("https://www.roblox.com/login".parse().unwrap()),
     )
+    .incognito(true)
     .title("Roblox Login")
     .inner_size(900.0, 720.0)
     .center()
@@ -30,14 +57,14 @@ pub async fn open_login_browser(app: AppHandle) -> Result<(), String> {
             let is_roblox = host == "www.roblox.com"
                 || host == "web.roblox.com"
                 || host == "roblox.com";
-            let is_home = path == "/home"
+            let is_post_auth = path == "/home"
                 || path.starts_with("/home/")
                 || path.starts_with("/discover")
-                || path == "/";
+                || path.starts_with("/games")
+                || path.starts_with("/experiences");
 
             if is_roblox
-                && is_home
-                && path != "/login"
+                && is_post_auth
                 && !detected_clone.swap(true, Ordering::SeqCst)
             {
                 app_clone.emit("browser-login-detected", ()).ok();
@@ -48,24 +75,38 @@ pub async fn open_login_browser(app: AppHandle) -> Result<(), String> {
     .build()
     .map_err(|e| e.to_string())?;
 
+    // Some Roblox login flows do not reliably navigate to a post-auth URL.
+    // Poll for .ROBLOSECURITY so Browser Login still completes.
+    let poll_detected = detected.clone();
+    let poll_app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        for _ in 0..240 {
+            if poll_detected.load(Ordering::SeqCst) {
+                return;
+            }
+
+            tokio::time::sleep(Duration::from_millis(500)).await;
+
+            let Some(_) = poll_app.get_webview_window("login-browser") else {
+                return;
+            };
+
+            if find_roblosecurity(&poll_app).is_some()
+                && !poll_detected.swap(true, Ordering::SeqCst)
+            {
+                poll_app.emit("browser-login-detected", ()).ok();
+                return;
+            }
+        }
+    });
+
     Ok(())
 }
 
 #[tauri::command]
 pub async fn extract_browser_cookie(app: AppHandle) -> Result<String, String> {
-    let browser = app
-        .get_webview_window("login-browser")
-        .ok_or("Browser window not found")?;
-
-    let url: Url = "https://www.roblox.com".parse().unwrap();
-    let cookies = browser.cookies_for_url(url).map_err(|e| e.to_string())?;
-
-    let cookie = cookies
-        .iter()
-        .find(|c| c.name() == ".ROBLOSECURITY")
-        .ok_or("No .ROBLOSECURITY cookie found. Make sure you completed the login.")?;
-
-    Ok(cookie.value().to_string())
+    find_roblosecurity(&app)
+        .ok_or("No .ROBLOSECURITY cookie found. Make sure you completed the login.".to_string())
 }
 
 #[tauri::command]
