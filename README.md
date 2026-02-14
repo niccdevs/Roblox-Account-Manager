@@ -11,6 +11,8 @@ Full credit to [ic3w0lf22](https://github.com/ic3w0lf22) for the original Roblox
 [![Latest Release Downloads](https://img.shields.io/github/downloads/niccsprojects/Roblox-Account-Manager/latest/total?label=Latest%20Release%20Downloads&color=3b82f6)](https://github.com/niccsprojects/Roblox-Account-Manager/releases/latest)
 [![Latest Release](https://img.shields.io/github/v/release/niccsprojects/Roblox-Account-Manager?include_prereleases&label=Latest%20Release)](https://github.com/niccsprojects/Roblox-Account-Manager/releases/latest)
 
+[![Crowdin](https://img.shields.io/badge/Crowdin-2E3340.svg?style=for-the-badge&logo=Crowdin&logoColor=white)](https://crowdin.com/project/roblox-account-manager)
+
 Release download counts are based on GitHub release asset downloads across tags and are not unique installs.
 
 [Click here to view Roblox Account Manager features](https://github.com/niccsprojects/Roblox-Account-Manager/blob/master/README.md#features)
@@ -59,8 +61,6 @@ If you need maximum stability right now, use the latest legacy release until v4 
 v4 now supports localization with Crowdin and `react-i18next`.
 
 I would appreciate contributions to the project through crowdin translations into your mother languages.
-
-[![Crowdin](https://img.shields.io/badge/Crowdin-2E3340.svg?style=for-the-badge&logo=Crowdin&logoColor=white)]([https://github.com/niccsprojects/Roblox-Account-Manager/releases/latest](https://crowdin.com/project/roblox-account-manager))
 
 ## v4 Theme System
 v4 uses a centralized theme pipeline. If you change theme behavior, keep frontend defaults, backend defaults, and CSS startup vars aligned.
