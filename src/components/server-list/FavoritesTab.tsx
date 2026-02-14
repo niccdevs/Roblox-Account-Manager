@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { usePrompt } from "../../hooks/usePrompt";
+import { useTr } from "../../i18n/text";
 import type { FavoriteGame } from "./types";
 import { loadFavorites, saveFavorites } from "./types";
 import { FavoriteContextMenu } from "./FavoriteContextMenu";
@@ -13,26 +14,27 @@ export function FavoritesTab({
   onSelectGame,
   addToast,
 }: FavoritesTabProps) {
+  const t = useTr();
   const prompt = usePrompt();
   const [favorites, setFavorites] = useState<FavoriteGame[]>(loadFavorites);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; game: FavoriteGame } | null>(null);
 
   async function handleRename(game: FavoriteGame) {
-    const newName = await prompt("Rename favorite:", game.name);
+    const newName = await prompt(t("Rename favorite:"), game.name);
     if (!newName?.trim()) return;
     const updated = favorites.map((f) =>
       f.placeId === game.placeId ? { ...f, name: newName.trim() } : f
     );
     setFavorites(updated);
     saveFavorites(updated);
-    addToast("Renamed");
+    addToast(t("Renamed"));
   }
 
   function handleRemove(game: FavoriteGame) {
     const updated = favorites.filter((f) => f.placeId !== game.placeId);
     setFavorites(updated);
     saveFavorites(updated);
-    addToast("Removed from favorites");
+    addToast(t("Removed from favorites"));
   }
 
   if (favorites.length === 0) {
@@ -41,8 +43,8 @@ export function FavoritesTab({
         <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" className="text-zinc-800 mb-3">
           <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
         </svg>
-        <p className="text-xs text-zinc-700 mb-1">No favorites yet</p>
-        <p className="text-[10px] text-zinc-700">Right-click a game in the Games tab to add one</p>
+        <p className="text-xs text-zinc-700 mb-1">{t("No favorites yet")}</p>
+        <p className="text-[10px] text-zinc-700">{t("Right-click a game in the Games tab to add one")}</p>
       </div>
     );
   }
@@ -74,10 +76,10 @@ export function FavoritesTab({
               </div>
               <div className="flex-1 min-w-0">
                 <div className="text-[12px] text-zinc-200 truncate">{game.name}</div>
-                <div className="text-[10px] text-zinc-600 font-mono">ID: {game.placeId}</div>
+                <div className="text-[10px] text-zinc-600 font-mono">{t("ID: {{id}}", { id: game.placeId })}</div>
               </div>
               {game.privateServer && (
-                <span className="text-[9px] text-amber-400/70 bg-amber-500/10 px-1.5 py-0.5 rounded">VIP</span>
+                <span className="text-[9px] text-amber-400/70 bg-amber-500/10 px-1.5 py-0.5 rounded">{t("VIP")}</span>
               )}
             </div>
           ))}
@@ -94,7 +96,7 @@ export function FavoritesTab({
           onRemove={() => handleRemove(contextMenu.game)}
           onCopyPlaceId={() => {
             navigator.clipboard.writeText(String(contextMenu.game.placeId));
-            addToast("Copied Place ID");
+            addToast(t("Copied Place ID"));
           }}
         />
       )}

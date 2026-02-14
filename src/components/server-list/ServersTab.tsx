@@ -2,6 +2,7 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type { ServerData, ServersResponse, PlaceDetails, ServerRegion } from "./types";
 import { ServerContextMenu } from "./ServerContextMenu";
+import { useTr } from "../../i18n/text";
 
 export interface ServersTabProps {
   placeId: string;
@@ -20,6 +21,7 @@ export function ServersTab({
   userId,
   refreshOnOpenSignal,
 }: ServersTabProps) {
+  const t = useTr();
   const [servers, setServers] = useState<ServerData[]>([]);
   const [loading, setLoading] = useState(false);
   const [placeName, setPlaceName] = useState("");
@@ -35,7 +37,7 @@ export function ServersTab({
   const loadServers = useCallback(async () => {
     const pid = parseInt(placeId);
     if (!pid || pid <= 0) {
-      addToast("Enter a valid Place ID");
+      addToast(t("Enter a valid Place ID"));
       return;
     }
 
@@ -76,7 +78,7 @@ export function ServersTab({
         cursor = page.nextPageCursor;
       }
     } catch (e) {
-      addToast(`Failed to load servers: ${e}`);
+      addToast(t("Failed to load servers: {{error}}", { error: String(e) }));
     }
 
     busyRef.current = false;
@@ -86,7 +88,7 @@ export function ServersTab({
   const loadRegion = useCallback(async (server: ServerData) => {
     const pid = parseInt(placeId);
     if (!pid || !userId) {
-      addToast("Select an account to load regions");
+      addToast(t("Select an account to load regions"));
       return;
     }
 
@@ -146,7 +148,7 @@ export function ServersTab({
     if (!findUsername.trim()) return;
     const pid = parseInt(placeId);
     if (!pid) {
-      addToast("Enter a Place ID first");
+      addToast(t("Enter a Place ID first"));
       return;
     }
 
@@ -164,7 +166,7 @@ export function ServersTab({
       });
       const targetUrl = headshots?.[0]?.image_url;
       if (!targetUrl) {
-        addToast("Could not get avatar for player");
+        addToast(t("Could not get avatar for player"));
         setFinding(false);
         return;
       }
@@ -206,7 +208,7 @@ export function ServersTab({
             if (match) {
               setServers([server]);
               setFinding(false);
-              addToast(`Found ${user.name} in server!`);
+              addToast(t("Found {{name}} in server!", { name: user.name }));
               found = true;
               break;
             }
@@ -218,10 +220,10 @@ export function ServersTab({
       }
 
       if (!found) {
-        addToast(`${user.name} not found in any server`);
+        addToast(t("{{name}} not found in any server", { name: user.name }));
       }
     } catch (e) {
-      addToast(`Player search failed: ${e}`);
+      addToast(t("Player search failed: {{error}}", { error: String(e) }));
     }
 
     setFinding(false);
@@ -244,11 +246,11 @@ export function ServersTab({
     <div className="flex flex-col h-full">
       <div className="flex items-center gap-2 px-1 pb-3">
         <div className="flex-1 flex items-center gap-2">
-          <label className="text-[10px] text-zinc-600 shrink-0 uppercase tracking-wider">Place ID</label>
+          <label className="text-[10px] text-zinc-600 shrink-0 uppercase tracking-wider">{t("Place ID")}</label>
           <input
             value={placeId}
             onChange={(e) => setPlaceId(e.target.value.replace(/\D/g, ""))}
-            placeholder="Enter Place ID"
+            placeholder={t("Enter Place ID")}
             className="flex-1 sidebar-input font-mono text-xs"
             onKeyDown={(e) => e.key === "Enter" && loadServers()}
           />
@@ -262,7 +264,7 @@ export function ServersTab({
               : "bg-sky-600 hover:bg-sky-500 text-white"
           }`}
         >
-          {loading ? "Stop" : "Refresh"}
+          {loading ? t("Stop") : t("Refresh")}
         </button>
       </div>
 
@@ -277,10 +279,10 @@ export function ServersTab({
           <thead className="sticky top-0 bg-zinc-900/95 backdrop-blur-sm z-10">
             <tr className="text-[10px] uppercase tracking-wider text-zinc-600 border-b border-zinc-800/60">
               <th className="py-2 px-3 font-medium w-10">#</th>
-              <th className="py-2 px-3 font-medium">Players</th>
-              <th className="py-2 px-3 font-medium w-16">Ping</th>
-              <th className="py-2 px-3 font-medium w-16">FPS</th>
-              <th className="py-2 px-3 font-medium">Region</th>
+              <th className="py-2 px-3 font-medium">{t("Players")}</th>
+              <th className="py-2 px-3 font-medium w-16">{t("Ping")}</th>
+              <th className="py-2 px-3 font-medium w-16">{t("FPS")}</th>
+              <th className="py-2 px-3 font-medium">{t("Region")}</th>
             </tr>
           </thead>
           <tbody>
@@ -294,7 +296,7 @@ export function ServersTab({
                       <line x1="6" y1="6" x2="6.01" y2="6" />
                       <line x1="6" y1="18" x2="6.01" y2="18" />
                     </svg>
-                    <span className="text-xs text-zinc-700">Enter a Place ID and click Refresh</span>
+                    <span className="text-xs text-zinc-700">{t("Enter a Place ID and click Refresh")}</span>
                   </div>
                 </td>
               </tr>
@@ -345,7 +347,7 @@ export function ServersTab({
                       </span>
                     ) : (
                       <span className="text-zinc-700 opacity-0 group-hover:opacity-100 transition-opacity">
-                        right-click {"\u2192"} load
+                        {t("right-click")} {"\u2192"} {t("load")}
                       </span>
                     )}
                   </td>
@@ -357,18 +359,20 @@ export function ServersTab({
         {loading && (
           <div className="flex items-center justify-center py-4 gap-2">
             <div className="w-3 h-3 border-2 border-sky-500 border-t-transparent rounded-full animate-spin" />
-            <span className="text-[11px] text-zinc-500">Loading servers... ({servers.length} found)</span>
+            <span className="text-[11px] text-zinc-500">
+              {t("Loading servers... ({{count}} found)", { count: servers.length })}
+            </span>
           </div>
         )}
       </div>
 
       <div className="flex items-center gap-2 pt-3 border-t border-zinc-800/40 mt-3">
         <div className="flex items-center gap-2 flex-1">
-          <label className="text-[10px] text-zinc-600 shrink-0 uppercase tracking-wider">Teleport</label>
+          <label className="text-[10px] text-zinc-600 shrink-0 uppercase tracking-wider">{t("Teleport")}</label>
           <input
             value={teleportPlaceId}
             onChange={(e) => setTeleportPlaceId(e.target.value.replace(/\D/g, ""))}
-            placeholder="Teleport Place ID"
+            placeholder={t("Teleport Place ID")}
             className="flex-1 sidebar-input font-mono text-xs"
           />
         </div>
@@ -377,7 +381,7 @@ export function ServersTab({
           <input
             value={findUsername}
             onChange={(e) => setFindUsername(e.target.value)}
-            placeholder="Find player..."
+            placeholder={t("Find player...")}
             className="flex-1 sidebar-input text-xs"
             onKeyDown={(e) => e.key === "Enter" && !finding && findPlayer()}
           />
@@ -389,10 +393,10 @@ export function ServersTab({
             {finding ? (
               <span className="flex items-center gap-1.5">
                 <div className="w-2.5 h-2.5 border-[1.5px] border-zinc-400 border-t-transparent rounded-full animate-spin" />
-                Page {findProgress}
+                {t("Page {{page}}", { page: findProgress })}
               </span>
             ) : (
-              "Find"
+              t("Find")
             )}
           </button>
         </div>
@@ -400,8 +404,11 @@ export function ServersTab({
 
       <div className="flex items-center justify-between pt-2">
         <span className="text-[10px] text-zinc-600">
-          {servers.length} server{servers.length !== 1 ? "s" : ""}
-          {servers.length > 0 && ` \u00b7 ${servers.reduce((s, sv) => s + sv.playing, 0).toLocaleString()} players`}
+          {servers.length === 1
+            ? t("{{count}} server", { count: servers.length })
+            : t("{{count}} servers", { count: servers.length })}
+          {servers.length > 0 &&
+            ` \u00b7 ${servers.reduce((s, sv) => s + sv.playing, 0).toLocaleString()} ${t("players")}`}
         </span>
       </div>
 
@@ -414,7 +421,7 @@ export function ServersTab({
           onJoin={() => onJoinServer(contextMenu.server.accessCode ? `VIP:${contextMenu.server.accessCode}` : contextMenu.server.id)}
           onCopyJobId={() => {
             navigator.clipboard.writeText(contextMenu.server.id);
-            addToast("Copied Job ID");
+            addToast(t("Copied Job ID"));
           }}
           onLoadRegion={() => loadRegion(contextMenu.server)}
         />

@@ -71,7 +71,7 @@ export function WatcherTab({ s }: { s: UseSettingsReturn }) {
       />
 
       <Divider />
-      <SectionLabel>Memory &amp; Window</SectionLabel>
+      <SectionLabel>Memory & Window</SectionLabel>
 
       <Toggle
         checked={s.getBool("Watcher", "CloseRbxMemory")}

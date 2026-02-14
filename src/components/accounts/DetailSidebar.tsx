@@ -1,8 +1,10 @@
 import { useStore } from "../../store";
 import { MultiSelectSidebar } from "./MultiSelectSidebar";
 import { SingleSelectSidebar } from "./SingleSelectSidebar";
+import { useTr } from "../../i18n/text";
 
 export function DetailSidebar() {
+  const t = useTr();
   const store = useStore();
 
   if (store.selectedAccounts.length > 1) {
@@ -16,7 +18,7 @@ export function DetailSidebar() {
           <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
           <circle cx="9" cy="7" r="4" />
         </svg>
-        <p className="theme-muted text-xs">Select an account</p>
+        <p className="theme-muted text-xs">{t("Select an account")}</p>
       </div>
     );
   }

@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect, createContext, useContext } from "react";
 import type { ReactNode } from "react";
+import { useTr } from "../i18n/text";
 
 interface PromptState {
   message: string;
@@ -58,6 +59,7 @@ export function useConfirmWithOptOut() {
 }
 
 export function PromptProvider({ children }: { children: ReactNode }) {
+  const t = useTr();
   const [promptState, setPromptState] = useState<PromptState | null>(null);
   const [confirmState, setConfirmState] = useState<ConfirmState | null>(null);
   const [confirmWithOptOutState, setConfirmWithOptOutState] =
@@ -180,7 +182,7 @@ export function PromptProvider({ children }: { children: ReactNode }) {
             {promptState && (
               <>
                 <div className="px-4 pt-4 pb-3">
-                  <p className="text-[13px] text-zinc-300 mb-3">{promptState.message}</p>
+                  <p className="text-[13px] text-zinc-300 mb-3">{t(promptState.message)}</p>
                   <input
                     ref={inputRef}
                     value={value}
@@ -194,13 +196,13 @@ export function PromptProvider({ children }: { children: ReactNode }) {
                     onClick={() => finishPrompt(null)}
                     className="px-3.5 py-[5px] rounded-lg text-[12px] text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition-colors"
                   >
-                    Cancel
+                    {t("Cancel")}
                   </button>
                   <button
                     onClick={() => finishPrompt(value)}
                     className="px-3.5 py-[5px] rounded-lg text-[12px] text-zinc-100 bg-sky-600 hover:bg-sky-500 transition-colors"
                   >
-                    OK
+                    {t("OK")}
                   </button>
                 </div>
               </>
@@ -209,14 +211,14 @@ export function PromptProvider({ children }: { children: ReactNode }) {
             {confirmState && (
               <>
                 <div className="px-4 pt-4 pb-3">
-                  <p className="text-[13px] text-zinc-300">{confirmState.message}</p>
+                  <p className="text-[13px] text-zinc-300">{t(confirmState.message)}</p>
                 </div>
                 <div className="flex items-center justify-end gap-2 px-4 pb-3.5 pt-1">
                   <button
                     onClick={() => finishConfirm(false)}
                     className="px-3.5 py-[5px] rounded-lg text-[12px] text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition-colors"
                   >
-                    Cancel
+                    {t("Cancel")}
                   </button>
                   <button
                     ref={confirmRef}
@@ -228,7 +230,7 @@ export function PromptProvider({ children }: { children: ReactNode }) {
                         : "bg-sky-600 hover:bg-sky-500"
                     }`}
                   >
-                    Confirm
+                    {t("Confirm")}
                   </button>
                 </div>
               </>
@@ -237,7 +239,7 @@ export function PromptProvider({ children }: { children: ReactNode }) {
             {confirmWithOptOutState && (
               <>
                 <div className="px-4 pt-4 pb-2.5">
-                  <p className="text-[13px] text-zinc-300">{confirmWithOptOutState.message}</p>
+                  <p className="text-[13px] text-zinc-300">{t(confirmWithOptOutState.message)}</p>
                   <label className="mt-3 inline-flex items-center gap-2 text-[12px] text-zinc-400 cursor-pointer select-none">
                     <input
                       type="checkbox"
@@ -245,7 +247,7 @@ export function PromptProvider({ children }: { children: ReactNode }) {
                       onChange={(e) => setDontShowAgain(e.target.checked)}
                       className="h-3.5 w-3.5 rounded border-zinc-600 bg-zinc-800 text-sky-500 focus:ring-sky-500/30"
                     />
-                    <span>{confirmWithOptOutState.optOutLabel}</span>
+                    <span>{t(confirmWithOptOutState.optOutLabel)}</span>
                   </label>
                 </div>
                 <div className="flex items-center justify-end gap-2 px-4 pb-3.5 pt-1">
@@ -253,7 +255,7 @@ export function PromptProvider({ children }: { children: ReactNode }) {
                     onClick={() => finishConfirmWithOptOut(false)}
                     className="px-3.5 py-[5px] rounded-lg text-[12px] text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition-colors"
                   >
-                    {confirmWithOptOutState.cancelLabel}
+                    {t(confirmWithOptOutState.cancelLabel)}
                   </button>
                   <button
                     ref={confirmRef}
@@ -265,7 +267,7 @@ export function PromptProvider({ children }: { children: ReactNode }) {
                         : "bg-sky-600 hover:bg-sky-500"
                     }`}
                   >
-                    {confirmWithOptOutState.confirmLabel}
+                    {t(confirmWithOptOutState.confirmLabel)}
                   </button>
                 </div>
               </>

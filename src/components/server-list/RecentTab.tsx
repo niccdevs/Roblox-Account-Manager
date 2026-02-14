@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { RecentGame } from "./types";
 import { loadRecentGames, saveRecentGames } from "./types";
+import { useTr } from "../../i18n/text";
 
 export interface RecentTabProps {
   onSelectGame: (placeId: number) => void;
@@ -11,6 +12,7 @@ export function RecentTab({
   onSelectGame,
   maxRecent,
 }: RecentTabProps) {
+  const t = useTr();
   const [games, setGames] = useState<RecentGame[]>(loadRecentGames);
 
   function handleClear() {
@@ -23,10 +25,10 @@ export function RecentTab({
     const mins = Math.floor(diff / 60000);
     const hours = Math.floor(mins / 60);
     const days = Math.floor(hours / 24);
-    if (days > 0) return `${days}d ago`;
-    if (hours > 0) return `${hours}h ago`;
-    if (mins > 0) return `${mins}m ago`;
-    return "just now";
+    if (days > 0) return t("{{count}}d ago", { count: days });
+    if (hours > 0) return t("{{count}}h ago", { count: hours });
+    if (mins > 0) return t("{{count}}m ago", { count: mins });
+    return t("just now");
   }
 
   if (games.length === 0) {
@@ -36,7 +38,7 @@ export function RecentTab({
           <circle cx="12" cy="12" r="10" />
           <polyline points="12 6 12 12 16 14" />
         </svg>
-        <p className="text-xs text-zinc-700">No recent games</p>
+        <p className="text-xs text-zinc-700">{t("No recent games")}</p>
       </div>
     );
   }
@@ -44,12 +46,12 @@ export function RecentTab({
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between px-1 pb-2">
-        <span className="text-[10px] text-zinc-600">{games.length} of {maxRecent} max</span>
+        <span className="text-[10px] text-zinc-600">{t("{{count}} of {{max}} max", { count: games.length, max: maxRecent })}</span>
         <button
           onClick={handleClear}
           className="text-[10px] text-zinc-600 hover:text-red-400 transition-colors"
         >
-          Clear all
+          {t("Clear all")}
         </button>
       </div>
       <div className="flex-1 min-h-0 overflow-y-auto">
@@ -74,7 +76,7 @@ export function RecentTab({
               </div>
               <div className="flex-1 min-w-0">
                 <div className="text-[12px] text-zinc-200 truncate">{game.name}</div>
-                <div className="text-[10px] text-zinc-600 font-mono">ID: {game.placeId}</div>
+                <div className="text-[10px] text-zinc-600 font-mono">{t("ID: {{id}}", { id: game.placeId })}</div>
               </div>
               <span className="text-[10px] text-zinc-600 shrink-0">{formatTime(game.lastPlayed)}</span>
             </div>

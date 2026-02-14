@@ -1,8 +1,10 @@
 import { useRef, useEffect } from "react";
 import { useStore } from "../../store";
 import { GroupSection } from "./GroupSection";
+import { useTr } from "../../i18n/text";
 
 export function AccountList() {
+  const t = useTr();
   const store = useStore();
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -100,9 +102,9 @@ export function AccountList() {
             <line x1="22" y1="11" x2="16" y2="11" />
           </svg>
         </div>
-        <p className="theme-muted text-sm mb-1 animate-fade-in">No accounts yet</p>
+        <p className="theme-muted text-sm mb-1 animate-fade-in">{t("No accounts yet")}</p>
         <p className="theme-label text-xs animate-fade-in">
-          Click <span className="theme-accent">Add</span> or drop a cookie here
+          {t("Click")} <span className="theme-accent">{t("Add")}</span> {t("or drop a cookie here")}
         </p>
       </div>
     );
@@ -111,7 +113,7 @@ export function AccountList() {
   if (store.groups.length === 0 && store.searchQuery) {
     return (
       <div className="theme-surface flex-1 flex items-center justify-center min-h-0">
-        <p className="theme-muted text-sm animate-fade-in">No matches for &ldquo;{store.searchQuery}&rdquo;</p>
+        <p className="theme-muted text-sm animate-fade-in">{t("No matches for")} &ldquo;{store.searchQuery}&rdquo;</p>
       </div>
     );
   }

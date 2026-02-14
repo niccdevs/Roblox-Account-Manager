@@ -1,5 +1,6 @@
 import { useStore } from "../../store";
 import type { Account } from "../../types";
+import { useTr } from "../../i18n/text";
 
 function chipMaskName(name: string, previewLetters: number): string {
   if (previewLetters > 0 && previewLetters < name.length) {
@@ -17,6 +18,7 @@ export function AccountChip({
   avatarUrl?: string;
   onRemove: () => void;
 }) {
+  const t = useTr();
   const store = useStore();
   const rawName = account.Alias || account.Username;
   const displayName = store.hideUsernames ? chipMaskName(rawName, store.hiddenNameLetters) : rawName;
@@ -56,7 +58,7 @@ export function AccountChip({
       {isJoining && (
         <span
           className="w-2.5 h-2.5 border border-[var(--accent-color)] border-t-transparent rounded-full animate-spin shrink-0"
-          title="Joining..."
+          title={t("Joining...")}
         />
       )}
       <button

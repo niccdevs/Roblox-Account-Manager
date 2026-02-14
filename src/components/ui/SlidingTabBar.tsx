@@ -1,4 +1,5 @@
 import { useRef, useState, useLayoutEffect } from "react";
+import { useTr } from "../../i18n/text";
 
 interface Tab<T extends string> {
   id: T;
@@ -15,6 +16,7 @@ export function SlidingTabBar<T extends string>({
   activeTab: T;
   onTabChange: (id: T) => void;
 }) {
+  const t = useTr();
   const tabRefs = useRef<Map<T, HTMLButtonElement>>(new Map());
   const barRef = useRef<HTMLDivElement>(null);
   const [pillStyle, setPillStyle] = useState({ left: 0, width: 0 });
@@ -66,7 +68,7 @@ export function SlidingTabBar<T extends string>({
               {tab.icon}
             </span>
           )}
-          {tab.label}
+          {t(tab.label)}
         </button>
       ))}
     </div>

@@ -239,6 +239,7 @@ impl SettingsStore {
             ("ShuffleChoosesLowestServer", "false", None),
             ("ShufflePageCount", "5", None),
             ("IPApiLink", "http://ip-api.com/json/<ip>", None),
+            ("Language", "en", None),
             ("WindowScale", "1.0", None),
             ("ScaleFonts", "true", None),
             ("AutoCookieRefresh", "true", None),

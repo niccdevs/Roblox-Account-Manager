@@ -13,6 +13,8 @@ import { listen } from "@tauri-apps/api/event";
 import type { Account, ThemeData, ThumbnailData, ParsedGroup } from "./types";
 import { parseGroupName } from "./types";
 import { applyThemeCssVariables, normalizeTheme } from "./theme";
+import i18n, { normalizeLanguage } from "./i18n";
+import { tr } from "./i18n/text";
 
 interface PresenceEntry {
   userId?: number;
@@ -291,7 +293,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       return [
         {
           key: "__all__",
-          displayName: "Accounts",
+          displayName: tr("Accounts"),
           sortKey: 0,
           accounts: filteredAccounts,
         },
@@ -423,18 +425,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const setActionStatusMessage = useCallback(
     (message: string, tone: ActionStatusTone = "info", timeoutMs = 3500) => {
+      // `message` is usually an i18n key, but some call sites pass an already-localized string.
+      const localized = i18n.exists(message) ? tr(message) : message;
       if (actionStatusTimeoutRef.current !== null) {
         window.clearTimeout(actionStatusTimeoutRef.current);
         actionStatusTimeoutRef.current = null;
       }
       setActionStatus({
-        message,
+        message: localized,
         tone,
         at: Date.now(),
       });
       if (timeoutMs > 0) {
         actionStatusTimeoutRef.current = window.setTimeout(() => {
-          setActionStatus((prev) => (prev?.message === message ? null : prev));
+          setActionStatus((prev) => (prev?.message === localized ? null : prev));
           actionStatusTimeoutRef.current = null;
         }, timeoutMs);
       }
@@ -443,7 +447,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   );
 
   const addToast = useCallback((msg: string) => {
-    setToasts((prev) => [...prev, msg]);
+    // `msg` is usually an i18n key, but some call sites pass an already-localized string (interpolated).
+    const localized = i18n.exists(msg) ? tr(msg) : msg;
+    setToasts((prev) => [...prev, localized]);
     setTimeout(() => setToasts((prev) => prev.slice(1)), 2500);
     const lower = msg.toLowerCase();
     let tone: ActionStatusTone = "info";
@@ -510,7 +516,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   async function saveAccounts() {
     try {
       await invoke("save_accounts");
-      addToast("Accounts saved");
+      addToast(tr("Accounts saved"));
     } catch (e) {
       setError(String(e));
     }
@@ -521,15 +527,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const info = await invoke<{ user_id: number; name: string }>("validate_cookie", {
         cookie,
       });
-      const existing = await invoke<Account[]>("get_accounts");
-      const alreadyExists = existing.some((a) => a.UserID === info.user_id);
+      const alreadyExists = accounts.some((a) => a.UserID === info.user_id);
       await invoke("add_account", {
         securityToken: cookie,
         username: info.name,
         userId: info.user_id,
       });
       await loadAccounts();
-      addToast(`${alreadyExists ? "Updated" : "Added"} ${info.name}`);
+      addToast(tr(alreadyExists ? "Updated {{name}}" : "Added {{name}}", { name: info.name }));
     } catch (e) {
       setError(String(e));
     }
@@ -546,7 +551,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         return next;
       });
       await loadAccounts();
-      addToast(`Removed ${userIds.length} account(s)`);
+      addToast(tr("Removed {{count}} account(s)", { count: userIds.length }));
     } catch (e) {
       setError(String(e));
     }
@@ -562,11 +567,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }
 
   async function refreshCookie(userId: number): Promise<boolean> {
-    try {
-      return await invoke<boolean>("refresh_cookie", { userId });
-    } catch {
-      return false;
-    }
+    return await invoke<boolean>("refresh_cookie", { userId });
   }
 
   async function moveToGroup(userIds: number[], group: string) {
@@ -579,7 +580,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         await invoke("update_account", { account: a }).catch(() => {});
       }
     }
-    addToast(`Moved to ${parseGroupName(group).displayName}`);
+    addToast(tr("Moved to {{group}}", { group: parseGroupName(group).displayName }));
   }
 
   function sortGroupAlphabetically(groupKey: string) {
@@ -615,7 +616,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
       return next;
     });
-    addToast(`Sorted ${parseGroupName(groupKey).displayName}`);
+    addToast(tr("Sorted {{group}}", { group: parseGroupName(groupKey).displayName }));
   }
 
   async function reorderAccounts(draggedUserId: number, targetUserId: number) {
@@ -667,7 +668,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     });
     const launchAccount = accounts.find((a) => a.UserID === userId);
     const accountName = launchAccount?.Alias || launchAccount?.Username || String(userId);
-    setActionStatusMessage(`Launching ${accountName}...`, "info", 5000);
+    setActionStatusMessage(tr("Launching {{name}}...", { name: accountName }), "info", 5000);
 
     try {
       const pid = parseInt(placeId) || 5315046213;
@@ -704,7 +705,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         linkCode,
         shuffleJob: shuffleJobId,
       });
-      addToast("Launching game...");
+      addToast(tr("Launching game..."));
     } catch (e) {
       setJoiningAccounts((prev) => {
         const next = new Set(prev);
@@ -713,7 +714,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       });
       setLaunchProgress((prev) => (prev?.mode === "single" && prev.userId === userId ? null : prev));
       setError(String(e));
-      setActionStatusMessage(`Launch failed: ${e}`, "error", 5000);
+      setActionStatusMessage(tr("Launch failed: {{error}}", { error: String(e) }), "error", 5000);
       return;
     }
 
@@ -739,7 +740,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       total: userIds.length,
       userId: userIds[0],
     });
-    setActionStatusMessage(`Launching ${userIds.length} accounts...`, "info", 5000);
+    setActionStatusMessage(tr("Launching {{count}} accounts...", { count: userIds.length }), "info", 5000);
 
     try {
       const pid = parseInt(placeId) || 5315046213;
@@ -749,12 +750,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         jobId,
         launchData,
       });
-      addToast(`Launching ${userIds.length} accounts...`);
+      addToast(tr("Launching {{count}} accounts...", { count: userIds.length }));
     } catch (e) {
       setJoiningAccounts(new Set());
       setLaunchProgress(null);
       setError(String(e));
-      setActionStatusMessage(`Launch failed: ${e}`, "error", 5000);
+      setActionStatusMessage(tr("Launch failed: {{error}}", { error: String(e) }), "error", 5000);
       throw e;
     }
   }
@@ -762,15 +763,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   async function killAllRobloxProcesses() {
     try {
       const killed = await invoke<number>("cmd_kill_all_roblox");
-      addToast(
-        killed > 0
-          ? `Closed ${killed} Roblox process${killed === 1 ? "" : "es"}`
-          : "No open Roblox processes found"
-      );
+      addToast(killed > 0
+        ? tr(killed === 1 ? "Closed {{count}} Roblox process" : "Closed {{count}} Roblox processes", { count: killed })
+        : tr("No open Roblox processes found"));
       setError(null);
     } catch (e) {
       setError(String(e));
-      setActionStatusMessage(`Failed to close Roblox: ${e}`, "error", 5000);
+      setActionStatusMessage(tr("Failed to close Roblox: {{error}}", { error: String(e) }), "error", 5000);
     }
   }
 
@@ -795,7 +794,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         launchDelaySeconds: config.launchDelaySeconds,
       });
       setBottingStatus(status);
-      addToast(`Botting Mode started (${config.userIds.length} accounts)`);
+      addToast(tr("Botting Mode started ({{count}} accounts)", { count: config.userIds.length }));
     } catch (e) {
       setError(String(e));
       throw e;
@@ -806,11 +805,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     try {
       await invoke("stop_botting_mode", { closeBotAccounts });
       await refreshBottingStatus();
-      addToast(
-        closeBotAccounts
-          ? "Botting Mode stopped and bot accounts closed"
-          : "Botting Mode stopped"
-      );
+      addToast(tr(closeBotAccounts
+        ? "Botting Mode stopped and bot accounts closed"
+        : "Botting Mode stopped"));
     } catch (e) {
       setError(String(e));
       throw e;
@@ -823,9 +820,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         playerUserId: userId,
       });
       setBottingStatus(status);
-      addToast(
-        userId === null ? "Player Account cleared" : "Player Account updated"
-      );
+      addToast(tr(userId === null ? "Player Account cleared" : "Player Account updated"));
     } catch (e) {
       setError(String(e));
       throw e;
@@ -849,6 +844,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     try {
       const s = await invoke<Record<string, Record<string, string>>>("get_all_settings");
       setSettings(s);
+      void i18n.changeLanguage(normalizeLanguage(s?.General?.Language));
     } catch {}
   }
 
@@ -878,6 +874,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       try {
         const s = await invoke<Record<string, Record<string, string>>>("get_all_settings");
         setSettings(s);
+        void i18n.changeLanguage(normalizeLanguage(s?.General?.Language));
         if (s?.General?.HideUsernames === "true") setHideUsernamesState(true);
         if (s?.General?.ShuffleJobId === "true") setShuffleJobId(true);
         if (s?.General?.SavedPlaceId) _setPlaceId(s.General.SavedPlaceId);
@@ -891,6 +888,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setInitialized(true);
     })();
   }, []);
+
+  useEffect(() => {
+    void i18n.changeLanguage(normalizeLanguage(settings?.General?.Language));
+  }, [settings?.General?.Language]);
 
   useEffect(() => {
     const unlisten = listen("browser-login-detected", async () => {
@@ -934,7 +935,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           userId,
         });
         setJoiningAccounts(userId !== null ? new Set([userId]) : new Set());
-        setActionStatusMessage(`Launching account ${current}/${total}...`, "info", 2000);
+        setActionStatusMessage(tr("Launching account {{current}}/{{total}}...", { current, total }), "info", 2000);
       }),
       listen("launch-complete", () => {
         setJoiningAccounts(new Set());
@@ -945,7 +946,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             current: prev.total,
           };
         });
-        setActionStatusMessage("Launch sequence complete", "success", 3000);
+        setActionStatusMessage(tr("Launch sequence complete"), "success", 3000);
         clearLaunchTimeout();
         launchClearTimeoutRef.current = window.setTimeout(() => {
           setLaunchProgress((prev) => (prev?.mode === "multi" ? null : prev));
@@ -979,7 +980,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const uid = e.payload?.userId;
         const ok = e.payload?.ok;
         if (typeof uid === "number" && ok === false) {
-          setActionStatusMessage(`Botting rejoin failed for ${uid}`, "warn", 2500);
+          setActionStatusMessage(tr("Botting rejoin failed for {{userId}}", { userId: uid }), "warn", 2500);
         }
       }),
     ];
@@ -1125,19 +1126,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
     const listeners = [
       listen<{ userId: number }>("roblox-process-died", (e) => {
-        addToast(`Watcher: process closed for ${e.payload.userId}`);
+        addToast(tr("Watcher: process closed for {{userId}}", { userId: e.payload.userId }));
       }),
       listen<{ userId: number; memoryMb: number }>("roblox-low-memory", (e) => {
-        addToast(`Watcher: low memory ${e.payload.memoryMb}MB (${e.payload.userId})`);
+        addToast(tr("Watcher: low memory {{memoryMb}}MB ({{userId}})", { memoryMb: e.payload.memoryMb, userId: e.payload.userId }));
       }),
       listen<{ userId: number; expected: string }>("roblox-title-mismatch", (e) => {
-        addToast(`Watcher: title mismatch for ${e.payload.userId} (${e.payload.expected})`);
+        addToast(tr("Watcher: title mismatch for {{userId}} ({{expected}})", { userId: e.payload.userId, expected: e.payload.expected }));
       }),
       listen<{ userId: number; title: string }>("roblox-beta-detected", (e) => {
-        addToast(`Watcher: beta build detected for ${e.payload.userId}`);
+        addToast(tr("Watcher: beta build detected for {{userId}}", { userId: e.payload.userId }));
       }),
       listen<{ userId: number; timeout: number }>("roblox-no-connection", (e) => {
-        addToast(`Watcher: no connection timeout (${e.payload.timeout}s) for ${e.payload.userId}`);
+        addToast(tr("Watcher: no connection timeout ({{timeout}}s) for {{userId}}", { timeout: e.payload.timeout, userId: e.payload.userId }));
       }),
     ];
 

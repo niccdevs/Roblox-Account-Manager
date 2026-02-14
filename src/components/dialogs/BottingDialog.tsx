@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useStore } from "../../store";
 import { useModalClose } from "../../hooks/useModalClose";
+import { useTr } from "../../i18n/text";
 
 interface BottingDialogProps {
   open: boolean;
@@ -26,6 +27,7 @@ function phaseTone(phase: string): string {
 }
 
 export function BottingDialog({ open, onClose }: BottingDialogProps) {
+  const t = useTr();
   const store = useStore();
   const { visible, closing, handleClose } = useModalClose(open, onClose);
   const selectedAccounts = store.selectedAccounts;
@@ -156,11 +158,11 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
   async function handleStart() {
     const pid = parseInt(placeId.trim(), 10);
     if (!Number.isFinite(pid) || pid <= 0) {
-      store.addToast("Place ID is required");
+      store.addToast(t("Place ID is required"));
       return;
     }
     if (selectedIds.length < 2) {
-      store.addToast("Select at least 2 accounts");
+      store.addToast(t("Select at least 2 accounts"));
       return;
     }
     setBusy(true);
@@ -209,10 +211,10 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
   const canStart = selectedIds.length >= 2 && !!placeId.trim() && !busy;
   const playerAccountLabel =
     playerUserId === null
-      ? "None"
+      ? t("None")
       : selectedAccounts.find((a) => a.UserID === playerUserId)?.Alias ||
         selectedAccounts.find((a) => a.UserID === playerUserId)?.Username ||
-        "Unknown";
+        t("Unknown");
 
   return (
     <div
@@ -229,9 +231,9 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
       >
         <div className="px-5 py-4 border-b theme-border flex items-center justify-between">
           <div>
-            <div className="text-[15px] font-semibold text-[var(--panel-fg)]">Botting Mode</div>
+            <div className="text-[15px] font-semibold text-[var(--panel-fg)]">{t("Botting Mode")}</div>
             <div className="text-[11px] theme-muted mt-0.5">
-              Keep selected accounts rejoining to hold server population
+              {t("Keep selected accounts rejoining to hold server population")}
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -242,7 +244,7 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
                   : "theme-border theme-soft theme-muted"
               }`}
             >
-              {status?.active ? "RUNNING" : "IDLE"}
+              {status?.active ? t("RUNNING") : t("IDLE")}
             </span>
             <button
               onClick={handleClose}
@@ -261,7 +263,7 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
               playerMenuOpen ? "z-30" : "z-10"
             }`}
           >
-            <div className="text-[12px] font-medium text-[var(--panel-fg)] mb-2">Targets</div>
+            <div className="text-[12px] font-medium text-[var(--panel-fg)] mb-2">{t("Targets")}</div>
             <div className="flex flex-wrap gap-1.5 mb-2">
               {selectedAccounts.map((a) => (
                 <span
@@ -273,7 +275,7 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
               ))}
             </div>
             <div className="flex items-center gap-2">
-              <label className="text-[11px] theme-muted w-24 shrink-0">Player Account</label>
+              <label className="text-[11px] theme-muted w-24 shrink-0">{t("Player Account")}</label>
               <div ref={playerMenuRef} className="relative w-full">
                 <button
                   type="button"
@@ -316,7 +318,7 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
                         : "text-[var(--panel-fg)] hover:bg-[var(--panel-soft)]"
                     }`}
                   >
-                    None
+                    {t("None")}
                   </button>
                   <div className="h-px theme-border border-t" />
                   {selectedAccounts.map((a) => {
@@ -345,7 +347,7 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
           </section>
 
           <section className="theme-surface rounded-xl border theme-border p-3 animate-fade-in">
-            <div className="text-[12px] font-medium text-[var(--panel-fg)] mb-2">Server</div>
+            <div className="text-[12px] font-medium text-[var(--panel-fg)] mb-2">{t("Server")}</div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
               <input
                 value={placeId}
@@ -353,7 +355,7 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
                 onBlur={() =>
                   saveDraft(placeId.trim(), jobId.trim(), launchData, playerUserId, intervalMinutes, launchDelaySeconds)
                 }
-                placeholder="Place ID"
+                placeholder={t("Place ID")}
                 className="sidebar-input text-xs font-mono"
               />
               <input
@@ -362,7 +364,7 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
                 onBlur={() =>
                   saveDraft(placeId.trim(), jobId.trim(), launchData, playerUserId, intervalMinutes, launchDelaySeconds)
                 }
-                placeholder="Job ID (optional)"
+                placeholder={t("Job ID (optional)")}
                 className="sidebar-input text-xs font-mono"
               />
               <input
@@ -371,7 +373,7 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
                 onBlur={() =>
                   saveDraft(placeId.trim(), jobId.trim(), launchData, playerUserId, intervalMinutes, launchDelaySeconds)
                 }
-                placeholder="JoinData (optional)"
+                placeholder={t("JoinData (optional)")}
                 className="sidebar-input text-xs"
               />
             </div>
@@ -384,16 +386,16 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
                 }}
                 className="sidebar-btn-sm"
               >
-                Use Current Launch Fields
+                {t("Use Current Launch Fields")}
               </button>
             </div>
           </section>
 
           <section className="theme-surface rounded-xl border theme-border p-3 animate-fade-in">
-            <div className="text-[12px] font-medium text-[var(--panel-fg)] mb-2">Timing</div>
+            <div className="text-[12px] font-medium text-[var(--panel-fg)] mb-2">{t("Timing")}</div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
               <div className="flex items-center gap-2">
-                <label className="text-[11px] theme-muted w-36 shrink-0">Rejoin Interval (minutes)</label>
+                <label className="text-[11px] theme-muted w-36 shrink-0">{t("Rejoin Interval (minutes)")}</label>
                 <input
                   type="number"
                   min={10}
@@ -407,7 +409,7 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
                 />
               </div>
               <div className="flex items-center gap-2">
-                <label className="text-[11px] theme-muted w-36 shrink-0">Launch Delay (seconds)</label>
+                <label className="text-[11px] theme-muted w-36 shrink-0">{t("Launch Delay (seconds)")}</label>
                 <input
                   type="number"
                   min={5}
@@ -422,12 +424,12 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
               </div>
             </div>
             <div className="text-[10px] theme-muted mt-2">
-              Player account demotion grace is 15 minutes before it enters normal restart cycle.
+              {t("Player account demotion grace is 15 minutes before it enters normal restart cycle.")}
             </div>
           </section>
 
           <section className="theme-surface rounded-xl border theme-border p-3 animate-fade-in">
-            <div className="text-[12px] font-medium text-[var(--panel-fg)] mb-2">Live Cycle</div>
+            <div className="text-[12px] font-medium text-[var(--panel-fg)] mb-2">{t("Live Cycle")}</div>
             <div className="space-y-1.5">
               {selectedAccounts.map((a) => {
                 const row = statusMap.get(a.UserID);
@@ -441,16 +443,16 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
                         {a.Alias || a.Username}
                       </div>
                       <div className={`text-[10px] ${phaseTone(row?.phase || "idle")}`}>
-                        {row?.phase || "idle"}
+                        {t(row?.phase || "idle")}
                         {row?.lastError ? ` - ${row.lastError}` : ""}
                       </div>
                     </div>
                     <div className="text-right">
                       <div className="text-[11px] text-[var(--panel-fg)]">
-                        {formatRemaining(row?.nextRestartAtMs ?? null, nowMs)}
+                        {t(formatRemaining(row?.nextRestartAtMs ?? null, nowMs))}
                       </div>
                       <div className="text-[10px] theme-muted">
-                        retries: {row?.retryCount || 0}
+                        {t("retries")}: {row?.retryCount || 0}
                       </div>
                     </div>
                   </div>
@@ -466,19 +468,19 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
             disabled={!canStart}
             className="sidebar-btn-sm disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Start Botting Mode
+            {t("Start Botting Mode")}
           </button>
           <button
             onClick={() => store.stopBottingMode(false)}
             className="sidebar-btn-sm"
           >
-            Stop Botting Mode
+            {t("Stop Botting Mode")}
           </button>
           <button
             onClick={() => store.stopBottingMode(true)}
             className="sidebar-btn-sm text-red-200 border-red-400/40 hover:bg-red-500/15"
           >
-            Stop + Close Bot Accounts
+            {t("Stop + Close Bot Accounts")}
           </button>
         </div>
       </div>

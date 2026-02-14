@@ -1,6 +1,7 @@
 import { useStore } from "../../store";
 import type { ParsedGroup } from "../../types";
 import { AccountRow } from "./AccountRow";
+import { useTr } from "../../i18n/text";
 
 export function GroupSection({
   group,
@@ -13,6 +14,7 @@ export function GroupSection({
   onToggle: () => void;
   onDrop: (groupKey: string) => void;
 }) {
+  const t = useTr();
   const store = useStore();
   const showHeader = group.key !== "__all__" && store.showGroups && (store.theme?.show_headers ?? true);
 
@@ -97,7 +99,7 @@ export function GroupSection({
           >
             <path d="M8 5l8 7-8 7z" />
           </svg>
-          <span className="theme-label font-medium">{group.displayName}</span>
+          <span className="theme-label font-medium">{group.displayName === "Default" ? t("Default") : group.displayName}</span>
           <span className="theme-muted text-[10px] tabular-nums">{group.accounts.length}</span>
         </div>
       )}

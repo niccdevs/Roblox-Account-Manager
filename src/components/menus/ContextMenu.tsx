@@ -2,11 +2,13 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useStore } from "../../store";
 import { usePrompt, useConfirm } from "../../hooks/usePrompt";
+import { useTr } from "../../i18n/text";
 import { MenuItemView } from "./MenuItemView";
 import type { MenuItem } from "./MenuItemView";
 
 export function ContextMenu() {
   const store = useStore();
+  const t = useTr();
   const prompt = usePrompt();
   const confirm = useConfirm();
   const ref = useRef<HTMLDivElement>(null);
@@ -50,9 +52,9 @@ export function ContextMenu() {
   async function copyToClipboard(text: string, label: string) {
     try {
       await navigator.clipboard.writeText(text);
-      store.addToast(`Copied ${label}`);
+      store.addToast(t("Copied {{label}}", { label }));
     } catch {
-      store.addToast("Failed to copy");
+      store.addToast(t("Failed to copy"));
     }
   }
 
@@ -67,32 +69,32 @@ export function ContextMenu() {
 
   const copySubmenu: MenuItem[] = [
     {
-      label: "Cookie",
-      action: () => copyMulti((a) => a.SecurityToken, "cookie"),
+      label: t("Cookie"),
+      action: () => copyMulti((a) => a.SecurityToken, t("cookie")),
     },
     {
-      label: "Username",
-      action: () => copyMulti((a) => a.Username, "username"),
+      label: t("Username"),
+      action: () => copyMulti((a) => a.Username, t("username")),
     },
     {
-      label: "Password",
-      action: () => copyMulti((a) => a.Password, "password"),
+      label: t("Password"),
+      action: () => copyMulti((a) => a.Password, t("password")),
     },
     {
-      label: "User:Pass",
-      action: () => copyMulti((a) => `${a.Username}:${a.Password}`, "user:pass"),
+      label: t("User:Pass"),
+      action: () => copyMulti((a) => `${a.Username}:${a.Password}`, t("user:pass")),
     },
     { separator: true, label: "" },
     {
-      label: "User ID",
-      action: () => copyMulti((a) => String(a.UserID), "user ID"),
+      label: t("User ID"),
+      action: () => copyMulti((a) => String(a.UserID), t("user ID")),
     },
     {
-      label: "Profile Link",
+      label: t("Profile Link"),
       action: () =>
         copyMulti(
           (a) => `https://www.roblox.com/users/${a.UserID}/profile`,
-          "profile link"
+          t("profile link")
         ),
     },
   ];
@@ -101,7 +103,7 @@ export function ContextMenu() {
     copySubmenu.push(
       { separator: true, label: "" },
       {
-        label: "rbx-player Link",
+        label: t("rbx-player Link"),
         devOnly: true,
         action: async () => {
           if (!single) return;
@@ -111,14 +113,14 @@ export function ContextMenu() {
             });
             const ts = Date.now();
             const url = `roblox-player://1/1+launchmode:play+gameinfo:${ticket}+launchtime:${ts}+placelauncherurl:https://assetgame.roblox.com/game/PlaceLauncher.ashx?request=RequestGame%26placeId=${store.placeId}+placeId:${store.placeId}`;
-            await copyToClipboard(url, "rbx-player link");
+            await copyToClipboard(url, t("rbx-player link"));
           } catch (e) {
-            store.addToast(`Error: ${e}`);
+            store.addToast(t("Error: {{error}}", { error: String(e) }));
           }
         },
       },
       {
-        label: "App Link",
+        label: t("App Link"),
         devOnly: true,
         action: async () => {
           if (!single) return;
@@ -128,9 +130,9 @@ export function ContextMenu() {
             });
             const ts = Date.now();
             const url = `roblox-player://1/1+launchmode:app+gameinfo:${ticket}+launchtime:${ts}+browsertrackerid:${single.BrowserTrackerID || Math.floor(Math.random() * 1e12)}`;
-            await copyToClipboard(url, "app link");
+            await copyToClipboard(url, t("app link"));
           } catch (e) {
-            store.addToast(`Error: ${e}`);
+            store.addToast(t("Error: {{error}}", { error: String(e) }));
           }
         },
       }
@@ -140,14 +142,14 @@ export function ContextMenu() {
   const existingGroups = [...new Set(store.accounts.map((a) => a.Group || "Default"))];
   const moveToGroupSubmenu: MenuItem[] = [
     ...existingGroups.map((g) => ({
-      label: g,
+      label: g === "Default" ? t("Default") : g,
       action: () => store.moveToGroup(userIds, g),
     })),
     { separator: true, label: "" },
     {
-      label: "New Group...",
+      label: t("New Group..."),
       action: async () => {
-        const name = await prompt("Group name:");
+        const name = await prompt(t("Group name:"));
         if (name?.trim()) store.moveToGroup(userIds, name.trim());
       },
     },
@@ -155,36 +157,36 @@ export function ContextMenu() {
 
   const items: MenuItem[] = [
     {
-      label: "Set Alias",
+      label: t("Set Alias"),
       action: async () => {
-        const alias = await prompt("Alias:", single?.Alias || "");
+        const alias = await prompt(t("Alias:"), single?.Alias || "");
         if (alias === null) return;
         for (const a of accounts) {
           store.updateAccount({ ...a, Alias: alias.slice(0, 30) });
         }
-        store.addToast("Alias updated");
+        store.addToast(t("Alias updated"));
       },
     },
     {
-      label: "Set Description",
+      label: t("Set Description"),
       action: async () => {
-        const desc = await prompt("Description:", single?.Description || "");
+        const desc = await prompt(t("Description:"), single?.Description || "");
         if (desc === null) return;
         for (const a of accounts) {
           store.updateAccount({ ...a, Description: desc });
         }
-        store.addToast("Description updated");
+        store.addToast(t("Description updated"));
       },
     },
     { separator: true, label: "" },
-    { label: "Copy", submenu: copySubmenu },
+    { label: t("Copy"), submenu: copySubmenu },
     { separator: true, label: "" },
   ];
 
   if (store.devMode) {
     items.push(
       {
-        label: "Get Auth Ticket",
+        label: t("Get Auth Ticket"),
         devOnly: true,
         action: async () => {
           if (!single) return;
@@ -192,14 +194,14 @@ export function ContextMenu() {
             const ticket = await invoke<string>("get_auth_ticket", {
               userId: single.UserID,
             });
-            await copyToClipboard(ticket, "auth ticket");
+            await copyToClipboard(ticket, t("auth ticket"));
           } catch (e) {
-            store.addToast(`Error: ${e}`);
+            store.addToast(t("Error: {{error}}", { error: String(e) }));
           }
         },
       },
       {
-        label: "View/Edit Fields",
+        label: t("View/Edit Fields"),
         devOnly: true,
         action: () => {
           if (!single) return;
@@ -212,43 +214,43 @@ export function ContextMenu() {
 
   items.push(
     {
-      label: "Remove Account",
+      label: t("Remove Account"),
       className: "text-red-400",
       action: async () => {
         const msg =
           accounts.length === 1
-            ? `Remove ${single?.Alias || single?.Username}?`
-            : `Remove ${accounts.length} accounts?`;
+            ? t("Remove {{name}}?", { name: single?.Alias || single?.Username || "" })
+            : t("Remove {{count}} accounts?", { count: accounts.length });
         if (await confirm(msg, true)) {
           store.removeAccounts(userIds);
         }
       },
     },
     { separator: true, label: "" },
-    { label: "Move to Group", submenu: moveToGroupSubmenu },
+    { label: t("Move to Group"), submenu: moveToGroupSubmenu },
     {
-      label: "Copy Group",
+      label: t("Copy Group"),
       action: () => {
         if (!single) return;
-        copyToClipboard(single.Group || "Default", "group");
+        copyToClipboard(single.Group || "Default", t("group"));
       },
     },
     {
-      label: "Sort Alphabetically",
+      label: t("Sort Alphabetically"),
       action: () => {
         if (!single) return;
         store.sortGroupAlphabetically(single.Group || "Default");
       },
     },
     {
-      label: "Toggle Group Visibility",
+      label: t("Toggle Group Visibility"),
       action: () => {
         store.setShowGroups(!store.showGroups);
       },
     },
     { separator: true, label: "" },
     {
-      label: "Show Details",
+      label: t("Show Details"),
       action: () => {
         if (!single) return;
         const details = {
@@ -272,7 +274,7 @@ export function ContextMenu() {
       },
     },
     {
-      label: "Quick Login",
+      label: t("Quick Login"),
       action: async () => {
         if (!single) return;
         let code = "";
@@ -282,12 +284,12 @@ export function ContextMenu() {
           if (normalizedClipCode.length === 6) code = normalizedClipCode;
         } catch {}
         if (!code) {
-          const input = await prompt("Enter 6-digit code:");
+          const input = await prompt(t("Enter 6-digit code:"));
           if (!input) return;
           code = normalizeQuickLoginCode(input);
         }
         if (code.length !== 6) {
-          store.addToast("Invalid code (must be 6 digits)");
+          store.addToast(t("Invalid code (must be 6 digits)"));
           return;
         }
         try {
@@ -295,9 +297,9 @@ export function ContextMenu() {
             userId: single.UserID,
             code,
           });
-          store.addToast("Quick login code entered");
+          store.addToast(t("Quick login code entered"));
         } catch (e) {
-          store.addToast(`Quick login failed: ${e}`);
+          store.addToast(t("Quick login failed: {{error}}", { error: String(e) }));
         }
       },
     }

@@ -6,6 +6,7 @@ import { useJoinOnlineWarning } from "../../hooks/useJoinOnlineWarning";
 import { SidebarSection } from "./SidebarSection";
 import { ArgumentsForm } from "../dialogs/ArgumentsForm";
 import { loadRecentGames, type RecentGame } from "../server-list/types";
+import { tr, useTr } from "../../i18n/text";
 
 function chipMaskName(name: string, previewLetters: number): string {
   if (previewLetters > 0 && previewLetters < name.length) {
@@ -15,6 +16,7 @@ function chipMaskName(name: string, previewLetters: number): string {
 }
 
 export function SingleSelectSidebar() {
+  const t = useTr();
   const store = useStore();
   const confirm = useConfirm();
   const prompt = usePrompt();
@@ -48,18 +50,18 @@ export function SingleSelectSidebar() {
 
   function handleSetAlias() {
     store.updateAccount({ ...account, Alias: alias.slice(0, 30) });
-    store.addToast("Alias updated");
+    store.addToast(tr("Alias updated"));
   }
 
   function handleSetDescription() {
     store.updateAccount({ ...account, Description: description });
-    store.addToast("Description updated");
+    store.addToast(tr("Description updated"));
   }
 
   async function handleSavePlace() {
     const fields = { ...account.Fields, SavedPlaceId: store.placeId, SavedJobId: store.jobId, SavedLaunchData: store.launchData };
     store.updateAccount({ ...account, Fields: fields });
-    store.addToast("Place saved to account");
+    store.addToast(tr("Place saved to account"));
   }
 
   async function handleJoin() {
@@ -76,7 +78,7 @@ export function SingleSelectSidebar() {
       });
       const followPresenceType = presence[0]?.userPresenceType ?? presence[0]?.user_presence_type ?? 0;
       if (followPresenceType < 2) {
-        if (!(await confirm(`${followUser} is not in a game. Try anyway?`))) return;
+        if (!(await confirm(tr("{{name}} is not in a game. Try anyway?", { name: followUser })))) return;
       }
       await invoke("launch_roblox", {
         userId: account.UserID,
@@ -88,25 +90,25 @@ export function SingleSelectSidebar() {
         linkCode: "",
         shuffleJob: false,
       });
-      store.addToast(`Following ${followUser}...`);
+      store.addToast(tr("Following {{name}}...", { name: followUser }));
     } catch (e) {
-      store.addToast(`Follow failed: ${e}`);
+      store.addToast(tr("Follow failed: {{error}}", { error: String(e) }));
     }
   }
 
   async function handleJoinGroup() {
-    const input = await prompt("Group ID:");
+    const input = await prompt(tr("Group ID:"));
     if (!input) return;
     const groupId = parseInt(input.trim(), 10);
     if (!Number.isFinite(groupId) || groupId <= 0) {
-      store.addToast("Invalid group ID");
+      store.addToast(tr("Invalid group ID"));
       return;
     }
     try {
       await invoke("join_group", { userId: account.UserID, groupId });
-      store.addToast(`Joined group ${groupId}`);
+      store.addToast(tr("Joined group {{groupId}}", { groupId }));
     } catch (e) {
-      store.addToast(`Join group failed: ${e}`);
+      store.addToast(tr("Join group failed: {{error}}", { error: String(e) }));
     }
   }
 
@@ -118,12 +120,12 @@ export function SingleSelectSidebar() {
   const isJoining = store.joiningAccounts.has(account.UserID);
   const presenceMeta =
     presenceType === 3
-      ? { label: "In Studio", dot: "bg-violet-500", dotStyle: undefined as React.CSSProperties | undefined, text: "text-violet-400" }
+      ? { label: t("In Studio"), dot: "bg-violet-500", dotStyle: undefined as React.CSSProperties | undefined, text: "text-violet-400" }
       : presenceType >= 2
-      ? { label: "In Game", dot: "bg-emerald-500", dotStyle: undefined as React.CSSProperties | undefined, text: "text-emerald-400" }
+      ? { label: t("In Game"), dot: "bg-emerald-500", dotStyle: undefined as React.CSSProperties | undefined, text: "text-emerald-400" }
       : presenceType === 1
-        ? { label: "Online", dot: "bg-sky-500", dotStyle: undefined as React.CSSProperties | undefined, text: "text-sky-400" }
-        : { label: "Offline", dot: "", dotStyle: { backgroundColor: "var(--panel-muted)" }, text: "theme-muted" };
+        ? { label: t("Online"), dot: "bg-sky-500", dotStyle: undefined as React.CSSProperties | undefined, text: "text-sky-400" }
+        : { label: t("Offline"), dot: "", dotStyle: { backgroundColor: "var(--panel-muted)" }, text: "theme-muted" };
 
   return (
     <div className="theme-surface theme-border w-72 border-l flex flex-col shrink-0 animate-slide-right">
@@ -162,7 +164,7 @@ export function SingleSelectSidebar() {
               <div className="text-xs theme-muted truncate">@{account.Username}</div>
             )}
             <div className="text-[11px] theme-muted font-mono">
-              {store.hideUsernames ? "ID: ********" : `ID: ${account.UserID}`}
+              {store.hideUsernames ? t("ID: ********") : t("ID: {{id}}", { id: account.UserID })}
             </div>
           </div>
         </div>
@@ -177,42 +179,42 @@ export function SingleSelectSidebar() {
             </div>
           )}
           <div className={`${account.Valid ? "text-emerald-500" : "text-red-400"}`}>
-            {account.Valid ? "Valid" : "Invalid"}
+            {account.Valid ? t("Valid") : t("Invalid")}
           </div>
         </div>
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4">
-        <SidebarSection title="Alias">
+        <SidebarSection title={t("Alias")}>
           <div className="flex gap-1.5">
             <input
               value={alias}
               onChange={(e) => setAlias(e.target.value)}
               maxLength={30}
-              placeholder="Alias"
+              placeholder={t("Alias")}
               className="sidebar-input flex-1"
               onKeyDown={(e) => e.key === "Enter" && handleSetAlias()}
             />
             <button onClick={handleSetAlias} className="sidebar-btn-sm">
-              Set
+              {t("Set")}
             </button>
           </div>
         </SidebarSection>
 
-        <SidebarSection title="Description">
+        <SidebarSection title={t("Description")}>
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="Description"
+            placeholder={t("Description")}
             className="sidebar-input min-h-[60px] resize-none"
             rows={3}
           />
           <button onClick={handleSetDescription} className="sidebar-btn-sm mt-1.5 self-end">
-            Set Description
+            {t("Set Description")}
           </button>
         </SidebarSection>
 
-        <SidebarSection title="Launch">
+        <SidebarSection title={t("Launch")}>
           {recentGames.length > 0 && (
             <div className="mb-1.5">
               <select
@@ -224,7 +226,7 @@ export function SingleSelectSidebar() {
                 }}
                 className="sidebar-input w-full text-xs"
               >
-                <option value="">Recent games...</option>
+                <option value="">{t("Recent games...")}</option>
                 {recentGames.map((g) => (
                   <option key={g.placeId} value={g.placeId}>
                     {g.name}
@@ -235,20 +237,20 @@ export function SingleSelectSidebar() {
           )}
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center gap-1.5">
-              <label className="theme-label text-[10px] w-10 shrink-0">Place</label>
+              <label className="theme-label text-[10px] w-10 shrink-0">{t("Place")}</label>
               <input
                 value={store.placeId}
                 onChange={(e) => store.setPlaceId(e.target.value)}
-                placeholder="Place ID"
+                placeholder={t("Place ID")}
                 className="sidebar-input flex-1 font-mono text-xs"
               />
             </div>
             <div className="flex items-center gap-1.5">
-              <label className="theme-label text-[10px] w-10 shrink-0">Job</label>
+              <label className="theme-label text-[10px] w-10 shrink-0">{t("Job")}</label>
               <input
                 value={store.jobId}
                 onChange={(e) => store.setJobId(e.target.value)}
-                placeholder="Job ID"
+                placeholder={t("Job ID")}
                 className="sidebar-input flex-1 font-mono text-xs"
               />
               <button
@@ -258,7 +260,7 @@ export function SingleSelectSidebar() {
                     ? "text-emerald-400 bg-emerald-500/10"
                     : "theme-muted hover:text-[var(--panel-fg)]"
                 }`}
-                title="Shuffle Job ID"
+                title={t("Shuffle Job ID")}
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                   <polyline points="16 3 21 3 21 8" />
@@ -270,17 +272,17 @@ export function SingleSelectSidebar() {
               </button>
             </div>
             <div className="flex items-center gap-1.5">
-              <label className="theme-label text-[10px] w-10 shrink-0">Data</label>
+              <label className="theme-label text-[10px] w-10 shrink-0">{t("Data")}</label>
               <input
                 value={store.launchData}
                 onChange={(e) => store.setLaunchData(e.target.value)}
-                placeholder="Launch Data"
+                placeholder={t("Launch Data")}
                 className="sidebar-input flex-1 text-xs"
               />
               <button
                 onClick={handleSavePlace}
                 className="theme-muted p-1 rounded hover:text-[var(--panel-fg)]"
-                title="Save to account"
+                title={t("Save to account")}
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                   <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
@@ -296,13 +298,13 @@ export function SingleSelectSidebar() {
               disabled={isJoining}
               className="sidebar-btn theme-btn flex-1 disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              {isJoining ? "Joining..." : "Join Server"}
+              {isJoining ? t("Joining...") : t("Join Server")}
             </button>
             <button
               ref={argsRef}
               onClick={() => setArgsOpen(!argsOpen)}
               className="theme-btn-ghost p-1.5 rounded-lg transition-colors"
-              title="Launch Arguments"
+              title={t("Launch Arguments")}
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                 <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
@@ -314,39 +316,39 @@ export function SingleSelectSidebar() {
           {isJoining && (
             <div className="theme-accent mt-1.5 inline-flex items-center gap-2 text-[11px] animate-fade-in">
               <span className="w-2.5 h-2.5 border border-[var(--accent-color)] border-t-transparent rounded-full animate-spin" />
-              <span>Preparing Roblox launch for this account...</span>
+              <span>{t("Preparing Roblox launch for this account...")}</span>
             </div>
           )}
         </SidebarSection>
 
-        <SidebarSection title="Follow">
+        <SidebarSection title={t("Follow")}>
           <div className="flex gap-1.5">
             <input
               value={followUser}
               onChange={(e) => setFollowUser(e.target.value)}
-              placeholder="Username"
+              placeholder={t("Username")}
               className="sidebar-input flex-1"
               onKeyDown={(e) => e.key === "Enter" && handleFollow()}
             />
             <button onClick={handleFollow} className="sidebar-btn-sm">
-              Follow
+              {t("Follow")}
             </button>
           </div>
         </SidebarSection>
 
-        <SidebarSection title="Tools">
+        <SidebarSection title={t("Tools")}>
           <div className="grid grid-cols-2 gap-1.5">
             <button
               onClick={() => store.setServerListOpen(true)}
               className="sidebar-btn-tool"
             >
-              Server List
+              {t("Server List")}
             </button>
             <button
               onClick={() => store.setAccountUtilsOpen(true)}
               className="sidebar-btn-tool"
             >
-              Utilities
+              {t("Utilities")}
             </button>
             <button
               onClick={() => store.setNexusOpen(true)}
@@ -358,29 +360,21 @@ export function SingleSelectSidebar() {
               onClick={() => store.openAccountBrowser(account.UserID)}
               className="sidebar-btn-tool"
             >
-              Browser
+              {t("Browser")}
             </button>
             <button
               onClick={() => store.setThemeEditorOpen(true)}
               className="sidebar-btn-tool"
             >
-              Theme
+              {t("Theme")}
             </button>
             <button
               onClick={handleJoinGroup}
               className="sidebar-btn-tool"
             >
-              Join Group
+              {t("Join Group")}
             </button>
-            <button
-              onClick={async () => {
-                const ok = await store.refreshCookie(account.UserID);
-                store.addToast(ok ? "Cookie refreshed" : "Refresh failed");
-              }}
-              className="sidebar-btn-tool"
-            >
-              Refresh
-            </button>
+            {/* Removed: "Refresh" was unreliable and duplicated the explicit Sign Out action in Utilities. */}
           </div>
         </SidebarSection>
       </div>

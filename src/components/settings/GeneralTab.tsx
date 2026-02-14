@@ -6,10 +6,35 @@ import { TextField } from "../ui/TextField";
 import { Divider } from "../ui/Divider";
 import { SectionLabel } from "../ui/SectionLabel";
 import { WarningBadge } from "../ui/WarningBadge";
+import { Select } from "../ui/Select";
+import i18n, { normalizeLanguage } from "../../i18n";
+import { useTr } from "../../i18n/text";
 
 export function GeneralTab({ s }: { s: UseSettingsReturn }) {
+  const t = useTr();
+
   return (
     <div className="space-y-0">
+      <div className="flex items-center gap-3 py-2 px-1">
+        <span className="text-[13px] text-zinc-300 shrink-0">{t("Language")}</span>
+        <div className="ml-auto min-w-[180px]">
+          <Select
+            value={normalizeLanguage(s.get("General", "Language", "en"))}
+            options={[
+              { value: "en", label: "English" },
+              { value: "de", label: "German" },
+            ]}
+            onChange={(value) => {
+              const next = normalizeLanguage(value);
+              s.set("General", "Language", next);
+              void i18n.changeLanguage(next);
+            }}
+          />
+        </div>
+      </div>
+
+      <Divider />
+
       <Toggle
         checked={s.getBool("General", "CheckForUpdates")}
         onChange={(v) => s.setBool("General", "CheckForUpdates", v)}

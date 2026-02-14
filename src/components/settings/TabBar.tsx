@@ -1,5 +1,6 @@
 import { useRef, useState, useLayoutEffect } from "react";
 import type { TabId, TabDef } from "./SettingsDialog";
+import { useTr } from "../../i18n/text";
 
 export function TabBar({
   tabs,
@@ -10,6 +11,7 @@ export function TabBar({
   activeTab: TabId;
   onTabChange: (id: TabId) => void;
 }) {
+  const t = useTr();
   const tabRefs = useRef<Map<TabId, HTMLButtonElement>>(new Map());
   const barRef = useRef<HTMLDivElement>(null);
   const [pillStyle, setPillStyle] = useState({ left: 0, width: 0 });
@@ -59,7 +61,7 @@ export function TabBar({
           >
             {tab.icon}
           </span>
-          {tab.label}
+          {t(tab.label)}
         </button>
       ))}
     </div>

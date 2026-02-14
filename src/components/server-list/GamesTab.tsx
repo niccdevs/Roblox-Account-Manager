@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { useStore } from "../../store";
 import type { GameEntry } from "./types";
 import { GameContextMenu } from "./GameContextMenu";
+import { tr, useTr } from "../../i18n/text";
 
 export interface GamesTabProps {
   onSelectGame: (placeId: number, name: string, iconUrl: string | null) => void;
@@ -17,6 +18,7 @@ export function GamesTab({
   addToast,
   onAddFavorite,
 }: GamesTabProps) {
+  const t = useTr();
   const [search, setSearch] = useState("");
   const [games, setGames] = useState<GameEntry[]>([]);
   const [loading, setLoading] = useState(false);
@@ -44,7 +46,7 @@ export function GamesTab({
         seen.add(key);
         entries.push({
           placeId,
-          name: game.name || "Unknown",
+          name: game.name || t("Unknown"),
           playerCount: game.playerCount || 0,
           likeRatio: game.totalUpVotes > 0
             ? Math.round((game.totalUpVotes / (game.totalUpVotes + game.totalDownVotes)) * 100)
@@ -90,10 +92,10 @@ export function GamesTab({
         }
       }
     } catch (e) {
-      addToast(`Search failed: ${e}`);
+      addToast(tr("Search failed: {{error}}", { error: String(e) }));
     }
     setLoading(false);
-  }, [addToast, store.selectedAccount]);
+  }, [addToast, store.selectedAccount, t]);
 
   useEffect(() => {
     searchGames("");
@@ -116,7 +118,7 @@ export function GamesTab({
           <input
             value={search}
             onChange={(e) => handleSearchInput(e.target.value)}
-            placeholder="Search games..."
+            placeholder={t("Search games...")}
             className="w-full pl-9 pr-3 py-[6px] bg-zinc-900/60 border border-zinc-800 rounded-lg text-[13px] text-zinc-300 placeholder-zinc-600 focus:outline-none focus:border-zinc-600 transition-colors"
           />
         </div>
@@ -133,7 +135,7 @@ export function GamesTab({
               <circle cx="11" cy="11" r="8" />
               <path d="m21 21-4.35-4.35" />
             </svg>
-            <span className="text-xs text-zinc-700">No games found</span>
+            <span className="text-xs text-zinc-700">{t("No games found")}</span>
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-2 px-1">
@@ -167,7 +169,7 @@ export function GamesTab({
                       <span className="text-[10px] text-zinc-500">
                         {game.playerCount >= 1000
                           ? `${(game.playerCount / 1000).toFixed(1)}K`
-                          : game.playerCount} playing
+                          : game.playerCount} {t("playing")}
                       </span>
                     )}
                     {game.likeRatio !== null && (
@@ -186,7 +188,7 @@ export function GamesTab({
                 <button
                   onClick={(e) => { e.stopPropagation(); onJoinGame(game.placeId); }}
                   className="shrink-0 w-7 h-7 rounded-md bg-emerald-600/20 hover:bg-emerald-600/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"
-                  title="Join Game"
+                  title={t("Join Game")}
                 >
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" className="text-emerald-400">
                     <polygon points="5 3 19 12 5 21 5 3" />
@@ -208,7 +210,7 @@ export function GamesTab({
           onFavorite={() => onAddFavorite(contextMenu.game)}
           onCopyPlaceId={() => {
             navigator.clipboard.writeText(String(contextMenu.game.placeId));
-            addToast("Copied Place ID");
+            addToast(tr("Copied Place ID"));
           }}
         />
       )}

@@ -1,6 +1,7 @@
 import { useStore } from "../../store";
 import type { Account } from "../../types";
 import { timeAgo, getFreshnessColor } from "../../types";
+import { useTr } from "../../i18n/text";
 
 function maskName(name: string, previewLetters: number): string {
   if (previewLetters > 0 && previewLetters < name.length) {
@@ -10,6 +11,7 @@ function maskName(name: string, previewLetters: number): string {
 }
 
 export function AccountRow({ account }: { account: Account }) {
+  const t = useTr();
   const store = useStore();
   const selected = store.selectedIds.has(account.UserID);
   const multiMode = store.selectedIds.size > 1;
@@ -30,22 +32,22 @@ export function AccountRow({ account }: { account: Account }) {
 
   const presenceMeta =
     presenceType === 3
-      ? { label: "In Studio", dotClass: "bg-violet-500", dotStyle: undefined as React.CSSProperties | undefined }
+      ? { label: t("In Studio"), dotClass: "bg-violet-500", dotStyle: undefined as React.CSSProperties | undefined }
       : presenceType >= 2
-      ? { label: "In Game", dotClass: "bg-emerald-500", dotStyle: undefined as React.CSSProperties | undefined }
+      ? { label: t("In Game"), dotClass: "bg-emerald-500", dotStyle: undefined as React.CSSProperties | undefined }
       : presenceType === 1
-        ? { label: "Online", dotClass: "bg-sky-500", dotStyle: undefined as React.CSSProperties | undefined }
-        : { label: "Offline", dotClass: "", dotStyle: { backgroundColor: "var(--panel-muted)" } };
+        ? { label: t("Online"), dotClass: "bg-sky-500", dotStyle: undefined as React.CSSProperties | undefined }
+        : { label: t("Offline"), dotClass: "", dotStyle: { backgroundColor: "var(--panel-muted)" } };
 
   const statusDots: Array<{ color: string; title: string }> = [];
   if (!account.Valid) {
-    statusDots.push({ color: "#ef4444", title: "Invalid session" });
+    statusDots.push({ color: "#ef4444", title: t("Invalid session") });
   }
   if (freshness) {
-    statusDots.push({ color: freshness, title: "Aged account (20+ days inactive)" });
+    statusDots.push({ color: freshness, title: t("Aged account (20+ days inactive)") });
   }
   if (launchedLocally) {
-    statusDots.push({ color: "#f59e0b", title: "Launched by Roblox Account Manager" });
+    statusDots.push({ color: "#f59e0b", title: t("Launched by Roblox Account Manager") });
   }
   if (showPresence && presenceType >= 1) {
     const presenceColor =
@@ -202,7 +204,7 @@ export function AccountRow({ account }: { account: Account }) {
         {isJoining ? (
           <span className="inline-flex items-center gap-1 theme-accent">
             <span className="w-2 h-2 border border-[var(--accent-color)] border-t-transparent rounded-full animate-spin" />
-            <span>Join</span>
+            <span>{t("Join")}</span>
           </span>
         ) : (
           <span className="theme-muted">{timeAgo(account.LastUse)}</span>

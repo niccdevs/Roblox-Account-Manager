@@ -1,8 +1,10 @@
 import type { UseSettingsReturn } from "../../hooks/useSettings";
 import { Toggle } from "../ui/Toggle";
 import { RestartBadge } from "../ui/RestartBadge";
+import { useTr } from "../../i18n/text";
 
 export function DeveloperTab({ s }: { s: UseSettingsReturn }) {
+  const t = useTr();
   return (
     <div className="space-y-0">
       <Toggle
@@ -16,7 +18,8 @@ export function DeveloperTab({ s }: { s: UseSettingsReturn }) {
         onChange={(v) => s.setBool("Developer", "EnableWebServer", v)}
         label={
           <>
-            Enable Web Server<RestartBadge />
+            {t("Enable Web Server")}
+            <RestartBadge />
           </>
         }
         description="Start a local HTTP API for external tools and scripts"

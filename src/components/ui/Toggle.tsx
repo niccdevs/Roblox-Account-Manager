@@ -1,3 +1,5 @@
+import { useTr, trNode } from "../../i18n/text";
+
 export function Toggle({
   checked,
   onChange,
@@ -9,6 +11,7 @@ export function Toggle({
   label: React.ReactNode;
   description?: string;
 }) {
+  const t = useTr();
   return (
     <div
       className="group flex items-start gap-3 py-2 px-1 rounded-lg cursor-pointer select-none transition-colors hover:bg-white/[0.02]"
@@ -27,9 +30,9 @@ export function Toggle({
         />
       </div>
       <div className="min-w-0">
-        <div className="text-[13px] text-zinc-200 leading-tight">{label}</div>
+        <div className="text-[13px] text-zinc-200 leading-tight">{trNode(label, t)}</div>
         {description && (
-          <div className="text-[11px] text-zinc-500 leading-snug mt-0.5">{description}</div>
+          <div className="text-[11px] text-zinc-500 leading-snug mt-0.5">{t(description)}</div>
         )}
       </div>
     </div>

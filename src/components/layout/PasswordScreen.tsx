@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { useStore } from "../../store";
+import { useTr } from "../../i18n/text";
 
 export function PasswordScreen() {
+  const t = useTr();
   const store = useStore();
   const [password, setPassword] = useState("");
 
@@ -10,10 +12,10 @@ export function PasswordScreen() {
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
           <h1 className="text-xl font-semibold text-zinc-100 animate-fade-in-up" style={{ animationDelay: "0.05s" }}>
-            Restricted Access
+            {t("Restricted Access")}
           </h1>
           <p className="mt-2 text-sm text-zinc-500 animate-fade-in-up" style={{ animationDelay: "0.1s" }}>
-            Enter your password to continue
+            {t("Enter your password to continue")}
           </p>
         </div>
 
@@ -28,7 +30,7 @@ export function PasswordScreen() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && password && store.unlock(password)}
-            placeholder="Password"
+            placeholder={t("Password")}
             className="mb-4 w-full rounded-lg bg-zinc-800 border border-zinc-700 px-4 py-2.5 text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-sky-500/50 transition-colors"
             autoFocus
           />
@@ -37,7 +39,7 @@ export function PasswordScreen() {
             disabled={store.unlocking || !password}
             className="w-full rounded-lg bg-sky-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-sky-500 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed transition-all"
           >
-            {store.unlocking ? "Unlocking..." : "Continue"}
+            {store.unlocking ? t("Unlocking...") : t("Continue")}
           </button>
         </div>
       </div>

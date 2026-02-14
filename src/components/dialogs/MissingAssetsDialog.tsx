@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useStore } from "../../store";
 import { useConfirm } from "../../hooks/usePrompt";
+import { useTr } from "../../i18n/text";
 
 interface AssetInfo {
   id: number;
@@ -14,6 +15,7 @@ interface AssetInfo {
 }
 
 export function MissingAssetsDialog() {
+  const t = useTr();
   const store = useStore();
   const confirm = useConfirm();
   const data = store.missingAssets;
@@ -68,7 +70,7 @@ export function MissingAssetsDialog() {
           } catch {
             infos.push({
               id: assetId,
-              name: `Asset ${assetId}`,
+              name: t("Asset {{id}}", { id: assetId }),
               isForSale: false,
               price: null,
               productId: null,
@@ -94,7 +96,7 @@ export function MissingAssetsDialog() {
 
   async function handleBuy(asset: AssetInfo) {
     if (!asset.productId || asset.price === null) return;
-    if (!(await confirm(`Buy "${asset.name}" for R$ ${asset.price}?`))) return;
+    if (!(await confirm(t("Buy \"{{name}}\" for R$ {{price}}?", { name: asset.name, price: asset.price })))) return;
 
     setPurchasing((prev) => new Set([...prev, asset.id]));
     try {
@@ -108,12 +110,12 @@ export function MissingAssetsDialog() {
         }
       );
       if (result.purchased) {
-        store.addToast(`Purchased ${asset.name}`);
+        store.addToast(t("Purchased {{name}}", { name: asset.name }));
       } else {
-        store.addToast(result.errorMsg || "Purchase failed");
+        store.addToast(result.errorMsg || t("Purchase failed"));
       }
     } catch (e) {
-      store.addToast(`Error: ${e}`);
+      store.addToast(t("Error: {{error}}", { error: String(e) }));
     }
     setPurchasing((prev) => {
       const next = new Set(prev);
@@ -133,7 +135,7 @@ export function MissingAssetsDialog() {
       >
         <div className="flex items-center justify-between px-5 pt-4 pb-3 shrink-0">
           <h2 className="text-sm font-semibold text-zinc-100">
-            Missing Assets for {data.username}
+            {t("Missing Assets for {{username}}", { username: data.username })}
           </h2>
           <button
             onClick={handleClose}
@@ -147,10 +149,10 @@ export function MissingAssetsDialog() {
 
         <div className="flex-1 overflow-y-auto px-5 pb-4 space-y-1.5">
           {loading && (
-            <p className="text-[11px] text-zinc-500 text-center py-6">Loading asset details...</p>
+            <p className="text-[11px] text-zinc-500 text-center py-6">{t("Loading asset details...")}</p>
           )}
           {!loading && assets.length === 0 && (
-            <p className="text-[11px] text-zinc-500 text-center py-6">No missing assets</p>
+            <p className="text-[11px] text-zinc-500 text-center py-6">{t("No missing assets")}</p>
           )}
           {assets.map((asset) => (
             <div
@@ -169,7 +171,7 @@ export function MissingAssetsDialog() {
               <div className="flex-1 min-w-0">
                 <div className="text-xs text-zinc-200 truncate">{asset.name}</div>
                 <div className="text-[10px] text-zinc-500">
-                  {asset.price !== null ? `R$ ${asset.price}` : "Not for sale"}
+                  {asset.price !== null ? `R$ ${asset.price}` : t("Not for sale")}
                 </div>
               </div>
               {asset.isForSale && asset.productId && (
@@ -178,7 +180,7 @@ export function MissingAssetsDialog() {
                   disabled={purchasing.has(asset.id)}
                   className="px-2.5 py-1 bg-emerald-600/80 hover:bg-emerald-500 disabled:bg-zinc-700 text-white text-[10px] font-medium rounded-lg transition-colors shrink-0"
                 >
-                  {purchasing.has(asset.id) ? "..." : "Buy"}
+                  {purchasing.has(asset.id) ? "..." : t("Buy")}
                 </button>
               )}
             </div>

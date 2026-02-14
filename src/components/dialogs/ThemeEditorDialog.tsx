@@ -4,6 +4,7 @@ import { useStore } from "../../store";
 import { useModalClose } from "../../hooks/useModalClose";
 import { useConfirm, usePrompt } from "../../hooks/usePrompt";
 import type { ThemeData } from "../../types";
+import { useTr } from "../../i18n/text";
 import { ColorRow } from "../ui/ColorRow";
 import { ToggleRow } from "../ui/ToggleRow";
 import { DEFAULT_THEME, THEME_PRESETS, normalizeTheme } from "../../theme";
@@ -43,6 +44,7 @@ function cleanPresetLabel(label: string) {
 }
 
 export function ThemeEditorDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const t = useTr();
   const store = useStore();
   const prompt = usePrompt();
   const confirm = useConfirm();
@@ -172,10 +174,10 @@ export function ThemeEditorDialog({ open, onClose }: { open: boolean; onClose: (
       const normalized = normalizeTheme(theme);
       await store.saveTheme(normalized);
       setSavedTheme(normalized);
-      store.addToast("Theme saved");
+      store.addToast(t("Theme saved"));
       handleClose();
     } catch (e) {
-      store.addToast(`Error: ${e}`);
+      store.addToast(t("Error: {{error}}", { error: String(e) }));
     }
   }
 
@@ -200,8 +202,8 @@ export function ThemeEditorDialog({ open, onClose }: { open: boolean; onClose: (
   }
 
   async function handleSavePreset() {
-    const suggestedName = cleanPresetLabel(selectedPreset?.label || "My Preset");
-    const name = await prompt("Preset name:", suggestedName);
+    const suggestedName = cleanPresetLabel(selectedPreset?.label || t("My Preset"));
+    const name = await prompt(t("Preset name:"), suggestedName);
     if (!name?.trim()) return;
     try {
       const preset = await invoke<CustomThemePreset>("save_theme_preset", {
@@ -210,29 +212,29 @@ export function ThemeEditorDialog({ open, onClose }: { open: boolean; onClose: (
       });
       setCustomPresets((prev) => upsertCustomPreset(prev, preset));
       setPresetId(`${CUSTOM_PREFIX}${preset.id}`);
-      store.addToast(`Preset saved: ${preset.name}`);
+      store.addToast(t("Preset saved: {{name}}", { name: preset.name }));
     } catch (e) {
-      store.addToast(`Error: ${e}`);
+      store.addToast(t("Error: {{error}}", { error: String(e) }));
     }
   }
 
   async function handleDeletePreset() {
     if (!selectedPreset?.customId) return;
     const name = cleanPresetLabel(selectedPreset.label);
-    const ok = await confirm(`Delete preset "${name}"?`, true);
+    const ok = await confirm(t("Delete preset \"{{name}}\"?", { name }), true);
     if (!ok) return;
     try {
       await invoke("delete_theme_preset", { presetId: selectedPreset.customId });
       setCustomPresets((prev) => prev.filter((preset) => preset.id !== selectedPreset.customId));
       setPresetId(`${BUILTIN_PREFIX}${THEME_PRESETS[0].id}`);
-      store.addToast(`Preset deleted: ${name}`);
+      store.addToast(t("Preset deleted: {{name}}", { name }));
     } catch (e) {
-      store.addToast(`Error: ${e}`);
+      store.addToast(t("Error: {{error}}", { error: String(e) }));
     }
   }
 
   async function handleImportPresetFile() {
-    const path = await prompt("Preset file path (.json or .ram-theme.json):");
+    const path = await prompt(t("Preset file path (.json or .ram-theme.json):"));
     if (!path?.trim()) return;
     try {
       const preset = await invoke<CustomThemePreset>("import_theme_preset_file", {
@@ -244,15 +246,15 @@ export function ThemeEditorDialog({ open, onClose }: { open: boolean; onClose: (
       const next = normalizeTheme(preset.theme);
       setThemeLocal(next);
       applyLive(next);
-      store.addToast(`Imported preset: ${preset.name}`);
+      store.addToast(t("Imported preset: {{name}}", { name: preset.name }));
     } catch (e) {
-      store.addToast(`Error: ${e}`);
+      store.addToast(t("Error: {{error}}", { error: String(e) }));
     }
   }
 
   async function handleExportPresetFile() {
-    const suggestedName = cleanPresetLabel(selectedPreset?.label || "theme-preset");
-    const name = await prompt("Export file name (no extension):", suggestedName);
+    const suggestedName = cleanPresetLabel(selectedPreset?.label || t("theme-preset"));
+    const name = await prompt(t("Export file name (no extension):"), suggestedName);
     if (name === null) return;
     const exportName = name.trim() || suggestedName;
     try {
@@ -260,9 +262,9 @@ export function ThemeEditorDialog({ open, onClose }: { open: boolean; onClose: (
         name: exportName,
         theme: normalizeTheme(theme),
       });
-      store.addToast(`Exported preset to ${path}`);
+      store.addToast(t("Exported preset to {{path}}", { path }));
     } catch (e) {
-      store.addToast(`Error: ${e}`);
+      store.addToast(t("Error: {{error}}", { error: String(e) }));
     }
   }
 
@@ -291,13 +293,13 @@ export function ThemeEditorDialog({ open, onClose }: { open: boolean; onClose: (
             <ColorRow label="Foreground" value={theme.buttons_foreground} onChange={(v) => update({ buttons_foreground: v })} />
             <ColorRow label="Border" value={theme.buttons_border} onChange={(v) => update({ buttons_border: v })} />
             <div className="flex items-center justify-between py-1.5">
-              <span className="text-xs text-[var(--panel-fg)]">Button Style</span>
-              <button
-                onClick={cycleButtonStyle}
-                className="theme-btn px-2.5 py-1 rounded text-[10px]"
-              >
-                {theme.button_style}
-              </button>
+              <span className="text-xs text-[var(--panel-fg)]">{t("Button Style")}</span>
+                <button
+                  onClick={cycleButtonStyle}
+                  className="theme-btn px-2.5 py-1 rounded text-[10px]"
+                >
+                  {t(theme.button_style)}
+                </button>
             </div>
           </>
         );
@@ -338,7 +340,7 @@ export function ThemeEditorDialog({ open, onClose }: { open: boolean; onClose: (
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-5 pt-4 pb-3 shrink-0">
-          <h2 className="text-sm font-semibold text-[var(--panel-fg)]">Theme Editor</h2>
+          <h2 className="text-sm font-semibold text-[var(--panel-fg)]">{t("Theme Editor")}</h2>
           <button onClick={handleCancel} className="theme-muted hover:opacity-100 transition-opacity">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M18 6 6 18M6 6l12 12" />
@@ -356,7 +358,7 @@ export function ThemeEditorDialog({ open, onClose }: { open: boolean; onClose: (
                 aria-expanded={presetMenuOpen}
               >
                 <span className="truncate text-[var(--panel-fg)]">
-                  {cleanPresetLabel(selectedPreset?.label ?? "Select preset")}
+                  {cleanPresetLabel(selectedPreset?.label ?? t("Select preset"))}
                 </span>
                 <svg
                   width="12"
@@ -378,7 +380,7 @@ export function ThemeEditorDialog({ open, onClose }: { open: boolean; onClose: (
                 }`}
               >
                 <div className="theme-panel theme-border border rounded-xl shadow-2xl max-h-56 overflow-y-auto p-1.5">
-                  <div className="px-2 py-1 text-[10px] uppercase tracking-wide theme-muted font-semibold">Built-in</div>
+                  <div className="px-2 py-1 text-[10px] uppercase tracking-wide theme-muted font-semibold">{t("Built-in")}</div>
                   {builtInPresetOptions.map((preset) => {
                     const active = preset.key === presetId;
                     return (
@@ -391,12 +393,12 @@ export function ThemeEditorDialog({ open, onClose }: { open: boolean; onClose: (
                             : "border-transparent text-[var(--panel-fg)] hover:bg-[var(--panel-soft)]"
                         }`}
                       >
-                        {preset.label}
+                        {t(preset.label)}
                       </button>
                     );
                   })}
                   <div className="mx-2 my-1 border-t theme-border" />
-                  <div className="px-2 py-1 text-[10px] uppercase tracking-wide theme-muted font-semibold">Custom</div>
+                  <div className="px-2 py-1 text-[10px] uppercase tracking-wide theme-muted font-semibold">{t("Custom")}</div>
                   {customPresetOptions.length > 0 ? (
                     customPresetOptions.map((preset) => {
                       const active = preset.key === presetId;
@@ -410,12 +412,12 @@ export function ThemeEditorDialog({ open, onClose }: { open: boolean; onClose: (
                               : "border-transparent text-[var(--panel-fg)] hover:bg-[var(--panel-soft)]"
                           }`}
                         >
-                          {cleanPresetLabel(preset.label)}
+                          {t(cleanPresetLabel(preset.label))}
                         </button>
                       );
                     })
                   ) : (
-                    <div className="px-2.5 py-2 text-[11px] theme-muted">No custom presets yet</div>
+                    <div className="px-2.5 py-2 text-[11px] theme-muted">{t("No custom presets yet")}</div>
                   )}
                 </div>
               </div>
@@ -425,26 +427,26 @@ export function ThemeEditorDialog({ open, onClose }: { open: boolean; onClose: (
                 onClick={handleSavePreset}
                 className="theme-btn px-3 py-1.5 text-xs font-medium"
               >
-                Save Preset
+                {t("Save Preset")}
               </button>
               <button
                 onClick={handleImportPresetFile}
                 className="theme-btn px-3 py-1.5 text-xs font-medium"
               >
-                Import File
+                {t("Import File")}
               </button>
               <button
                 onClick={handleExportPresetFile}
                 className="theme-btn px-3 py-1.5 text-xs font-medium"
               >
-                Export File
+                {t("Export File")}
               </button>
               <button
                 onClick={handleDeletePreset}
                 disabled={!selectedPreset?.customId}
                 className="theme-btn px-3 py-1.5 text-xs font-medium disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                Delete Preset
+                {t("Delete Preset")}
               </button>
             </div>
           </div>
@@ -462,14 +464,14 @@ export function ThemeEditorDialog({ open, onClose }: { open: boolean; onClose: (
                     : "theme-muted hover:opacity-100 hover:bg-[var(--panel-soft)]"
                 }`}
               >
-                {cat}
+                {t(cat)}
               </button>
             ))}
           </div>
 
           <div className="flex-1 px-5 py-3 overflow-y-auto">
             <div className="text-[10px] font-semibold uppercase tracking-wider theme-muted mb-3">
-              {category}
+              {t(category)}
             </div>
             {renderControls()}
           </div>
@@ -480,20 +482,20 @@ export function ThemeEditorDialog({ open, onClose }: { open: boolean; onClose: (
             onClick={handleReset}
             className="theme-btn px-3 py-1.5 text-xs"
           >
-            Reset to Defaults
+            {t("Reset to Defaults")}
           </button>
           <div className="flex items-center gap-2">
             <button
               onClick={handleCancel}
               className="theme-btn px-4 py-1.5 text-xs font-medium"
             >
-              Cancel
+              {t("Cancel")}
             </button>
             <button
               onClick={handleSave}
               className="theme-btn px-4 py-1.5 text-xs font-medium"
             >
-              Save
+              {t("Save")}
             </button>
           </div>
         </div>

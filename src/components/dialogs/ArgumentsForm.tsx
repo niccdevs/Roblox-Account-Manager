@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useStore } from "../../store";
+import { useTr } from "../../i18n/text";
 
 export function ArgumentsForm({
   open,
@@ -11,6 +12,7 @@ export function ArgumentsForm({
   onClose: () => void;
   anchorRef: React.RefObject<HTMLButtonElement | null>;
 }) {
+  const t = useTr();
   const store = useStore();
   const [isTeleport, setIsTeleport] = useState(false);
   const [useOldJoin, setUseOldJoin] = useState(false);
@@ -59,7 +61,7 @@ export function ArgumentsForm({
       key: "CurrentVersion",
       value: version,
     }).catch(() => {});
-    store.addToast("Version set");
+    store.addToast(t("Version set"));
   }
 
   return (
@@ -68,7 +70,7 @@ export function ArgumentsForm({
       className="theme-modal-scope theme-panel theme-border absolute right-0 top-full mt-1.5 w-[280px] bg-zinc-900 border border-zinc-700/60 rounded-xl shadow-2xl z-50 animate-scale-in p-3 space-y-2.5"
     >
       <div className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
-        Launch Arguments
+        {t("Launch Arguments")}
       </div>
 
       <label className="flex items-center gap-2 cursor-pointer">
@@ -78,7 +80,7 @@ export function ArgumentsForm({
           onChange={(e) => toggle("IsTeleport", e.target.checked, setIsTeleport)}
           className="w-3.5 h-3.5 rounded border-zinc-600 bg-zinc-800 text-sky-500 focus:ring-0 focus:ring-offset-0"
         />
-        <span className="text-xs text-zinc-300">Is Teleport</span>
+        <span className="text-xs text-zinc-300">{t("Is Teleport")}</span>
       </label>
 
       <label className="flex items-center gap-2 cursor-pointer">
@@ -88,14 +90,14 @@ export function ArgumentsForm({
           onChange={(e) => toggle("UseOldJoin", e.target.checked, setUseOldJoin)}
           className="w-3.5 h-3.5 rounded border-zinc-600 bg-zinc-800 text-sky-500 focus:ring-0 focus:ring-offset-0"
         />
-        <span className="text-xs text-zinc-300">Use Old Join Method</span>
+        <span className="text-xs text-zinc-300">{t("Use Old Join Method")}</span>
       </label>
 
       <div className="flex items-center gap-2">
         <input
           value={version}
           onChange={(e) => setVersion(e.target.value)}
-          placeholder="Roblox Version"
+          placeholder={t("Roblox Version")}
           className="flex-1 px-2.5 py-1.5 bg-zinc-800/50 border border-zinc-700/50 rounded-lg text-xs text-zinc-300 font-mono focus:outline-none focus:border-zinc-600 transition-colors"
           spellCheck={false}
         />
@@ -103,7 +105,7 @@ export function ArgumentsForm({
           onClick={handleSetVersion}
           className="px-2.5 py-1.5 bg-zinc-800 border border-zinc-700/50 rounded-lg text-xs text-zinc-300 hover:bg-zinc-700 transition-colors"
         >
-          Set
+          {t("Set")}
         </button>
       </div>
     </div>

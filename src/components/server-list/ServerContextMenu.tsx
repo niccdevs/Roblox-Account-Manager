@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { ServerData } from "./types";
+import { useTr } from "../../i18n/text";
 
 export function ServerContextMenu({
   x,
@@ -18,6 +19,7 @@ export function ServerContextMenu({
   onCopyJobId: () => void;
   onLoadRegion: () => void;
 }) {
+  const t = useTr();
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState({ left: x, top: y });
 
@@ -60,7 +62,7 @@ export function ServerContextMenu({
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-emerald-400">
           <polygon points="5 3 19 12 5 21 5 3" />
         </svg>
-        Join Server
+        {t("Join Server")}
       </button>
       <button
         onClick={() => { onCopyJobId(); onClose(); }}
@@ -70,7 +72,7 @@ export function ServerContextMenu({
           <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
           <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
         </svg>
-        Copy Job ID
+        {t("Copy Job ID")}
       </button>
       <div className="h-px bg-zinc-800 my-0.5" />
       <button
@@ -81,7 +83,7 @@ export function ServerContextMenu({
           <circle cx="12" cy="12" r="10" />
           <path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
         </svg>
-        Load Region
+        {t("Load Region")}
       </button>
     </div>
     ,

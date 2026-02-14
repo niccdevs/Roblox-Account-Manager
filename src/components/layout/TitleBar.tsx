@@ -1,8 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { invoke } from "@tauri-apps/api/core";
+import { useTr } from "../../i18n/text";
 
 export function TitleBar() {
+  const t = useTr();
   const [maximized, setMaximized] = useState(false);
   const [minimizeToTray, setMinimizeToTray] = useState(false);
   const appWindow = getCurrentWindow();
@@ -38,7 +40,7 @@ export function TitleBar() {
           </svg>
         </div>
         <span className="text-[12px] font-medium tracking-tight">
-          Roblox Account Manager
+          {t("Roblox Account Manager")}
         </span>
       </div>
 

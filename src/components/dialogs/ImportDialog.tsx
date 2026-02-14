@@ -4,6 +4,7 @@ import { useStore } from "../../store";
 import { useModalClose } from "../../hooks/useModalClose";
 import { usePrompt } from "../../hooks/usePrompt";
 import { SlidingTabBar } from "../ui/SlidingTabBar";
+import { useTr } from "../../i18n/text";
 
 type TabId = "cookie" | "legacy";
 
@@ -28,6 +29,7 @@ export function ImportDialog({
   onClose: () => void;
   defaultTab?: TabId;
 }) {
+  const t = useTr();
   const store = useStore();
   const prompt = usePrompt();
   const { visible, closing, handleClose } = useModalClose(open, onClose);
@@ -72,12 +74,12 @@ export function ImportDialog({
     const out: ImportResult[] = [];
 
     for (let i = 0; i < lines.length; i++) {
-      setProgress(`Importing ${i + 1}/${lines.length}...`);
+      setProgress(t("Importing {{current}}/{{total}}...", { current: i + 1, total: lines.length }));
       const cookie = lines[i];
       try {
         const info = await invoke<{ user_id: number; name: string }>("validate_cookie", { cookie });
         if (existingIds.has(info.user_id)) {
-          out.push({ text: `${info.name} - already exists`, ok: false });
+          out.push({ text: t("{{name}} - already exists", { name: info.name }), ok: false });
         } else {
           await invoke("add_account", {
             securityToken: cookie,
@@ -85,10 +87,10 @@ export function ImportDialog({
             userId: info.user_id,
           });
           existingIds.add(info.user_id);
-          out.push({ text: `Added ${info.name}`, ok: true });
+          out.push({ text: t("Added {{name}}", { name: info.name }), ok: true });
         }
       } catch (e) {
-        out.push({ text: `Failed: ${e}`, ok: false });
+        out.push({ text: t("Failed: {{error}}", { error: String(e) }), ok: false });
       }
       setResults([...out]);
     }
@@ -100,7 +102,7 @@ export function ImportDialog({
 
   async function importOldAccountData(file: File) {
     if (file.name.toLowerCase() !== "accountdata.json") {
-      setResults([{ text: "Please select AccountData.json", ok: false }]);
+      setResults([{ text: t("Please select AccountData.json"), ok: false }]);
       return;
     }
 
@@ -109,7 +111,7 @@ export function ImportDialog({
     setSelectedFileName(file.name);
 
     try {
-      setProgress("Reading file...");
+      setProgress(t("Reading file..."));
       const raw = await file.arrayBuffer();
       const fileData = Array.from(new Uint8Array(raw));
       let password: string | null = null;
@@ -117,7 +119,7 @@ export function ImportDialog({
 
       while (summary === null) {
         try {
-          setProgress(password === null ? "Importing accounts..." : "Decrypting and importing...");
+          setProgress(password === null ? t("Importing accounts...") : t("Decrypting and importing..."));
           summary = await invoke<OldAccountImportSummary>("import_old_account_data", {
             fileData,
             password,
@@ -125,18 +127,18 @@ export function ImportDialog({
         } catch (e) {
           const errorMessage = String(e);
           if (errorMessage.includes("IMPORT_PASSWORD_REQUIRED")) {
-            const entered = await prompt("This AccountData.json is encrypted. Enter its password:");
+            const entered = await prompt(t("This AccountData.json is encrypted. Enter its password:"));
             if (entered === null) {
-              setResults([{ text: "Import cancelled", ok: false }]);
+              setResults([{ text: t("Import cancelled"), ok: false }]);
               return;
             }
             password = entered;
             continue;
           }
           if (errorMessage.toLowerCase().includes("import password is incorrect")) {
-            const retry = await prompt("Password is incorrect. Enter the AccountData.json password:");
+            const retry = await prompt(t("Password is incorrect. Enter the AccountData.json password:"));
             if (retry === null) {
-              setResults([{ text: "Import cancelled", ok: false }]);
+              setResults([{ text: t("Import cancelled"), ok: false }]);
               return;
             }
             password = retry;
@@ -150,22 +152,22 @@ export function ImportDialog({
 
       const out: ImportResult[] = [];
       if (summary.added > 0) {
-        out.push({ text: `Added ${summary.added} account(s)`, ok: true });
+        out.push({ text: t("Added {{count}} account(s)", { count: summary.added }), ok: true });
       }
       if (summary.replaced > 0) {
-        out.push({ text: `Replaced ${summary.replaced} existing account(s)`, ok: true });
+        out.push({ text: t("Replaced {{count}} existing account(s)", { count: summary.replaced }), ok: true });
       }
       if (summary.skipped > 0) {
-        out.push({ text: `Skipped ${summary.skipped} duplicate/invalid record(s)`, ok: false });
+        out.push({ text: t("Skipped {{count}} duplicate/invalid record(s)", { count: summary.skipped }), ok: false });
       }
       if (summary.total === 0 || out.length === 0) {
-        out.push({ text: "No accounts imported", ok: false });
+        out.push({ text: t("No accounts imported"), ok: false });
       }
 
       setResults(out);
-      store.addToast(`Import complete: +${summary.added}, replaced ${summary.replaced}`);
+      store.addToast(t("Import complete: +{{added}}, replaced {{replaced}}", { added: summary.added, replaced: summary.replaced }));
     } catch (e) {
-      setResults([{ text: `Failed: ${e}`, ok: false }]);
+      setResults([{ text: t("Failed: {{error}}", { error: String(e) }), ok: false }]);
     } finally {
       setProgress("");
       setImporting(false);
@@ -202,8 +204,8 @@ export function ImportDialog({
   }
 
   const tabs: { id: TabId; label: string }[] = [
-    { id: "cookie", label: "Import by Cookie" },
-    { id: "legacy", label: "Import Old Account Data" },
+    { id: "cookie", label: t("Import by Cookie") },
+    { id: "legacy", label: t("Import Old Account Data") },
   ];
 
   return (
@@ -216,7 +218,7 @@ export function ImportDialog({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-5 pt-4 pb-0">
-          <h2 className="text-sm font-semibold text-zinc-100">Import Accounts</h2>
+          <h2 className="text-sm font-semibold text-zinc-100">{t("Import Accounts")}</h2>
           <button onClick={handleClose} className="text-zinc-600 hover:text-zinc-400 transition-colors">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M18 6 6 18M6 6l12 12" />
@@ -235,7 +237,7 @@ export function ImportDialog({
         <div className={`px-5 pb-4 ${tab === "cookie" ? "flex-1 flex flex-col min-h-0" : "pt-2"}`}>
           {tab === "cookie" ? (
             <>
-              <p className="text-[11px] text-zinc-500 mb-2">Paste one .ROBLOSECURITY cookie per line</p>
+              <p className="text-[11px] text-zinc-500 mb-2">{t("Paste one .ROBLOSECURITY cookie per line")}</p>
               <textarea
                 ref={textareaRef}
                 value={input}
@@ -243,14 +245,14 @@ export function ImportDialog({
                 onDrop={handleDrop}
                 onDragOver={(e) => e.preventDefault()}
                 disabled={importing}
-                placeholder="_|WARNING:-DO-NOT-SHARE..."
+                placeholder={t("_|WARNING:-DO-NOT-SHARE...")}
                 className="flex-1 min-h-[100px] max-h-[140px] w-full p-3 bg-zinc-800/50 border border-zinc-700/50 rounded-lg text-xs text-zinc-300 font-mono placeholder-zinc-600 resize-none focus:outline-none focus:border-zinc-600 transition-colors disabled:opacity-50"
                 spellCheck={false}
               />
             </>
           ) : (
             <>
-              <p className="text-[11px] text-zinc-500 mb-3">Select an old AccountData.json file to merge into your current accounts.</p>
+              <p className="text-[11px] text-zinc-500 mb-3">{t("Select an old AccountData.json file to merge into your current accounts.")}</p>
               <input
                 ref={fileInputRef}
                 type="file"
@@ -274,13 +276,15 @@ export function ImportDialog({
                     </svg>
                   </div>
                   <div>
-                    <div className="text-xs text-zinc-200 font-medium">Choose AccountData.json</div>
-                    <div className="text-[11px] text-zinc-500">Click to browse or drop file here</div>
+                    <div className="text-xs text-zinc-200 font-medium">{t("Choose AccountData.json")}</div>
+                    <div className="text-[11px] text-zinc-500">{t("Click to browse or drop file here")}</div>
                   </div>
                 </div>
               </button>
               <div className="mt-2 text-[11px] text-zinc-500 min-h-[16px] truncate">
-                {selectedFileName ? `Selected file: ${selectedFileName}` : "No file selected"}
+                {selectedFileName
+                  ? t("Selected file: {{name}}", { name: selectedFileName })
+                  : t("No file selected")}
               </div>
             </>
           )}
@@ -303,7 +307,7 @@ export function ImportDialog({
                 disabled={importing || !input.trim()}
                 className="px-4 py-1.5 bg-sky-600 hover:bg-sky-500 disabled:bg-zinc-700 disabled:text-zinc-500 text-white text-xs font-medium rounded-lg transition-colors"
               >
-                {importing ? "Importing..." : "Import"}
+                {importing ? t("Importing...") : t("Import")}
               </button>
             ) : null}
           </div>

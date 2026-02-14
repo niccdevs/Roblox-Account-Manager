@@ -1,3 +1,5 @@
+import { useTr } from "../../i18n/text";
+
 export function ColorRow({
   label,
   value,
@@ -7,10 +9,11 @@ export function ColorRow({
   value: string;
   onChange: (v: string) => void;
 }) {
+  const t = useTr();
   const safeColor = value.startsWith("#") && (value.length === 7 || value.length === 4) ? value : "#000000";
   return (
     <div className="flex items-center justify-between py-1.5">
-      <span className="text-xs text-[var(--panel-fg)]">{label}</span>
+      <span className="text-xs text-[var(--panel-fg)]">{t(label)}</span>
       <div className="flex items-center gap-2 min-w-0">
         <input
           type="color"
