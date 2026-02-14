@@ -425,7 +425,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const setActionStatusMessage = useCallback(
     (message: string, tone: ActionStatusTone = "info", timeoutMs = 3500) => {
-      const localized = tr(message);
+      // `message` is usually an i18n key, but some call sites pass an already-localized string.
+      const localized = i18n.exists(message) ? tr(message) : message;
       if (actionStatusTimeoutRef.current !== null) {
         window.clearTimeout(actionStatusTimeoutRef.current);
         actionStatusTimeoutRef.current = null;
@@ -446,7 +447,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   );
 
   const addToast = useCallback((msg: string) => {
-    const localized = tr(msg);
+    // `msg` is usually an i18n key, but some call sites pass an already-localized string (interpolated).
+    const localized = i18n.exists(msg) ? tr(msg) : msg;
     setToasts((prev) => [...prev, localized]);
     setTimeout(() => setToasts((prev) => prev.slice(1)), 2500);
     const lower = msg.toLowerCase();
@@ -525,13 +527,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const info = await invoke<{ user_id: number; name: string }>("validate_cookie", {
         cookie,
       });
+      const alreadyExists = accounts.some((a) => a.UserID === info.user_id);
       await invoke("add_account", {
         securityToken: cookie,
         username: info.name,
         userId: info.user_id,
       });
       await loadAccounts();
-      addToast(tr("Added {{name}}", { name: info.name }));
+      addToast(tr(alreadyExists ? "Updated {{name}}" : "Added {{name}}", { name: info.name }));
     } catch (e) {
       setError(String(e));
     }
