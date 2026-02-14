@@ -193,7 +193,7 @@ jobs:
 
             const channelLabel = channel === "beta" ? "Beta" : "Stable";
             const warningLine = channel === "beta"
-              ? "This is a beta release. Missing features, bugs, and crashes are possible. Run at your own risk."
+              ? "This is a beta release. Missing features, bugs and crashes are possible. Run at your own risk."
               : "This is a stable release intended for general use.";
             const calloutType = channel === "beta" ? "WARNING" : "NOTE";
 
