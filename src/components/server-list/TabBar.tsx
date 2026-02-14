@@ -1,5 +1,6 @@
 import { useState, useRef, useLayoutEffect } from "react";
 import type { TabId } from "./types";
+import { useTr } from "../../i18n/text";
 
 export interface TabBarProps {
   activeTab: TabId;
@@ -10,6 +11,7 @@ export function TabBar({
   activeTab,
   onTabChange,
 }: TabBarProps) {
+  const t = useTr();
   const tabs: { id: TabId; label: string; icon: React.ReactNode }[] = [
     {
       id: "servers",
@@ -105,7 +107,7 @@ export function TabBar({
           >
             {tab.icon}
           </span>
-          {tab.label}
+          {t(tab.label)}
         </button>
       ))}
     </div>

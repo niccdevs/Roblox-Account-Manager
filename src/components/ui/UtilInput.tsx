@@ -1,3 +1,5 @@
+import { useTr } from "../../i18n/text";
+
 export function UtilInput({
   value,
   onChange,
@@ -13,6 +15,7 @@ export function UtilInput({
   maxLength?: number;
   onKeyDown?: (e: React.KeyboardEvent) => void;
 }) {
+  const t = useTr();
   return (
     <input
       type={type}
@@ -26,7 +29,7 @@ export function UtilInput({
         onChange(e.target.value);
       }}
       onKeyDown={onKeyDown}
-      placeholder={placeholder}
+      placeholder={placeholder ? t(placeholder) : undefined}
       spellCheck={false}
       autoComplete="off"
       className="w-full px-2.5 py-1.5 bg-zinc-800/50 border border-zinc-700/50 rounded-lg text-xs text-zinc-300 focus:outline-none focus:border-zinc-600 transition-colors"

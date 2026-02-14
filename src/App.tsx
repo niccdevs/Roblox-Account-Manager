@@ -16,8 +16,10 @@ import { MissingAssetsDialog } from "./components/dialogs/MissingAssetsDialog";
 import { ThemeEditorDialog } from "./components/dialogs/ThemeEditorDialog";
 import { NexusDialog } from "./components/dialogs/NexusDialog";
 import { BottingDialog } from "./components/dialogs/BottingDialog";
+import { useTr } from "./i18n/text";
 
 function AppContent() {
+  const t = useTr();
   const store = useStore();
   const errorLower = (store.error || "").toLowerCase();
   const showCloseRobloxAction =
@@ -27,7 +29,7 @@ function AppContent() {
   if (!store.initialized) {
     return (
       <div className="theme-app flex h-screen items-center justify-center">
-        <div className="text-sm theme-muted">Loading...</div>
+        <div className="text-sm theme-muted">{t("Loading...")}</div>
       </div>
     );
   }
@@ -50,7 +52,7 @@ function AppContent() {
                 onClick={() => store.killAllRobloxProcesses()}
                 className="px-2 py-1 rounded-md bg-red-500/20 border border-red-500/30 text-red-300 hover:bg-red-500/30 transition-colors animate-pulse"
               >
-                Close Roblox
+                {t("Close Roblox")}
               </button>
             )}
             <button

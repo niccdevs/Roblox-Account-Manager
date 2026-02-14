@@ -7,6 +7,7 @@ import { DeveloperTab } from "./DeveloperTab";
 import { WebServerTab } from "./WebServerTab";
 import { WatcherTab } from "./WatcherTab";
 import { MiscellaneousTab } from "./MiscellaneousTab";
+import { useTr } from "../../i18n/text";
 
 export function TabContent({
   activeTab,
@@ -17,6 +18,7 @@ export function TabContent({
   s: UseSettingsReturn;
   loaded: boolean;
 }) {
+  const t = useTr();
   const prevTab = useRef(activeTab);
   const [animKey, setAnimKey] = useState(0);
   const [direction, setDirection] = useState<"left" | "right">("right");
@@ -33,7 +35,7 @@ export function TabContent({
   if (!loaded) {
     return (
       <div className="flex items-center justify-center py-20">
-        <div className="text-sm text-zinc-600">Loading settings...</div>
+        <div className="text-sm text-zinc-600">{t("Loading settings...")}</div>
       </div>
     );
   }

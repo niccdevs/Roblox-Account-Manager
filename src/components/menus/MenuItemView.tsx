@@ -1,3 +1,5 @@
+import { useTr } from "../../i18n/text";
+
 export interface MenuItem {
   label: string;
   action?: () => void;
@@ -8,6 +10,7 @@ export interface MenuItem {
 }
 
 export function MenuItemView({ item, close }: { item: MenuItem; close: () => void }) {
+  const t = useTr();
   if (item.separator) {
     return <div className="my-1 border-t border-zinc-800/80" />;
   }
@@ -16,7 +19,7 @@ export function MenuItemView({ item, close }: { item: MenuItem; close: () => voi
     return (
       <div className="submenu-trigger relative">
         <div className="flex items-center justify-between px-3 py-1.5 text-[13px] text-zinc-300 hover:bg-zinc-800 cursor-default rounded-md mx-1">
-          <span>{item.label}</span>
+          <span>{t(item.label)}</span>
           <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-zinc-600">
             <path d="m9 18 6-6-6-6" />
           </svg>
@@ -40,7 +43,7 @@ export function MenuItemView({ item, close }: { item: MenuItem; close: () => voi
         close();
       }}
     >
-      {item.label}
+      {t(item.label)}
     </div>
   );
 }

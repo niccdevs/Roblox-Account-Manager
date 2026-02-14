@@ -1,3 +1,5 @@
+import { useTr } from "../../i18n/text";
+
 export function ToggleRow({
   label,
   checked,
@@ -7,9 +9,10 @@ export function ToggleRow({
   checked: boolean;
   onChange: (v: boolean) => void;
 }) {
+  const t = useTr();
   return (
     <div className="flex items-center justify-between py-1.5">
-      <span className="text-xs text-[var(--panel-fg)]">{label}</span>
+      <span className="text-xs text-[var(--panel-fg)]">{t(label)}</span>
       <button
         onClick={() => onChange(!checked)}
         className={`w-8 h-[18px] rounded-full transition-colors relative border ${

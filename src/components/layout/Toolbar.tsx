@@ -2,8 +2,10 @@ import { useState, useRef, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useStore } from "../../store";
 import { usePrompt } from "../../hooks/usePrompt";
+import { tr, useTr } from "../../i18n/text";
 
 export function Toolbar() {
+  const t = useTr();
   const store = useStore();
   const prompt = usePrompt();
   const [addMenuOpen, setAddMenuOpen] = useState(false);
@@ -40,7 +42,7 @@ export function Toolbar() {
 
   async function handleQuickAdd() {
     setAddMenuOpen(false);
-    const input = await prompt("Cookie or username");
+    const input = await prompt(tr("Cookie or username"));
     if (!input?.trim()) return;
     const value = input.trim();
 
@@ -57,9 +59,9 @@ export function Toolbar() {
         userId: user.id,
       });
       await store.loadAccounts();
-      store.addToast(`Added ${user.name}`);
+      store.addToast(tr("Added {{name}}", { name: user.name }));
     } catch (e) {
-      store.addToast(`Add failed: ${e}`);
+      store.addToast(tr("Add failed: {{error}}", { error: String(e) }));
     }
   }
 
@@ -83,7 +85,7 @@ export function Toolbar() {
           value={store.searchQuery}
           onChange={(e) => store.setSearchQuery(e.target.value)}
           onClick={(e) => e.stopPropagation()}
-          placeholder="Filter accounts..."
+          placeholder={t("Filter accounts...")}
           autoComplete="off"
           spellCheck={false}
           className="theme-input w-full pl-9 pr-3 py-1.5 rounded-lg text-sm transition-colors"
@@ -108,7 +110,7 @@ export function Toolbar() {
               ? activeToggleStyle
               : "theme-btn-ghost"
           }`}
-          title={store.selectedIds.size > 0 ? `Deselect all (${store.selectedIds.size})` : "Select all"}
+          title={store.selectedIds.size > 0 ? t("Deselect all ({{count}})", { count: store.selectedIds.size }) : t("Select all")}
         >
           {store.selectedIds.size > 0 ? (
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -131,7 +133,7 @@ export function Toolbar() {
               : "theme-btn-ghost"
           }`}
         >
-          {store.hideUsernames ? "Hidden" : "Names"}
+          {store.hideUsernames ? t("Hidden") : t("Names")}
         </button>
 
         <button
@@ -141,7 +143,7 @@ export function Toolbar() {
               ? activeToggleStyle
               : "theme-btn-ghost"
           }`}
-          title={store.sidebarOpen ? "Hide panel" : "Show panel"}
+          title={store.sidebarOpen ? t("Hide panel") : t("Show panel")}
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
             <rect x="3" y="3" width="18" height="18" rx="2" />
@@ -159,7 +161,7 @@ export function Toolbar() {
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <path d="M12 5v14M5 12h14" />
             </svg>
-            Add
+            {t("Add")}
             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <path d="m6 9 6 6 6-6" />
             </svg>
@@ -173,7 +175,7 @@ export function Toolbar() {
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="theme-muted">
                   <path d="M12 5v14M5 12h14" />
                 </svg>
-                Quick Add
+                {t("Quick Add")}
               </button>
               <button
                 onClick={handleBrowserLogin}
@@ -184,7 +186,7 @@ export function Toolbar() {
                   <path d="M2 12h20" />
                   <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
                 </svg>
-                Browser Login
+                {t("Browser Login")}
               </button>
               <div className="mx-3 my-0.5 border-t theme-border" />
               <button
@@ -195,7 +197,7 @@ export function Toolbar() {
                   <path d="M15.5 2H8.6c-.4 0-.8.2-1.1.5-.3.3-.5.7-.5 1.1v16.8c0 .4.2.8.5 1.1.3.3.7.5 1.1.5h10.8c.4 0 .8-.2 1.1-.5.3-.3.5-.7.5-1.1V7.5L15.5 2z" />
                   <polyline points="14 2 14 8 20 8" />
                 </svg>
-                Import Cookie
+                {t("Import Cookie")}
               </button>
               <button
                 onClick={handleImportOldAccountData}
@@ -206,7 +208,7 @@ export function Toolbar() {
                   <polyline points="14 2 14 8 20 8" />
                   <path d="M9 15h6" />
                 </svg>
-                Import Old Account Data
+                {t("Import Old Account Data")}
               </button>
             </div>
           )}
@@ -215,7 +217,7 @@ export function Toolbar() {
         <button
           onClick={() => store.setSettingsOpen(true)}
           className="theme-btn-ghost p-1.5 rounded-lg transition-colors"
-          title="Settings"
+          title={t("Settings")}
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
             <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />

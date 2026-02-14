@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { useStore } from "../../store";
+import { useTr } from "../../i18n/text";
 
 export function StatusBar() {
+  const t = useTr();
   const store = useStore();
   const [tickNow, setTickNow] = useState(Date.now());
   const selected = store.selectedIds.size;
@@ -44,11 +46,11 @@ export function StatusBar() {
             selected > 0 ? "max-w-[120px] opacity-100 mr-4" : "max-w-0 opacity-0 mr-0"
           }`}
         >
-          <span className="theme-accent flex items-center gap-1.5 shrink-0 whitespace-nowrap">
-            <span className="w-2 h-2 rounded-full bg-[var(--accent-color)]" />
-            <span>{selected}</span> selected
-          </span>
-        </div>
+            <span className="theme-accent flex items-center gap-1.5 shrink-0 whitespace-nowrap">
+              <span className="w-2 h-2 rounded-full bg-[var(--accent-color)]" />
+              <span>{selected}</span> {t("selected")}
+            </span>
+          </div>
 
         <div
           className={`flex items-center gap-4 min-w-0 transition-transform duration-150 ease-out ${
@@ -58,11 +60,11 @@ export function StatusBar() {
           <span className="theme-muted shrink-0">
           {store.searchQuery ? (
             <>
-              <span className="text-[var(--panel-fg)]">{filtered}</span> / {total} accounts
+              <span className="text-[var(--panel-fg)]">{filtered}</span> / {total} {t("accounts")}
             </>
           ) : (
             <>
-              <span className="text-[var(--panel-fg)]">{total}</span> account{total !== 1 ? "s" : ""}
+              <span className="text-[var(--panel-fg)]">{total}</span> {t(total !== 1 ? "accounts" : "account")}
             </>
           )}
           </span>
@@ -70,54 +72,54 @@ export function StatusBar() {
             <span className="theme-muted inline-flex items-center gap-3 shrink-0">
               <span className="inline-flex items-center gap-1">
                 <span className="w-2 h-2 rounded-full bg-sky-500/80 animate-pulse" />
-                <span className="text-sky-400/90">{onlineCount}</span> online
+                <span className="text-sky-400/90">{onlineCount}</span> {t("online")}
               </span>
               <span className="inline-flex items-center gap-1">
                 <span className="w-2 h-2 rounded-full bg-emerald-500/80 animate-pulse" />
-                <span className="text-emerald-400/90">{inGameCount}</span> in game
+                <span className="text-emerald-400/90">{inGameCount}</span> {t("in game")}
               </span>
             </span>
           )}
           {launchedCount > 0 && (
             <span className="theme-muted inline-flex items-center gap-1 shrink-0">
               <span className="w-2 h-2 rounded-full bg-amber-500/90" />
-              <span className="text-amber-300/90">{launchedCount}</span> launched
+              <span className="text-amber-300/90">{launchedCount}</span> {t("launched")}
             </span>
           )}
           {bottingActive && (
             <span className="theme-muted inline-flex items-center gap-1 shrink-0">
               <span className="w-2 h-2 rounded-full bg-fuchsia-400 animate-pulse" />
-              <span className="text-fuchsia-300/90">botting</span>
-              <span className="text-fuchsia-200/90">next {bottingLabel}</span>
+              <span className="text-fuchsia-300/90">{t("botting")}</span>
+              <span className="text-fuchsia-200/90">{t("next")} {bottingLabel}</span>
             </span>
           )}
         </div>
       </div>
       <div className="theme-muted flex items-center gap-3 shrink-0 text-[12px]">
-        <span className="shrink-0 font-medium">Legend:</span>
+        <span className="shrink-0 font-medium">{t("Legend:")}</span>
         <span className="inline-flex items-center gap-1 shrink-0">
           <span className="w-2.5 h-2.5 rounded-full bg-red-500" style={{ boxShadow: "0 0 0 1px var(--app-bg)" }} />
-          invalid
+          {t("invalid")}
         </span>
         <span className="inline-flex items-center gap-1 shrink-0">
           <span className="w-2.5 h-2.5 rounded-full bg-amber-400" style={{ boxShadow: "0 0 0 1px var(--app-bg)" }} />
-          aged
+          {t("aged")}
         </span>
         <span className="inline-flex items-center gap-1 shrink-0">
           <span className="w-2.5 h-2.5 rounded-full bg-amber-500" style={{ boxShadow: "0 0 0 1px var(--app-bg)" }} />
-          launched
+          {t("launched")}
         </span>
         <span className="inline-flex items-center gap-1 shrink-0">
           <span className="w-2.5 h-2.5 rounded-full bg-sky-500" style={{ boxShadow: "0 0 0 1px var(--app-bg)" }} />
-          online
+          {t("online")}
         </span>
         <span className="inline-flex items-center gap-1 shrink-0">
           <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" style={{ boxShadow: "0 0 0 1px var(--app-bg)" }} />
-          in game
+          {t("in game")}
         </span>
         <span className="inline-flex items-center gap-1 shrink-0">
           <span className="w-2.5 h-2.5 rounded-full bg-violet-500" style={{ boxShadow: "0 0 0 1px var(--app-bg)" }} />
-          studio
+          {t("studio")}
         </span>
       </div>
     </div>

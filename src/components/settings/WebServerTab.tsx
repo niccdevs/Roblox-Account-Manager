@@ -7,6 +7,7 @@ import { TextField } from "../ui/TextField";
 import { Divider } from "../ui/Divider";
 import { SectionLabel } from "../ui/SectionLabel";
 import { RestartBadge } from "../ui/RestartBadge";
+import { useTr } from "../../i18n/text";
 
 interface WebServerStatus {
   running: boolean;
@@ -14,6 +15,7 @@ interface WebServerStatus {
 }
 
 export function WebServerTab({ s }: { s: UseSettingsReturn }) {
+  const t = useTr();
   const devMode = s.getBool("Developer", "DevMode");
   const wsEnabled = s.getBool("Developer", "EnableWebServer");
   const [status, setStatus] = useState<WebServerStatus>({ running: false, port: 0 });
@@ -55,8 +57,8 @@ export function WebServerTab({ s }: { s: UseSettingsReturn }) {
             <path d="M6 12h.01M10 12h.01" />
           </svg>
         </div>
-        <div className="text-sm text-zinc-500">Enable Developer Mode or Web Server first</div>
-        <div className="text-[11px] text-zinc-600 mt-1">These settings control the local HTTP API</div>
+        <div className="text-sm text-zinc-500">{t("Enable Developer Mode or Web Server first")}</div>
+        <div className="text-[11px] text-zinc-600 mt-1">{t("These settings control the local HTTP API")}</div>
       </div>
     );
   }
@@ -106,7 +108,7 @@ export function WebServerTab({ s }: { s: UseSettingsReturn }) {
       <div className="flex items-center justify-between px-3 py-2">
         <div className="flex flex-col">
           <span className="text-[13px] text-zinc-300">
-            {status.running ? `Running on port ${status.port}` : "Not running"}
+            {status.running ? t("Running on port {{port}}", { port: status.port }) : t("Not running")}
           </span>
         </div>
         <button
@@ -118,7 +120,7 @@ export function WebServerTab({ s }: { s: UseSettingsReturn }) {
               : "bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25"
           } disabled:opacity-50`}
         >
-          {loading ? "..." : status.running ? "Stop" : "Start"}
+          {loading ? "..." : status.running ? t("Stop") : t("Start")}
         </button>
       </div>
 

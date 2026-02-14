@@ -3,6 +3,7 @@ import { useSettings } from "../../hooks/useSettings";
 import { useModalClose } from "../../hooks/useModalClose";
 import { TabBar } from "./TabBar";
 import { TabContent } from "./TabContent";
+import { useTr } from "../../i18n/text";
 
 interface SettingsDialogProps {
   open: boolean;
@@ -22,6 +23,7 @@ export interface TabDef {
 }
 
 export function SettingsDialog({ open, onClose, onSettingsChanged }: SettingsDialogProps) {
+  const t = useTr();
   const closeAndNotify = useCallback(() => {
     onClose();
     onSettingsChanged?.();
@@ -126,10 +128,10 @@ export function SettingsDialog({ open, onClose, onSettingsChanged }: SettingsDia
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-5 pt-4 pb-3 shrink-0">
-          <h2 className="text-[15px] font-semibold text-zinc-100 tracking-tight">Settings</h2>
+          <h2 className="text-[15px] font-semibold text-zinc-100 tracking-tight">{t("Settings")}</h2>
           <div className="flex items-center gap-2">
             {s.saving && (
-              <span className="text-[10px] text-zinc-600 animate-pulse">saving...</span>
+              <span className="text-[10px] text-zinc-600 animate-pulse">{t("saving...")}</span>
             )}
             <button
               onClick={handleClose}
@@ -153,13 +155,13 @@ export function SettingsDialog({ open, onClose, onSettingsChanged }: SettingsDia
         <div className="h-px bg-zinc-800/60 mx-5" />
         <div className="flex items-center justify-between px-5 py-3 shrink-0">
           <span className="text-[10px] text-zinc-600">
-            Changes are saved automatically
+            {t("Changes are saved automatically")}
           </span>
           <button
             onClick={handleClose}
             className="px-4 py-1.5 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700/60 rounded-lg text-[12px] text-zinc-300 font-medium transition-colors"
           >
-            Done
+            {t("Done")}
           </button>
         </div>
       </div>

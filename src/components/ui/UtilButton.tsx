@@ -1,3 +1,5 @@
+import { trNode, useTr } from "../../i18n/text";
+
 export function UtilButton({
   children,
   onClick,
@@ -9,6 +11,7 @@ export function UtilButton({
   disabled?: boolean;
   variant?: "default" | "danger" | "success";
 }) {
+  const t = useTr();
   const styles = {
     default: "bg-zinc-800 border border-zinc-700/50 text-zinc-300 hover:bg-zinc-700",
     danger: "bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500/20",
@@ -20,7 +23,7 @@ export function UtilButton({
       disabled={disabled}
       className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${styles[variant]}`}
     >
-      {children}
+      {trNode(children, t)}
     </button>
   );
 }

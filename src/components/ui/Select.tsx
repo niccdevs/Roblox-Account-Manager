@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { useTr } from "../../i18n/text";
 
 interface SelectOption {
   value: string;
@@ -13,6 +14,7 @@ interface SelectProps {
 }
 
 export function Select({ value, options, onChange, className = "" }: SelectProps) {
+  const t = useTr();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -41,7 +43,7 @@ export function Select({ value, options, onChange, className = "" }: SelectProps
         onClick={() => setOpen(!open)}
         className="w-full flex items-center justify-between gap-2 px-2.5 py-1.5 bg-zinc-800/50 border border-zinc-700/50 rounded-lg text-xs text-zinc-300 hover:border-zinc-600 focus:outline-none focus:border-zinc-600 transition-colors"
       >
-        <span className="truncate">{selected?.label || value}</span>
+        <span className="truncate">{selected?.label ? t(selected.label) : t(value)}</span>
         <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className={`shrink-0 text-zinc-500 transition-transform ${open ? "rotate-180" : ""}`}>
           <polyline points="6 9 12 15 18 9" />
         </svg>
@@ -58,7 +60,7 @@ export function Select({ value, options, onChange, className = "" }: SelectProps
                   : "text-zinc-300 hover:bg-zinc-800"
               }`}
             >
-              {o.label}
+              {t(o.label)}
             </button>
           ))}
         </div>
