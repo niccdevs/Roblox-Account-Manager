@@ -416,7 +416,7 @@ function quoteFontToken(token: string) {
   const t = token.trim();
   if (!t) return "";
   // Quote if it contains whitespace or commas.
-  if (/[\\s,]/.test(t)) return `'${t.replace(/'/g, "\\'")}'`;
+  if (/[\s,]/.test(t)) return `'${t.replace(/'/g, "\\'")}'`;
   return t;
 }
 
