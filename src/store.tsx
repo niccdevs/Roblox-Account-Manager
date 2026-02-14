@@ -564,11 +564,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }
 
   async function refreshCookie(userId: number): Promise<boolean> {
-    try {
-      return await invoke<boolean>("refresh_cookie", { userId });
-    } catch {
-      return false;
-    }
+    return await invoke<boolean>("refresh_cookie", { userId });
   }
 
   async function moveToGroup(userIds: number[], group: string) {

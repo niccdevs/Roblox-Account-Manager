@@ -6,6 +6,7 @@ const REFERER_URL: &str = "https://www.roblox.com/games/2753915549/Blox-Fruits";
 fn build_client() -> reqwest::Client {
     reqwest::Client::builder()
         .redirect(reqwest::redirect::Policy::none())
+        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36")
         .build()
         .unwrap()
 }
@@ -70,19 +71,26 @@ pub async fn get_csrf_token(security_token: &str) -> Result<String, String> {
         .await
         .map_err(|e| format!("Request failed: {}", e))?;
 
-    if response.status().as_u16() != 403 {
-        let status = response.status();
-        let body = response.text().await.unwrap_or_default();
-        return Err(format!("[{} {}] {}", status.as_u16(), status.canonical_reason().unwrap_or(""), body));
-    }
-
-    response
+    if let Some(token) = response
         .headers()
         .get("x-csrf-token")
         .and_then(|v| v.to_str().ok())
         .map(|s| s.to_string())
         .filter(|s| !s.is_empty())
-        .ok_or_else(|| "Missing x-csrf-token header".to_string())
+    {
+        return Ok(token);
+    }
+
+    // Historically Roblox returns 403 and includes the x-csrf-token header.
+    // If the status code or behavior changes, surface the response to help debug.
+    let status = response.status();
+    let body = response.text().await.unwrap_or_default();
+    Err(format!(
+        "[{} {}] {}",
+        status.as_u16(),
+        status.canonical_reason().unwrap_or(""),
+        body
+    ))
 }
 
 pub async fn get_auth_ticket(security_token: &str) -> Result<String, String> {
@@ -202,8 +210,15 @@ pub async fn log_out_other_sessions(security_token: &str) -> Result<RefreshResul
         .await
         .map_err(|e| format!("Request failed: {}", e))?;
 
-    if !response.status().is_success() {
-        return Err(format!("Failed to sign out other sessions (status {})", response.status().as_u16()));
+    // Roblox may return redirects for this endpoint while still setting cookies.
+    if !(response.status().is_success() || response.status().is_redirection()) {
+        let status = response.status();
+        let body = response.text().await.unwrap_or_default();
+        return Err(format!(
+            "Failed to sign out other sessions (status {}): {}",
+            status.as_u16(),
+            body
+        ));
     }
 
     let new_cookie = response

@@ -374,15 +374,7 @@ export function SingleSelectSidebar() {
             >
               {t("Join Group")}
             </button>
-            <button
-              onClick={async () => {
-                const ok = await store.refreshCookie(account.UserID);
-                store.addToast(ok ? tr("Cookie refreshed") : tr("Refresh failed"));
-              }}
-              className="sidebar-btn-tool"
-            >
-              {t("Refresh")}
-            </button>
+            {/* Removed: "Refresh" was unreliable and duplicated the explicit Sign Out action in Utilities. */}
           </div>
         </SidebarSection>
       </div>

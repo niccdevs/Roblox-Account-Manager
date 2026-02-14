@@ -48,7 +48,7 @@ export function MultiSelectSidebar() {
     let ok = 0;
     let fail = 0;
     for (const a of accounts) {
-      const result = await store.refreshCookie(a.UserID);
+      const result = await store.refreshCookie(a.UserID).catch(() => false);
       if (result) ok++;
       else fail++;
       await new Promise((r) => setTimeout(r, 2000));
