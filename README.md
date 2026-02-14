@@ -60,7 +60,7 @@ v4 now supports localization with Crowdin and `react-i18next`.
 
 I would appreciate contributions to the project through crowdin translations into your mother languages.
 
-[[![Crowdin](https://img.shields.io/badge/Crowdin-2E3340.svg?style=for-the-badge&logo=Crowdin&logoColor=white)]([https://github.com/niccsprojects/Roblox-Account-Manager/releases/latest](https://crowdin.com/project/roblox-account-manager))]
+[![Crowdin](https://img.shields.io/badge/Crowdin-2E3340.svg?style=for-the-badge&logo=Crowdin&logoColor=white)]([https://github.com/niccsprojects/Roblox-Account-Manager/releases/latest](https://crowdin.com/project/roblox-account-manager))
 
 ## v4 Theme System
 v4 uses a centralized theme pipeline. If you change theme behavior, keep frontend defaults, backend defaults, and CSS startup vars aligned.
