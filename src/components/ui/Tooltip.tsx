@@ -134,29 +134,43 @@ export function Tooltip({
               <div
                 className={[
                   "relative theme-panel border theme-border rounded-lg px-2.5 py-2 shadow-2xl text-[11px] text-[var(--panel-fg)]",
-                  "animate-scale-in",
+                  "animate-tooltip-pop",
                   pos.side === "top" ? "origin-bottom" : "origin-top",
                 ].join(" ")}
-                style={{ maxWidth }}
+                style={{
+                  maxWidth,
+                  // The animation comes from the anchor direction.
+                  ["--tt-from-y" as never]: pos.side === "top" ? "10px" : "-10px",
+                }}
                 role="tooltip"
               >
                 {content}
+                <div
+                  className={[
+                    "absolute left-1/2 -translate-x-1/2 w-7 h-px bg-[var(--panel-bg)]",
+                    pos.side === "top" ? "bottom-0" : "top-0",
+                  ].join(" ")}
+                />
                 <svg
-                  width="18"
+                  width="16"
                   height="10"
-                  viewBox="0 0 18 10"
+                  viewBox="0 0 16 10"
                   className={[
                     "absolute left-1/2 -translate-x-1/2",
                     pos.side === "top" ? "-bottom-[9px]" : "-top-[9px] rotate-180",
                   ].join(" ")}
                   aria-hidden="true"
+                  style={{
+                    filter: "drop-shadow(0 10px 18px rgba(0,0,0,0.35))",
+                  }}
                 >
                   <path
-                    d="M1 1 L9 9 L17 1"
+                    d="M1 1 L8 9 L15 1 Z"
                     fill="var(--panel-bg)"
                     stroke="var(--border-color)"
                     strokeWidth="1"
                     strokeLinejoin="round"
+                    strokeLinecap="round"
                     shapeRendering="geometricPrecision"
                   />
                 </svg>
