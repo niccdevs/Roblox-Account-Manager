@@ -41,8 +41,9 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
   const [launchData, setLaunchData] = useState("");
   const [intervalMinutes, setIntervalMinutes] = useState(19);
   const [launchDelaySeconds, setLaunchDelaySeconds] = useState(20);
-  const [playerUserId, setPlayerUserId] = useState<number | null>(null);
+  const [playerUserIds, setPlayerUserIds] = useState<number[]>([]);
   const [busy, setBusy] = useState(false);
+  const [rowBusy, setRowBusy] = useState<number | null>(null);
   const [nowMs, setNowMs] = useState(Date.now());
   const [playerMenuOpen, setPlayerMenuOpen] = useState(false);
   const playerMenuRef = useRef<HTMLDivElement>(null);
@@ -65,16 +66,19 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
       const draftData = general.BottingDraftLaunchData || store.launchData || "";
       const draftInterval = parseInt(general.BottingDefaultIntervalMinutes || "19", 10);
       const draftDelay = parseInt(general.BottingLaunchDelaySeconds || "20", 10);
-      const draftPlayer = parseInt(general.BottingDraftPlayerAccountId || "", 10);
+      const draftPlayerIdsRaw =
+        general.BottingDraftPlayerAccountIds || general.BottingDraftPlayerAccountId || "";
+      const draftPlayerIds = draftPlayerIdsRaw
+        .split(",")
+        .map((s) => parseInt(s.trim(), 10))
+        .filter((n) => Number.isFinite(n));
 
       setPlaceId(draftPlace);
       setJobId(draftJob);
       setLaunchData(draftData);
       setIntervalMinutes(Number.isFinite(draftInterval) ? draftInterval : 19);
       setLaunchDelaySeconds(Number.isFinite(draftDelay) ? draftDelay : 20);
-      setPlayerUserId(
-        Number.isFinite(draftPlayer) && selectedIds.includes(draftPlayer) ? draftPlayer : null
-      );
+      setPlayerUserIds(draftPlayerIds.filter((id) => selectedIds.includes(id)));
     })();
 
     return () => {
@@ -111,7 +115,7 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
     nextPlaceId: string,
     nextJobId: string,
     nextLaunchData: string,
-    nextPlayer: number | null,
+    nextPlayers: number[],
     nextInterval: number,
     nextDelay: number
   ) {
@@ -133,8 +137,8 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
       }),
       invoke("update_setting", {
         section: "General",
-        key: "BottingDraftPlayerAccountId",
-        value: nextPlayer === null ? "" : String(nextPlayer),
+        key: "BottingDraftPlayerAccountIds",
+        value: nextPlayers.join(","),
       }),
       invoke("update_setting", {
         section: "General",
@@ -171,7 +175,7 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
         placeId.trim(),
         jobId.trim(),
         launchData,
-        playerUserId,
+        playerUserIds,
         intervalMinutes,
         launchDelaySeconds
       );
@@ -180,7 +184,7 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
         placeId: pid,
         jobId: jobId.trim(),
         launchData,
-        playerUserId,
+        playerUserIds,
         intervalMinutes,
         launchDelaySeconds,
       });
@@ -188,20 +192,14 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
     setBusy(false);
   }
 
-  async function handlePlayerChange(next: string) {
-    const parsed = parseInt(next, 10);
-    const nextId = Number.isFinite(parsed) ? parsed : null;
-    setPlayerUserId(nextId);
-    await saveDraft(
-      placeId.trim(),
-      jobId.trim(),
-      launchData,
-      nextId,
-      intervalMinutes,
-      launchDelaySeconds
-    );
+  async function handleTogglePlayer(userId: number) {
+    const next = playerUserIds.includes(userId)
+      ? playerUserIds.filter((id) => id !== userId)
+      : [...playerUserIds, userId];
+    setPlayerUserIds(next);
+    await saveDraft(placeId.trim(), jobId.trim(), launchData, next, intervalMinutes, launchDelaySeconds);
     if (status?.active) {
-      await store.setBottingPlayerAccount(nextId);
+      await store.setBottingPlayerAccounts(next);
     }
   }
 
@@ -209,12 +207,13 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
 
   const statusMap = new Map((status?.accounts || []).map((a) => [a.userId, a]));
   const canStart = selectedIds.length >= 2 && !!placeId.trim() && !busy;
-  const playerAccountLabel =
-    playerUserId === null
-      ? t("None")
-      : selectedAccounts.find((a) => a.UserID === playerUserId)?.Alias ||
-        selectedAccounts.find((a) => a.UserID === playerUserId)?.Username ||
-        t("Unknown");
+  const playerAccountLabel = playerUserIds.length === 0
+    ? t("None")
+    : playerUserIds.length === 1
+      ? selectedAccounts.find((a) => a.UserID === playerUserIds[0])?.Alias ||
+        selectedAccounts.find((a) => a.UserID === playerUserIds[0])?.Username ||
+        t("Unknown")
+      : t("{{count}} selected", { count: playerUserIds.length });
 
   return (
     <div
@@ -275,7 +274,7 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
               ))}
             </div>
             <div className="flex items-center gap-2">
-              <label className="text-[11px] theme-muted w-24 shrink-0">{t("Player Account")}</label>
+              <label className="text-[11px] theme-muted w-24 shrink-0">{t("Player Accounts")}</label>
               <div ref={playerMenuRef} className="relative w-full">
                 <button
                   type="button"
@@ -309,11 +308,13 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
                   <button
                     type="button"
                     onClick={() => {
-                      handlePlayerChange("");
+                      setPlayerUserIds([]);
+                      void saveDraft(placeId.trim(), jobId.trim(), launchData, [], intervalMinutes, launchDelaySeconds);
+                      if (status?.active) void store.setBottingPlayerAccounts([]);
                       setPlayerMenuOpen(false);
                     }}
                     className={`w-full text-left px-3 py-2 text-[12px] transition-colors ${
-                      playerUserId === null
+                      playerUserIds.length === 0
                         ? "theme-accent-bg theme-accent"
                         : "text-[var(--panel-fg)] hover:bg-[var(--panel-soft)]"
                     }`}
@@ -322,14 +323,13 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
                   </button>
                   <div className="h-px theme-border border-t" />
                   {selectedAccounts.map((a) => {
-                    const active = playerUserId === a.UserID;
+                    const active = playerUserIds.includes(a.UserID);
                     return (
                       <button
                         key={a.UserID}
                         type="button"
                         onClick={() => {
-                          handlePlayerChange(String(a.UserID));
-                          setPlayerMenuOpen(false);
+                          void handleTogglePlayer(a.UserID);
                         }}
                         className={`w-full text-left px-3 py-2 text-[12px] transition-colors ${
                           active
@@ -337,7 +337,12 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
                             : "text-[var(--panel-fg)] hover:bg-[var(--panel-soft)]"
                         }`}
                       >
-                        {a.Alias || a.Username}
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="truncate">{a.Alias || a.Username}</span>
+                          {active ? (
+                            <span className="text-[11px] opacity-80">{t("Selected")}</span>
+                          ) : null}
+                        </div>
                       </button>
                     );
                   })}
@@ -353,7 +358,7 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
                 value={placeId}
                 onChange={(e) => setPlaceId(e.target.value)}
                 onBlur={() =>
-                  saveDraft(placeId.trim(), jobId.trim(), launchData, playerUserId, intervalMinutes, launchDelaySeconds)
+                  saveDraft(placeId.trim(), jobId.trim(), launchData, playerUserIds, intervalMinutes, launchDelaySeconds)
                 }
                 placeholder={t("Place ID")}
                 className="sidebar-input text-xs font-mono"
@@ -362,7 +367,7 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
                 value={jobId}
                 onChange={(e) => setJobId(e.target.value)}
                 onBlur={() =>
-                  saveDraft(placeId.trim(), jobId.trim(), launchData, playerUserId, intervalMinutes, launchDelaySeconds)
+                  saveDraft(placeId.trim(), jobId.trim(), launchData, playerUserIds, intervalMinutes, launchDelaySeconds)
                 }
                 placeholder={t("Job ID (optional)")}
                 className="sidebar-input text-xs font-mono"
@@ -371,7 +376,7 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
                 value={launchData}
                 onChange={(e) => setLaunchData(e.target.value)}
                 onBlur={() =>
-                  saveDraft(placeId.trim(), jobId.trim(), launchData, playerUserId, intervalMinutes, launchDelaySeconds)
+                  saveDraft(placeId.trim(), jobId.trim(), launchData, playerUserIds, intervalMinutes, launchDelaySeconds)
                 }
                 placeholder={t("JoinData (optional)")}
                 className="sidebar-input text-xs"
@@ -403,7 +408,7 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
                   value={intervalMinutes}
                   onChange={(e) => setIntervalMinutes(parseInt(e.target.value || "19", 10))}
                   onBlur={() =>
-                    saveDraft(placeId.trim(), jobId.trim(), launchData, playerUserId, intervalMinutes, launchDelaySeconds)
+                    saveDraft(placeId.trim(), jobId.trim(), launchData, playerUserIds, intervalMinutes, launchDelaySeconds)
                   }
                   className="sidebar-input text-xs"
                 />
@@ -417,7 +422,7 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
                   value={launchDelaySeconds}
                   onChange={(e) => setLaunchDelaySeconds(parseInt(e.target.value || "20", 10))}
                   onBlur={() =>
-                    saveDraft(placeId.trim(), jobId.trim(), launchData, playerUserId, intervalMinutes, launchDelaySeconds)
+                    saveDraft(placeId.trim(), jobId.trim(), launchData, playerUserIds, intervalMinutes, launchDelaySeconds)
                   }
                   className="sidebar-input text-xs"
                 />
@@ -433,10 +438,15 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
             <div className="space-y-1.5">
               {selectedAccounts.map((a) => {
                 const row = statusMap.get(a.UserID);
+                const isRowBusy = rowBusy === a.UserID;
+                const isPlayer = !!row?.isPlayer || playerUserIds.includes(a.UserID);
+                const canAct = !!status?.active && !busy;
+                const disableDisconnect = !canAct || isRowBusy || isPlayer;
+                const disableClose = !canAct || isRowBusy;
                 return (
                   <div
                     key={a.UserID}
-                    className="flex items-center justify-between rounded-lg border theme-border px-2.5 py-1.5 theme-soft"
+                    className="flex items-center justify-between gap-3 rounded-lg border theme-border px-2.5 py-1.5 theme-soft"
                   >
                     <div className="min-w-0">
                       <div className="text-[12px] text-[var(--panel-fg)] truncate">
@@ -447,13 +457,64 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
                         {row?.lastError ? ` - ${row.lastError}` : ""}
                       </div>
                     </div>
-                    <div className="text-right">
-                      <div className="text-[11px] text-[var(--panel-fg)]">
-                        {t(formatRemaining(row?.nextRestartAtMs ?? null, nowMs))}
+                    <div className="flex items-center gap-2 shrink-0">
+                      <div className="text-right w-[88px]">
+                        <div className="text-[11px] text-[var(--panel-fg)]">
+                          {t(formatRemaining(row?.nextRestartAtMs ?? null, nowMs))}
+                        </div>
+                        <div className="text-[10px] theme-muted">
+                          {t("retries")}: {row?.retryCount || 0}
+                        </div>
                       </div>
-                      <div className="text-[10px] theme-muted">
-                        {t("retries")}: {row?.retryCount || 0}
-                      </div>
+                      <button
+                        type="button"
+                        disabled={disableDisconnect}
+                        title={
+                          disableDisconnect && isPlayer
+                            ? t("Already disconnected")
+                            : t("Remove from loop (set to due)")
+                        }
+                        className="sidebar-btn-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                        onClick={async () => {
+                          setRowBusy(a.UserID);
+                          try {
+                            await store.bottingAccountAction(a.UserID, "disconnect");
+                          } catch {}
+                          setRowBusy(null);
+                        }}
+                      >
+                        {t("Disconnect")}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={disableClose}
+                        title={t("Close Roblox but keep in loop")}
+                        className="sidebar-btn-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                        onClick={async () => {
+                          setRowBusy(a.UserID);
+                          try {
+                            await store.bottingAccountAction(a.UserID, "close");
+                          } catch {}
+                          setRowBusy(null);
+                        }}
+                      >
+                        {t("Close")}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={!canAct || isRowBusy}
+                        title={t("Close Roblox and remove from loop")}
+                        className="sidebar-btn-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                        onClick={async () => {
+                          setRowBusy(a.UserID);
+                          try {
+                            await store.bottingAccountAction(a.UserID, "closeDisconnect");
+                          } catch {}
+                          setRowBusy(null);
+                        }}
+                      >
+                        {t("Close + Disconnect")}
+                      </button>
                     </div>
                   </div>
                 );
