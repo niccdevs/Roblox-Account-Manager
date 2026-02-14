@@ -3,6 +3,9 @@ import { createPortal } from "react-dom";
 
 type TooltipSide = "top" | "bottom";
 
+let tooltipOpenCount = 0;
+let lastTooltipCloseAt = 0;
+
 function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
 }
@@ -12,56 +15,106 @@ export function Tooltip({
   children,
   side = "top",
   maxWidth = 280,
+  delayMs = 350,
 }: {
   content: ReactNode;
   children: ReactNode;
   side?: TooltipSide;
   maxWidth?: number;
+  delayMs?: number;
 }) {
   const anchorRef = useRef<HTMLSpanElement>(null);
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<{ x: number; y: number; side: TooltipSide } | null>(null);
+  const openTimerRef = useRef<number | null>(null);
+  const isOpenRef = useRef(false);
 
   const portalRoot = useMemo(() => {
     if (typeof document === "undefined") return null;
     return document.body;
   }, []);
 
+  const updatePos = () => {
+    const el = anchorRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+
+    const preferred = side;
+    const autoSide: TooltipSide = preferred === "top" && r.top < 56 ? "bottom" : preferred;
+    const x = clamp(r.left + r.width / 2, 12, vw - 12);
+    const y = autoSide === "top" ? clamp(r.top, 12, vh - 12) : clamp(r.bottom, 12, vh - 12);
+    setPos({ x, y, side: autoSide });
+  };
+
+  const clearOpenTimer = () => {
+    if (openTimerRef.current !== null) {
+      window.clearTimeout(openTimerRef.current);
+      openTimerRef.current = null;
+    }
+  };
+
+  const doOpen = () => {
+    clearOpenTimer();
+    updatePos();
+    setOpen(true);
+    if (!isOpenRef.current) {
+      tooltipOpenCount += 1;
+      isOpenRef.current = true;
+    }
+  };
+
+  const doClose = () => {
+    clearOpenTimer();
+    setOpen(false);
+    if (isOpenRef.current) {
+      tooltipOpenCount = Math.max(0, tooltipOpenCount - 1);
+      isOpenRef.current = false;
+      lastTooltipCloseAt = Date.now();
+    }
+  };
+
   useEffect(() => {
     if (!open) return;
 
-    const update = () => {
-      const el = anchorRef.current;
-      if (!el) return;
-      const r = el.getBoundingClientRect();
-      const vw = window.innerWidth;
-      const vh = window.innerHeight;
-
-      const preferred = side;
-      const autoSide: TooltipSide = preferred === "top" && r.top < 56 ? "bottom" : preferred;
-      const x = clamp(r.left + r.width / 2, 12, vw - 12);
-      const y = autoSide === "top" ? clamp(r.top, 12, vh - 12) : clamp(r.bottom, 12, vh - 12);
-      setPos({ x, y, side: autoSide });
-    };
-
-    update();
-    window.addEventListener("scroll", update, true);
-    window.addEventListener("resize", update);
+    updatePos();
+    window.addEventListener("scroll", updatePos, true);
+    window.addEventListener("resize", updatePos);
     return () => {
-      window.removeEventListener("scroll", update, true);
-      window.removeEventListener("resize", update);
+      window.removeEventListener("scroll", updatePos, true);
+      window.removeEventListener("resize", updatePos);
     };
   }, [open, side]);
+
+  useEffect(() => {
+    return () => {
+      clearOpenTimer();
+      if (isOpenRef.current) {
+        tooltipOpenCount = Math.max(0, tooltipOpenCount - 1);
+        isOpenRef.current = false;
+      }
+    };
+  }, []);
 
   return (
     <>
       <span
         ref={anchorRef}
         className="inline-flex"
-        onMouseEnter={() => setOpen(true)}
-        onMouseLeave={() => setOpen(false)}
-        onFocus={() => setOpen(true)}
-        onBlur={() => setOpen(false)}
+        onMouseEnter={() => {
+          const canInstant =
+            tooltipOpenCount > 0 || Date.now() - lastTooltipCloseAt <= 250 || delayMs <= 0;
+          if (canInstant) {
+            doOpen();
+            return;
+          }
+          clearOpenTimer();
+          openTimerRef.current = window.setTimeout(doOpen, delayMs);
+        }}
+        onMouseLeave={doClose}
+        onFocus={doOpen}
+        onBlur={doClose}
       >
         {children}
       </span>
@@ -79,18 +132,34 @@ export function Tooltip({
               }}
             >
               <div
-                className="relative theme-panel border theme-border rounded-lg px-2.5 py-2 shadow-2xl text-[11px] text-[var(--panel-fg)]"
+                className={[
+                  "relative theme-panel border theme-border rounded-lg px-2.5 py-2 shadow-2xl text-[11px] text-[var(--panel-fg)]",
+                  "animate-scale-in",
+                  pos.side === "top" ? "origin-bottom" : "origin-top",
+                ].join(" ")}
                 style={{ maxWidth }}
                 role="tooltip"
               >
                 {content}
-                <div
+                <svg
+                  width="18"
+                  height="10"
+                  viewBox="0 0 18 10"
                   className={[
-                    "absolute left-1/2 -translate-x-1/2 w-2.5 h-2.5 rotate-45 bg-[var(--panel-bg)]",
-                    pos.side === "top" ? "-bottom-[5px] border-l border-b" : "-top-[5px] border-r border-t",
-                    "theme-border",
+                    "absolute left-1/2 -translate-x-1/2",
+                    pos.side === "top" ? "-bottom-[9px]" : "-top-[9px] rotate-180",
                   ].join(" ")}
-                />
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M1 1 L9 9 L17 1"
+                    fill="var(--panel-bg)"
+                    stroke="var(--border-color)"
+                    strokeWidth="1"
+                    strokeLinejoin="round"
+                    shapeRendering="geometricPrecision"
+                  />
+                </svg>
               </div>
             </div>,
             portalRoot
@@ -99,4 +168,3 @@ export function Tooltip({
     </>
   );
 }
-
