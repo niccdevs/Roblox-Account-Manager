@@ -2782,6 +2782,8 @@ pub fn run() {
             data::settings::delete_theme_preset,
             data::settings::import_theme_preset_file,
             data::settings::export_theme_preset_file,
+            data::settings::import_theme_font_asset,
+            data::settings::resolve_theme_font_asset,
             test_auth,
             validate_cookie,
             get_csrf_token,

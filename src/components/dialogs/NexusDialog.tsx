@@ -962,8 +962,8 @@ function SettingToggle({ label, checked, onChange }: { label: string; checked: b
       onClick={() => onChange(!checked)}
     >
       <div className="relative shrink-0">
-        <div className={`w-7 h-[16px] rounded-full transition-all duration-200 ${checked ? "bg-sky-500" : "bg-zinc-700"}`} />
-        <div className={`absolute top-[2px] w-[12px] h-[12px] rounded-full bg-white transition-all duration-200 ${checked ? "left-[13px]" : "left-[2px]"}`} />
+        <div className={`w-7 h-[16px] rounded-full transition-all duration-200 ${checked ? "bg-[var(--toggle-on-bg)]" : "bg-[var(--toggle-off-bg)]"}`} />
+        <div className={`absolute top-[2px] w-[12px] h-[12px] rounded-full bg-[var(--toggle-knob-bg)] transition-all duration-200 ${checked ? "left-[13px]" : "left-[2px]"}`} />
       </div>
       <span className="text-[12px] text-zinc-300">{t(label)}</span>
     </div>

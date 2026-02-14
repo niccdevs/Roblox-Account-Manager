@@ -7,9 +7,12 @@ import type { ThemeData } from "../../types";
 import { useTr } from "../../i18n/text";
 import { ColorRow } from "../ui/ColorRow";
 import { ToggleRow } from "../ui/ToggleRow";
-import { DEFAULT_THEME, THEME_PRESETS, normalizeTheme } from "../../theme";
+import { DEFAULT_THEME, DEFAULT_FONT_MONO, DEFAULT_FONT_SANS, SYSTEM_FONT_MONO, SYSTEM_FONT_SANS, THEME_PRESETS, normalizeTheme } from "../../theme";
+import { Select } from "../ui/Select";
+import { MONO_GOOGLE_PRESETS, SANS_GOOGLE_PRESETS, googlePresetToSpec } from "../../fontPresets";
+import type { ThemeFontSpec } from "../../types";
 
-type Category = "Accounts" | "Buttons" | "Forms" | "Text Boxes" | "Labels";
+type Category = "Accounts" | "Buttons" | "Forms" | "Text Boxes" | "Labels" | "Fonts";
 type PresetSource = "builtin" | "custom";
 
 interface CustomThemePreset {
@@ -26,7 +29,7 @@ interface PresetOption {
   customId?: string;
 }
 
-const CATEGORIES: Category[] = ["Accounts", "Buttons", "Forms", "Text Boxes", "Labels"];
+const CATEGORIES: Category[] = ["Accounts", "Buttons", "Forms", "Text Boxes", "Labels", "Fonts"];
 const BUILTIN_PREFIX = "builtin:";
 const CUSTOM_PREFIX = "custom:";
 
@@ -164,6 +167,63 @@ export function ThemeEditorDialog({ open, onClose }: { open: boolean; onClose: (
     });
   }
 
+  function isFontSpecEqual(a: ThemeFontSpec | undefined, b: ThemeFontSpec) {
+    if (!a) return false;
+    return JSON.stringify(a) === JSON.stringify(b);
+  }
+
+  function fontSpecToSelectValue(spec: ThemeFontSpec | undefined, fallbackDefault: ThemeFontSpec) {
+    const s = spec ?? fallbackDefault;
+    if (isFontSpecEqual(s, fallbackDefault)) return "default";
+    if (s.source === "system") return "system";
+    if (s.source === "google") return `google:${s.family}`;
+    if (s.source === "local" && s.local?.file) return `local:${s.local.file}`;
+    return "default";
+  }
+
+  function buildFontOptions(kind: "sans" | "mono", current: ThemeFontSpec | undefined, fallbackDefault: ThemeFontSpec) {
+    const options: Array<{ value: string; label: string }> = [
+      { value: "default", label: kind === "sans" ? "Default (Outfit)" : "Default (JetBrains Mono)" },
+      { value: "system", label: kind === "sans" ? "System UI" : "System Mono" },
+    ];
+
+    const presets = kind === "sans" ? SANS_GOOGLE_PRESETS : MONO_GOOGLE_PRESETS;
+    for (const p of presets) options.push({ value: `google:${p.family}`, label: p.label });
+
+    if (current?.source === "local" && current.local?.file) {
+      options.push({ value: `local:${current.local.file}`, label: `Local: ${current.family || current.local.file}` });
+    }
+
+    const selectedValue = fontSpecToSelectValue(current, fallbackDefault);
+    if (!options.some((o) => o.value === selectedValue)) {
+      options.unshift({ value: selectedValue, label: selectedValue });
+    }
+
+    return { options, selectedValue };
+  }
+
+  async function importLocalFont(kind: "sans" | "mono") {
+    const path = await prompt("Font file path (.ttf, .otf, .woff, .woff2):");
+    if (!path?.trim()) return;
+    try {
+      const result = await invoke<{ file: string; suggested_family: string }>("import_theme_font_asset", {
+        path: path.trim(),
+      });
+      const family = result.suggested_family || "Custom Font";
+      const fallbacks = kind === "sans" ? DEFAULT_FONT_SANS.fallbacks : DEFAULT_FONT_MONO.fallbacks;
+      const next: ThemeFontSpec = {
+        source: "local",
+        family,
+        fallbacks,
+        local: { file: result.file, weight: 400, style: "normal" },
+      };
+      update(kind === "sans" ? { font_sans: next } : { font_mono: next });
+      store.addToast(`Imported font: ${family}`);
+    } catch (e) {
+      store.addToast(t("Error: {{error}}", { error: String(e) }));
+    }
+  }
+
   function handleCancel() {
     store.applyThemePreview(savedTheme ?? openThemeRef.current);
     handleClose();
@@ -234,7 +294,7 @@ export function ThemeEditorDialog({ open, onClose }: { open: boolean; onClose: (
   }
 
   async function handleImportPresetFile() {
-    const path = await prompt(t("Preset file path (.json or .ram-theme.json):"));
+    const path = await prompt(t("Preset file path (.json, .ram-theme.json, or .ram-theme.zip):"));
     if (!path?.trim()) return;
     try {
       const preset = await invoke<CustomThemePreset>("import_theme_preset_file", {
@@ -292,6 +352,10 @@ export function ThemeEditorDialog({ open, onClose }: { open: boolean; onClose: (
             <ColorRow label="Background" value={theme.buttons_background} onChange={(v) => update({ buttons_background: v })} />
             <ColorRow label="Foreground" value={theme.buttons_foreground} onChange={(v) => update({ buttons_foreground: v })} />
             <ColorRow label="Border" value={theme.buttons_border} onChange={(v) => update({ buttons_border: v })} />
+            <div className="mt-2" />
+            <ColorRow label="Toggle On" value={theme.toggle_on_background || "#0EA5E9"} onChange={(v) => update({ toggle_on_background: v })} />
+            <ColorRow label="Toggle Off" value={theme.toggle_off_background || "#3F3F46"} onChange={(v) => update({ toggle_off_background: v })} />
+            <ColorRow label="Toggle Knob" value={theme.toggle_knob_background || "#FFFFFF"} onChange={(v) => update({ toggle_knob_background: v })} />
             <div className="flex items-center justify-between py-1.5">
               <span className="text-xs text-[var(--panel-fg)]">{t("Button Style")}</span>
                 <button
@@ -327,6 +391,73 @@ export function ThemeEditorDialog({ open, onClose }: { open: boolean; onClose: (
             <ToggleRow label="Transparent BG" checked={theme.label_transparent} onChange={(v) => update({ label_transparent: v })} />
           </>
         );
+      case "Fonts": {
+        const sans = theme.font_sans;
+        const mono = theme.font_mono;
+        const sansSelect = buildFontOptions("sans", sans, DEFAULT_FONT_SANS);
+        const monoSelect = buildFontOptions("mono", mono, DEFAULT_FONT_MONO);
+
+        function applySelect(kind: "sans" | "mono", value: string) {
+          if (value === "default") {
+            update(kind === "sans" ? { font_sans: { ...DEFAULT_FONT_SANS } } : { font_mono: { ...DEFAULT_FONT_MONO } });
+            return;
+          }
+          if (value === "system") {
+            update(kind === "sans" ? { font_sans: { ...SYSTEM_FONT_SANS } } : { font_mono: { ...SYSTEM_FONT_MONO } });
+            return;
+          }
+          if (value.startsWith("google:")) {
+            const family = value.slice("google:".length);
+            const presets = kind === "sans" ? SANS_GOOGLE_PRESETS : MONO_GOOGLE_PRESETS;
+            const preset = presets.find((p) => p.family === family);
+            if (!preset) return;
+            update(kind === "sans" ? { font_sans: googlePresetToSpec(preset) } : { font_mono: googlePresetToSpec(preset) });
+            return;
+          }
+          if (value.startsWith("local:")) {
+            // Selecting an existing local font is a no-op (we already store the spec).
+            return;
+          }
+        }
+
+        return (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between gap-3">
+              <div className="text-xs text-[var(--panel-fg)] shrink-0 w-20">Sans</div>
+              <div className="flex-1">
+                <Select
+                  value={sansSelect.selectedValue}
+                  options={sansSelect.options}
+                  onChange={(v) => applySelect("sans", v)}
+                  className="w-full"
+                />
+              </div>
+              <button onClick={() => importLocalFont("sans")} className="theme-btn px-2.5 py-1.5 text-xs font-medium shrink-0">
+                Import Local
+              </button>
+            </div>
+
+            <div className="flex items-center justify-between gap-3">
+              <div className="text-xs text-[var(--panel-fg)] shrink-0 w-20">Mono</div>
+              <div className="flex-1">
+                <Select
+                  value={monoSelect.selectedValue}
+                  options={monoSelect.options}
+                  onChange={(v) => applySelect("mono", v)}
+                  className="w-full"
+                />
+              </div>
+              <button onClick={() => importLocalFont("mono")} className="theme-btn px-2.5 py-1.5 text-xs font-medium shrink-0">
+                Import Local
+              </button>
+            </div>
+
+            <div className="text-[11px] theme-muted">
+              Tip: exporting uses <span className="font-mono">.ram-theme.json</span> unless you use local font files; local fonts export as a <span className="font-mono">.ram-theme.zip</span> bundle.
+            </div>
+          </div>
+        );
+      }
     }
   }
 

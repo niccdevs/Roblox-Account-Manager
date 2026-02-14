@@ -4,6 +4,8 @@ use std::fs::{self, OpenOptions};
 use std::io::{ErrorKind, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
+use zip::write::FileOptions;
+use zip::{ZipArchive, ZipWriter};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IniProperty {
@@ -419,6 +421,60 @@ impl SettingsStore {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ThemeFontGoogleSpec {
+    pub weights: Vec<i32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ThemeFontLocalSpec {
+    pub file: String,
+    pub weight: i32,
+    pub style: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ThemeFontSpec {
+    pub source: String,
+    pub family: String,
+    pub fallbacks: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub google: Option<ThemeFontGoogleSpec>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub local: Option<ThemeFontLocalSpec>,
+}
+
+fn default_font_sans() -> ThemeFontSpec {
+    ThemeFontSpec {
+        source: "google".to_string(),
+        family: "Outfit".to_string(),
+        fallbacks: vec![
+            "system-ui".to_string(),
+            "-apple-system".to_string(),
+            "Segoe UI".to_string(),
+            "sans-serif".to_string(),
+        ],
+        google: Some(ThemeFontGoogleSpec {
+            weights: vec![300, 400, 500, 600, 700],
+        }),
+        local: None,
+    }
+}
+
+fn default_font_mono() -> ThemeFontSpec {
+    ThemeFontSpec {
+        source: "google".to_string(),
+        family: "JetBrains Mono".to_string(),
+        fallbacks: vec![
+            "Cascadia Code".to_string(),
+            "Consolas".to_string(),
+            "monospace".to_string(),
+        ],
+        google: Some(ThemeFontGoogleSpec { weights: vec![400, 500] }),
+        local: None,
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ThemeData {
     pub accounts_background: String,
@@ -426,6 +482,12 @@ pub struct ThemeData {
     pub buttons_background: String,
     pub buttons_foreground: String,
     pub buttons_border: String,
+    #[serde(default = "default_toggle_on_background")]
+    pub toggle_on_background: String,
+    #[serde(default = "default_toggle_off_background")]
+    pub toggle_off_background: String,
+    #[serde(default = "default_toggle_knob_background")]
+    pub toggle_knob_background: String,
     pub forms_background: String,
     pub forms_foreground: String,
     pub textboxes_background: String,
@@ -438,6 +500,22 @@ pub struct ThemeData {
     pub show_headers: bool,
     pub light_images: bool,
     pub button_style: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub font_sans: Option<ThemeFontSpec>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub font_mono: Option<ThemeFontSpec>,
+}
+
+fn default_toggle_on_background() -> String {
+    "#0EA5E9".to_string()
+}
+
+fn default_toggle_off_background() -> String {
+    "#3F3F46".to_string()
+}
+
+fn default_toggle_knob_background() -> String {
+    "#FFFFFF".to_string()
 }
 
 impl Default for ThemeData {
@@ -448,6 +526,9 @@ impl Default for ThemeData {
             buttons_background: "#27272A".to_string(),
             buttons_foreground: "#A1A1AA".to_string(),
             buttons_border: "#3F3F46".to_string(),
+            toggle_on_background: default_toggle_on_background(),
+            toggle_off_background: default_toggle_off_background(),
+            toggle_knob_background: default_toggle_knob_background(),
             forms_background: "#09090B".to_string(),
             forms_foreground: "#E4E4E7".to_string(),
             textboxes_background: "#18181B".to_string(),
@@ -460,6 +541,8 @@ impl Default for ThemeData {
             show_headers: true,
             light_images: false,
             button_style: "Flat".to_string(),
+            font_sans: Some(default_font_sans()),
+            font_mono: Some(default_font_mono()),
         }
     }
 }
@@ -507,6 +590,15 @@ impl ThemeStore {
             if let Some(v) = s.get("ButtonsBC") {
                 data.buttons_border = v.to_string();
             }
+            if let Some(v) = s.get("ToggleOnBG") {
+                data.toggle_on_background = v.to_string();
+            }
+            if let Some(v) = s.get("ToggleOffBG") {
+                data.toggle_off_background = v.to_string();
+            }
+            if let Some(v) = s.get("ToggleKnobBG") {
+                data.toggle_knob_background = v.to_string();
+            }
             if let Some(v) = s.get("FormsBG") {
                 data.forms_background = v.to_string();
             }
@@ -543,6 +635,16 @@ impl ThemeStore {
             if let Some(v) = s.get("ButtonStyle") {
                 data.button_style = v.to_string();
             }
+            if let Some(v) = s.get("FontSans") {
+                if let Ok(spec) = serde_json::from_str::<ThemeFontSpec>(v) {
+                    data.font_sans = Some(spec);
+                }
+            }
+            if let Some(v) = s.get("FontMono") {
+                if let Ok(spec) = serde_json::from_str::<ThemeFontSpec>(v) {
+                    data.font_mono = Some(spec);
+                }
+            }
         }
 
         data
@@ -563,6 +665,9 @@ impl ThemeStore {
         section.set("ButtonsBG", &data.buttons_background, None);
         section.set("ButtonsFG", &data.buttons_foreground, None);
         section.set("ButtonsBC", &data.buttons_border, None);
+        section.set("ToggleOnBG", &data.toggle_on_background, None);
+        section.set("ToggleOffBG", &data.toggle_off_background, None);
+        section.set("ToggleKnobBG", &data.toggle_knob_background, None);
         section.set("FormsBG", &data.forms_background, None);
         section.set("FormsFG", &data.forms_foreground, None);
         section.set("TextBoxesBG", &data.textboxes_background, None);
@@ -596,6 +701,17 @@ impl ThemeStore {
         );
         section.set("ButtonStyle", &data.button_style, None);
 
+        if let Some(ref spec) = data.font_sans {
+            if let Ok(json) = serde_json::to_string(spec) {
+                section.set("FontSans", &json, None);
+            }
+        }
+        if let Some(ref spec) = data.font_mono {
+            if let Ok(json) = serde_json::to_string(spec) {
+                section.set("FontMono", &json, None);
+            }
+        }
+
         ini.save(&self.file_path)
     }
 
@@ -616,6 +732,13 @@ pub struct ThemePresetData {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct ThemePresetExportFile {
+    format: String,
+    name: String,
+    theme: ThemeData,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct ThemeBundleExportFile {
     format: String,
     name: String,
     theme: ThemeData,
@@ -696,6 +819,47 @@ impl ThemePresetStore {
         }
     }
 
+    fn normalize_font_spec(spec: &Option<ThemeFontSpec>, fallback: ThemeFontSpec) -> ThemeFontSpec {
+        spec.clone().unwrap_or(fallback)
+    }
+
+    fn uses_default_fonts(theme: &ThemeData) -> bool {
+        let ds = default_font_sans();
+        let dm = default_font_mono();
+        let sans = Self::normalize_font_spec(&theme.font_sans, ds.clone());
+        let mono = Self::normalize_font_spec(&theme.font_mono, dm.clone());
+        sans == ds && mono == dm
+    }
+
+    fn strip_default_fonts(mut theme: ThemeData) -> ThemeData {
+        if Self::uses_default_fonts(&theme) {
+            theme.font_sans = None;
+            theme.font_mono = None;
+        }
+        theme
+    }
+
+    fn local_font_files(theme: &ThemeData) -> Vec<String> {
+        let mut out: Vec<String> = Vec::new();
+        let ds = default_font_sans();
+        let dm = default_font_mono();
+        let sans = Self::normalize_font_spec(&theme.font_sans, ds);
+        let mono = Self::normalize_font_spec(&theme.font_mono, dm);
+        for spec in [sans, mono] {
+            if spec.source == "local" {
+                if let Some(local) = spec.local {
+                    let name = local.file.trim().to_string();
+                    if !name.is_empty() {
+                        out.push(name);
+                    }
+                }
+            }
+        }
+        out.sort();
+        out.dedup();
+        out
+    }
+
     pub fn get_all(&self) -> Result<Vec<ThemePresetData>, String> {
         let presets = self.presets.lock().map_err(|e| e.to_string())?;
         Ok(presets.clone())
@@ -743,6 +907,11 @@ impl ThemePresetStore {
     }
 
     pub fn import_preset_file(&self, path: &str) -> Result<ThemePresetData, String> {
+        let lower = path.to_ascii_lowercase();
+        if lower.ends_with(".zip") || lower.ends_with(".ram-theme.zip") {
+            return self.import_bundle_file(path);
+        }
+
         let raw = fs::read_to_string(path).map_err(|e| format!("Failed to read preset file: {}", e))?;
         let value: serde_json::Value =
             serde_json::from_str(&raw).map_err(|e| format!("Invalid preset JSON: {}", e))?;
@@ -776,20 +945,93 @@ impl ThemePresetStore {
         self.save_preset(&chosen_name, theme)
     }
 
+    fn import_bundle_file(&self, path: &str) -> Result<ThemePresetData, String> {
+        let file = fs::File::open(path).map_err(|e| format!("Failed to open theme bundle: {}", e))?;
+        let mut archive = ZipArchive::new(file).map_err(|e| format!("Invalid theme bundle zip: {}", e))?;
+
+        let mut manifest_raw = String::new();
+        {
+            let mut mf = archive
+                .by_name("theme.json")
+                .map_err(|_| "Missing theme.json in bundle".to_string())?;
+            use std::io::Read;
+            mf.read_to_string(&mut manifest_raw)
+                .map_err(|e| format!("Failed to read theme.json: {}", e))?;
+        }
+
+        let parsed: ThemeBundleExportFile =
+            serde_json::from_str(&manifest_raw).map_err(|e| format!("Invalid theme bundle manifest: {}", e))?;
+        if parsed.format != "ram-theme-bundle-v1" {
+            return Err("Unsupported theme bundle format".to_string());
+        }
+
+        let fonts_dir = get_theme_fonts_dir();
+        fs::create_dir_all(&fonts_dir).map_err(|e| format!("Failed to create font dir: {}", e))?;
+
+        for i in 0..archive.len() {
+            let mut f = archive.by_index(i).map_err(|e| e.to_string())?;
+            let name = f.name().to_string();
+            if !name.starts_with("fonts/") {
+                continue;
+            }
+            if name.ends_with('/') {
+                continue;
+            }
+
+            // Prevent zip-slip by only honoring enclosed names.
+            let enclosed = match f.enclosed_name() {
+                Some(p) => p.to_path_buf(),
+                None => continue,
+            };
+            let file_name = enclosed
+                .file_name()
+                .and_then(|s| s.to_str())
+                .unwrap_or("")
+                .to_string();
+            if file_name.is_empty() {
+                continue;
+            }
+
+            let ext = Path::new(&file_name)
+                .extension()
+                .and_then(|e| e.to_str())
+                .unwrap_or("")
+                .to_ascii_lowercase();
+            if !is_allowed_font_ext(&ext) {
+                continue;
+            }
+
+            let dest = fonts_dir.join(&file_name);
+            if dest.exists() {
+                continue;
+            }
+
+            let mut bytes: Vec<u8> = Vec::new();
+            use std::io::Read;
+            f.read_to_end(&mut bytes)
+                .map_err(|e| format!("Failed to extract font {}: {}", file_name, e))?;
+            if !bytes.is_empty() {
+                fs::write(&dest, &bytes)
+                    .map_err(|e| format!("Failed to write extracted font {}: {}", file_name, e))?;
+            }
+        }
+
+        let preset_name = Self::sanitize_preset_name(&parsed.name);
+        self.save_preset(&preset_name, parsed.theme)
+    }
+
     pub fn export_preset_file(name: &str, theme: ThemeData) -> Result<String, String> {
         let normalized_name = Self::sanitize_preset_name(name);
         let stem = Self::sanitize_file_stem(&normalized_name);
         let base_dir = get_runtime_data_dir();
-        let mut out_path = base_dir.join(format!("{}.ram-theme.json", stem));
 
-        let payload = ThemePresetExportFile {
-            format: "ram-theme-preset-v1".to_string(),
-            name: normalized_name,
-            theme,
+        let local_fonts = Self::local_font_files(&theme);
+        let should_export_json = local_fonts.is_empty();
+        let mut out_path = if should_export_json {
+            base_dir.join(format!("{}.ram-theme.json", stem))
+        } else {
+            base_dir.join(format!("{}.ram-theme.zip", stem))
         };
-
-        let json = serde_json::to_string_pretty(&payload)
-            .map_err(|e| format!("Failed to serialize exported preset: {}", e))?;
 
         loop {
             match OpenOptions::new()
@@ -798,14 +1040,78 @@ impl ThemePresetStore {
                 .open(&out_path)
             {
                 Ok(mut file) => {
-                    file.write_all(json.as_bytes()).map_err(|e| {
-                        format!("Failed to write preset export {}: {}", out_path.display(), e)
-                    })?;
+                    if should_export_json {
+                        let payload = ThemePresetExportFile {
+                            format: "ram-theme-preset-v1".to_string(),
+                            name: normalized_name.clone(),
+                            theme: theme.clone(),
+                        };
+                        let json = serde_json::to_string_pretty(&payload)
+                            .map_err(|e| format!("Failed to serialize exported preset: {}", e))?;
+                        file.write_all(json.as_bytes()).map_err(|e| {
+                            format!("Failed to write preset export {}: {}", out_path.display(), e)
+                        })?;
+                        return Ok(out_path.to_string_lossy().into_owned());
+                    }
+
+                    let mut writer = ZipWriter::new(file);
+                    let opts = FileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+
+                    let payload = ThemeBundleExportFile {
+                        format: "ram-theme-bundle-v1".to_string(),
+                        name: normalized_name.clone(),
+                        theme: theme.clone(),
+                    };
+                    let manifest_json = serde_json::to_string_pretty(&payload)
+                        .map_err(|e| format!("Failed to serialize theme bundle: {}", e))?;
+
+                    writer
+                        .start_file("theme.json", opts)
+                        .map_err(|e| format!("Failed to write theme.json: {}", e))?;
+                    writer
+                        .write_all(manifest_json.as_bytes())
+                        .map_err(|e| format!("Failed to write theme.json: {}", e))?;
+
+                    if !local_fonts.is_empty() {
+                        let fonts_dir = get_theme_fonts_dir();
+                        for font_file in local_fonts {
+                            let safe = Path::new(&font_file)
+                                .file_name()
+                                .and_then(|s| s.to_str())
+                                .unwrap_or("")
+                                .to_string();
+                            if safe.is_empty() {
+                                continue;
+                            }
+                            let src = fonts_dir.join(&safe);
+                            if !src.exists() {
+                                continue;
+                            }
+                            let bytes = fs::read(&src).map_err(|e| {
+                                format!("Failed to read font asset {}: {}", safe, e)
+                            })?;
+                            if bytes.is_empty() {
+                                continue;
+                            }
+                            writer
+                                .start_file(format!("fonts/{}", safe), opts)
+                                .map_err(|e| format!("Failed to add font to bundle: {}", e))?;
+                            writer
+                                .write_all(&bytes)
+                                .map_err(|e| format!("Failed to add font to bundle: {}", e))?;
+                        }
+                    }
+
+                    writer.finish().map_err(|e| format!("Failed to finalize zip: {}", e))?;
                     return Ok(out_path.to_string_lossy().into_owned());
                 }
                 Err(e) if e.kind() == ErrorKind::AlreadyExists => {
                     let suffix = chrono::Utc::now().format("%Y%m%d-%H%M%S-%f");
-                    out_path = base_dir.join(format!("{}-{}.ram-theme.json", stem, suffix));
+                    out_path = if should_export_json {
+                        base_dir.join(format!("{}-{}.ram-theme.json", stem, suffix))
+                    } else {
+                        base_dir.join(format!("{}-{}.ram-theme.zip", stem, suffix))
+                    };
                 }
                 Err(e) => {
                     return Err(format!(
@@ -836,6 +1142,42 @@ pub fn get_theme_path() -> PathBuf {
 
 pub fn get_theme_presets_path() -> PathBuf {
     get_runtime_data_dir().join("RAMThemePresets.json")
+}
+
+pub fn get_theme_fonts_dir() -> PathBuf {
+    get_runtime_data_dir().join("RAMThemeFonts")
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ThemeFontAssetImportResult {
+    pub file: String,
+    pub suggested_family: String,
+}
+
+fn sanitize_font_family_from_path(path: &Path) -> String {
+    let stem = path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("Custom Font")
+        .trim();
+    if stem.is_empty() {
+        return "Custom Font".to_string();
+    }
+    stem.to_string()
+}
+
+fn is_allowed_font_ext(ext: &str) -> bool {
+    matches!(ext, "ttf" | "otf" | "woff" | "woff2")
+}
+
+fn to_hex(bytes: &[u8]) -> String {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let mut out = String::with_capacity(bytes.len() * 2);
+    for b in bytes {
+        out.push(HEX[(b >> 4) as usize] as char);
+        out.push(HEX[(b & 0x0f) as usize] as char);
+    }
+    out
 }
 
 #[tauri::command]
@@ -872,6 +1214,64 @@ pub fn get_theme(state: tauri::State<'_, ThemeStore>) -> Result<ThemeData, Strin
 #[tauri::command]
 pub fn update_theme(state: tauri::State<'_, ThemeStore>, theme: ThemeData) -> Result<(), String> {
     state.update(theme)
+}
+
+#[tauri::command]
+pub fn import_theme_font_asset(path: String) -> Result<ThemeFontAssetImportResult, String> {
+    let source = PathBuf::from(path.trim());
+    if !source.exists() {
+        return Err("Font file does not exist".to_string());
+    }
+    if !source.is_file() {
+        return Err("Font path is not a file".to_string());
+    }
+
+    let ext = source
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    if !is_allowed_font_ext(&ext) {
+        return Err("Unsupported font extension (supported: .ttf, .otf, .woff, .woff2)".to_string());
+    }
+
+    let bytes = fs::read(&source).map_err(|e| format!("Failed to read font file: {}", e))?;
+    if bytes.is_empty() {
+        return Err("Font file is empty".to_string());
+    }
+
+    let digest = sodiumoxide::crypto::hash::sha256::hash(&bytes);
+    let hash_hex = to_hex(digest.as_ref());
+    let file_name = format!("{}.{}", hash_hex, ext);
+
+    let fonts_dir = get_theme_fonts_dir();
+    fs::create_dir_all(&fonts_dir).map_err(|e| format!("Failed to create font dir: {}", e))?;
+    let dest = fonts_dir.join(&file_name);
+    if !dest.exists() {
+        fs::write(&dest, &bytes).map_err(|e| format!("Failed to write font asset: {}", e))?;
+    }
+
+    Ok(ThemeFontAssetImportResult {
+        file: file_name,
+        suggested_family: sanitize_font_family_from_path(&source),
+    })
+}
+
+#[tauri::command]
+pub fn resolve_theme_font_asset(file: String) -> Result<String, String> {
+    let name = Path::new(file.trim())
+        .file_name()
+        .and_then(|n| n.to_str())
+        .ok_or_else(|| "Invalid font file name".to_string())?
+        .to_string();
+    if name.contains('/') || name.contains('\\') {
+        return Err("Invalid font file name".to_string());
+    }
+    let path = get_theme_fonts_dir().join(&name);
+    if !path.exists() {
+        return Err(format!("Font asset not found: {}", name));
+    }
+    Ok(path.to_string_lossy().into_owned())
 }
 
 #[tauri::command]

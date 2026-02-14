@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useLayoutEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { invoke } from "@tauri-apps/api/core";
 import { useStore } from "../../store";
 import { useTr } from "../../i18n/text";
@@ -18,6 +19,12 @@ export function ArgumentsForm({
   const [useOldJoin, setUseOldJoin] = useState(false);
   const [version, setVersion] = useState("");
   const panelRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{
+    top: number;
+    left: number;
+    maxHeight: number;
+    transformOrigin: string;
+  } | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -48,6 +55,68 @@ export function ArgumentsForm({
     };
   }, [open]);
 
+  useLayoutEffect(() => {
+    if (!open) return;
+
+    let raf = 0;
+    function compute() {
+      const anchor = anchorRef.current;
+      const panel = panelRef.current;
+      if (!anchor || !panel) return;
+
+      const gap = 8;
+      const margin = 10;
+
+      const a = anchor.getBoundingClientRect();
+      const p = panel.getBoundingClientRect();
+      const panelW = p.width || 280;
+      const panelH = p.height || 0;
+
+      // Align the panel to the right edge of the anchor button by default.
+      const preferredLeft = a.right - panelW;
+      const left = Math.min(window.innerWidth - margin - panelW, Math.max(margin, preferredLeft));
+
+      const belowSpace = window.innerHeight - margin - (a.bottom + gap);
+      const aboveSpace = (a.top - gap) - margin;
+
+      const openBelow = belowSpace >= panelH || belowSpace >= aboveSpace;
+      const top = openBelow
+        ? Math.min(window.innerHeight - margin - panelH, a.bottom + gap)
+        : Math.max(margin, a.top - gap - panelH);
+
+      const maxHeight = openBelow
+        ? Math.max(160, window.innerHeight - margin - top)
+        : Math.max(160, a.top - gap - margin);
+
+      setPos({
+        top,
+        left,
+        maxHeight,
+        transformOrigin: openBelow ? "top right" : "bottom right",
+      });
+    }
+
+    function schedule() {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(compute);
+    }
+
+    // Initial placement, then again next frame once layout settles.
+    schedule();
+    const t1 = window.setTimeout(schedule, 0);
+
+    window.addEventListener("resize", schedule);
+    // Capture scrolls from any scroll container so the fixed panel tracks the anchor.
+    window.addEventListener("scroll", schedule, true);
+
+    return () => {
+      window.clearTimeout(t1);
+      cancelAnimationFrame(raf);
+      window.removeEventListener("resize", schedule);
+      window.removeEventListener("scroll", schedule, true);
+    };
+  }, [open, anchorRef]);
+
   if (!open) return null;
 
   function toggle(key: string, val: boolean, setter: (v: boolean) => void) {
@@ -64,10 +133,15 @@ export function ArgumentsForm({
     store.addToast(t("Version set"));
   }
 
-  return (
+  const panel = (
     <div
       ref={panelRef}
-      className="theme-modal-scope theme-panel theme-border absolute right-0 top-full mt-1.5 w-[280px] bg-zinc-900 border border-zinc-700/60 rounded-xl shadow-2xl z-50 animate-scale-in p-3 space-y-2.5"
+      className="theme-modal-scope theme-panel theme-border fixed w-[280px] bg-zinc-900 border border-zinc-700/60 rounded-xl shadow-2xl z-[999] animate-scale-in p-3 space-y-2.5 overflow-y-auto"
+      style={
+        pos
+          ? { top: pos.top, left: pos.left, maxHeight: pos.maxHeight, transformOrigin: pos.transformOrigin }
+          : { top: 0, left: 0, transformOrigin: "top right" }
+      }
     >
       <div className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
         {t("Launch Arguments")}
@@ -110,4 +184,7 @@ export function ArgumentsForm({
       </div>
     </div>
   );
+
+  // Render as a portal to avoid clipping/stacking-context issues inside the scrollable sidebar.
+  return createPortal(panel, document.body);
 }

@@ -19,6 +19,9 @@ export interface ThemeData {
   buttons_background: string;
   buttons_foreground: string;
   buttons_border: string;
+  toggle_on_background?: string;
+  toggle_off_background?: string;
+  toggle_knob_background?: string;
   forms_background: string;
   forms_foreground: string;
   textboxes_background: string;
@@ -31,6 +34,28 @@ export interface ThemeData {
   show_headers: boolean;
   light_images: boolean;
   button_style: string;
+  font_sans?: ThemeFontSpec;
+  font_mono?: ThemeFontSpec;
+}
+
+export type ThemeFontSource = "google" | "local" | "system";
+
+export interface ThemeFontGoogleSpec {
+  weights: number[];
+}
+
+export interface ThemeFontLocalSpec {
+  file: string; // stored under runtime `RAMThemeFonts/`
+  weight: number;
+  style: "normal" | "italic";
+}
+
+export interface ThemeFontSpec {
+  source: ThemeFontSource;
+  family: string;
+  fallbacks: string[];
+  google?: ThemeFontGoogleSpec;
+  local?: ThemeFontLocalSpec;
 }
 
 export interface ThumbnailData {
