@@ -454,11 +454,11 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
                   <div
                     key={a.UserID}
                     className={[
-                      "flex items-center justify-between gap-3 rounded-lg border px-2.5 py-1.5 theme-soft",
+                      "flex items-center gap-3 rounded-lg border px-3 py-2 theme-soft",
                       isPlayer ? "theme-accent-border" : "theme-border",
                     ].join(" ")}
                   >
-                    <div className="min-w-0">
+                    <div className="min-w-[190px] w-[230px]">
                       <div className="text-[12px] text-[var(--panel-fg)] truncate">
                         {a.Alias || a.Username}
                       </div>
@@ -467,96 +467,119 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
                         {row?.lastError ? ` - ${row.lastError}` : ""}
                       </div>
                     </div>
-                    <div className="shrink-0">
-                      <div className="flex items-stretch rounded-lg border theme-border bg-[var(--panel-soft)] p-1 gap-1">
-                        <Tooltip
-                          content={
-                            <div className="space-y-0.5">
-                              <div className="font-semibold">{t("Remove from loop")}</div>
-                              <div className="theme-muted">
-                                {t("Stops cycling this account. Remove it from Player Accounts to resume.")}
+                    <div className="flex-1 min-w-0">
+                      <div
+                        className={[
+                          "flex items-center justify-between gap-2 rounded-xl border theme-border",
+                          "bg-[linear-gradient(90deg,rgba(255,255,255,0.06),rgba(255,255,255,0.02))]",
+                          "px-2 py-1.5",
+                        ].join(" ")}
+                      >
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <Tooltip
+                            content={
+                              <div className="space-y-0.5">
+                                <div className="font-semibold">{t("Remove from loop")}</div>
+                                <div className="theme-muted">
+                                  {t("Stops cycling this account. Remove it from Player Accounts to resume.")}
+                                </div>
                               </div>
+                            }
+                          >
+                            <span>
+                              <button
+                                type="button"
+                                disabled={disableDisconnect}
+                                className={[
+                                  "px-2.5 py-1 text-[11px] rounded-lg border theme-border",
+                                  "bg-[var(--buttons-bg)] text-[var(--buttons-fg)]",
+                                  "hover:text-[var(--panel-fg)] hover:brightness-110 transition",
+                                  "disabled:opacity-50 disabled:cursor-not-allowed",
+                                ].join(" ")}
+                                onClick={async () => {
+                                  setRowBusy(a.UserID);
+                                  try {
+                                    await store.bottingAccountAction(a.UserID, "disconnect");
+                                  } catch {}
+                                  setRowBusy(null);
+                                }}
+                              >
+                                {t("Remove from loop")}
+                              </button>
+                            </span>
+                          </Tooltip>
+
+                          <Tooltip
+                            content={
+                              <div className="space-y-0.5">
+                                <div className="font-semibold">{t("Close Roblox")}</div>
+                                <div className="theme-muted">{t("Closes Roblox and immediately re-queues a rejoin.")}</div>
+                              </div>
+                            }
+                          >
+                            <span>
+                              <button
+                                type="button"
+                                disabled={disableClose}
+                                className={[
+                                  "px-2.5 py-1 text-[11px] rounded-lg border theme-border",
+                                  "bg-[var(--buttons-bg)] text-[var(--buttons-fg)]",
+                                  "hover:text-[var(--panel-fg)] hover:brightness-110 transition",
+                                  "disabled:opacity-50 disabled:cursor-not-allowed",
+                                ].join(" ")}
+                                onClick={async () => {
+                                  setRowBusy(a.UserID);
+                                  try {
+                                    await store.bottingAccountAction(a.UserID, "close");
+                                  } catch {}
+                                  setRowBusy(null);
+                                }}
+                              >
+                                {t("Close")}
+                              </button>
+                            </span>
+                          </Tooltip>
+
+                          <Tooltip
+                            content={
+                              <div className="space-y-0.5">
+                                <div className="font-semibold">{t("Close + remove from loop")}</div>
+                                <div className="theme-muted">{t("Closes Roblox and excludes the account from cycling.")}</div>
+                              </div>
+                            }
+                          >
+                            <span>
+                              <button
+                                type="button"
+                                disabled={!canAct || isRowBusy}
+                                className={[
+                                  "px-2.5 py-1 text-[11px] rounded-lg border border-red-400/25",
+                                  "bg-[rgba(239,68,68,0.10)] text-red-200",
+                                  "hover:bg-[rgba(239,68,68,0.18)] hover:border-red-400/35 transition",
+                                  "disabled:opacity-50 disabled:cursor-not-allowed",
+                                ].join(" ")}
+                                onClick={async () => {
+                                  setRowBusy(a.UserID);
+                                  try {
+                                    await store.bottingAccountAction(a.UserID, "closeDisconnect");
+                                  } catch {}
+                                  setRowBusy(null);
+                                }}
+                              >
+                                {t("Close + Remove")}
+                              </button>
+                            </span>
+                          </Tooltip>
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0">
+                          <div className="px-2.5 py-1 rounded-lg border theme-border bg-[rgba(0,0,0,0.18)] text-right">
+                            <div className="text-[11px] text-[var(--panel-fg)] font-mono leading-none">
+                              {t(formatRemaining(row?.nextRestartAtMs ?? null, nowMs))}
                             </div>
-                          }
-                        >
-                          <span>
-                            <button
-                              type="button"
-                              disabled={disableDisconnect}
-                              className="px-2.5 py-1 text-[11px] rounded-md text-[var(--buttons-fg)] hover:text-[var(--panel-fg)] hover:bg-[var(--row-hover)] transition disabled:opacity-50 disabled:cursor-not-allowed"
-                              onClick={async () => {
-                                setRowBusy(a.UserID);
-                                try {
-                                  await store.bottingAccountAction(a.UserID, "disconnect");
-                                } catch {}
-                                setRowBusy(null);
-                              }}
-                            >
-                              {t("Remove from loop")}
-                            </button>
-                          </span>
-                        </Tooltip>
-
-                        <Tooltip
-                          content={
-                            <div className="space-y-0.5">
-                              <div className="font-semibold">{t("Close Roblox")}</div>
-                              <div className="theme-muted">{t("Closes Roblox and immediately re-queues a rejoin.")}</div>
+                            <div className="text-[10px] theme-muted leading-none mt-1">
+                              {t("retries")}: {row?.retryCount || 0}
                             </div>
-                          }
-                        >
-                          <span>
-                            <button
-                              type="button"
-                              disabled={disableClose}
-                              className="px-2.5 py-1 text-[11px] rounded-md text-[var(--buttons-fg)] hover:text-[var(--panel-fg)] hover:bg-[var(--row-hover)] transition disabled:opacity-50 disabled:cursor-not-allowed"
-                              onClick={async () => {
-                                setRowBusy(a.UserID);
-                                try {
-                                  await store.bottingAccountAction(a.UserID, "close");
-                                } catch {}
-                                setRowBusy(null);
-                              }}
-                            >
-                              {t("Close")}
-                            </button>
-                          </span>
-                        </Tooltip>
-
-                        <Tooltip
-                          content={
-                            <div className="space-y-0.5">
-                              <div className="font-semibold">{t("Close + remove from loop")}</div>
-                              <div className="theme-muted">{t("Closes Roblox and excludes the account from cycling.")}</div>
-                            </div>
-                          }
-                        >
-                          <span>
-                            <button
-                              type="button"
-                              disabled={!canAct || isRowBusy}
-                              className="px-2.5 py-1 text-[11px] rounded-md text-red-200 hover:bg-red-500/15 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                              onClick={async () => {
-                                setRowBusy(a.UserID);
-                                try {
-                                  await store.bottingAccountAction(a.UserID, "closeDisconnect");
-                                } catch {}
-                                setRowBusy(null);
-                              }}
-                            >
-                              {t("Close + Remove")}
-                            </button>
-                          </span>
-                        </Tooltip>
-
-                        <div className="mx-1 w-px theme-border border-l self-stretch opacity-60" />
-
-                        <div className="px-2 flex flex-col justify-center text-right min-w-[86px]">
-                          <div className="text-[11px] text-[var(--panel-fg)] font-mono leading-none">
-                            {t(formatRemaining(row?.nextRestartAtMs ?? null, nowMs))}
-                          </div>
-                          <div className="text-[10px] theme-muted leading-none mt-1">
-                            {t("retries")}: {row?.retryCount || 0}
                           </div>
                         </div>
                       </div>

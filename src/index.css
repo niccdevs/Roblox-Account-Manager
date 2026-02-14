@@ -293,8 +293,9 @@ body {
 }
 
 @keyframes tooltip-pop {
-  0% { opacity: 0; transform: translateY(var(--tt-from-y, 8px)) scale(0.96); filter: blur(0.2px); }
-  70% { opacity: 1; transform: translateY(0) scale(1.02); filter: blur(0); }
+  0% { opacity: 0; transform: translateY(var(--tt-from-y, 10px)) scale(0.92); filter: blur(0.3px); }
+  55% { opacity: 1; transform: translateY(-1px) scale(1.07); filter: blur(0); }
+  78% { opacity: 1; transform: translateY(0) scale(0.995); }
   100% { opacity: 1; transform: translateY(0) scale(1); }
 }
 
@@ -349,7 +350,7 @@ body {
 }
 
 .animate-tooltip-pop {
-  animation: tooltip-pop 0.18s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: tooltip-pop 0.26s cubic-bezier(0.12, 1, 0.22, 1) both;
 }
 
 .animate-scale-out {
