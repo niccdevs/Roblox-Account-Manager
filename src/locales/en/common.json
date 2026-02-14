@@ -578,5 +578,11 @@
   "Servers": "Servers",
   "Sunset": "Sunset",
   "Enable Web Server": "Enable Web Server",
-  "Memory & Window": "Memory & Window"
+  "Memory & Window": "Memory & Window",
+  "Close + Remove": "Close + Remove",
+  "Close + remove from loop": "Close + remove from loop",
+  "Closes Roblox and excludes the account from cycling.": "Closes Roblox and excludes the account from cycling.",
+  "Closes Roblox and immediately re-queues a rejoin.": "Closes Roblox and immediately re-queues a rejoin.",
+  "Remove from loop": "Remove from loop",
+  "Stops cycling this account. Remove it from Player Accounts to resume.": "Stops cycling this account. Remove it from Player Accounts to resume."
 }

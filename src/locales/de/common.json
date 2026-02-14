@@ -580,6 +580,12 @@
   "Per Instance": "Pro Instanz",
   "Recent": "Zuletzt",
   "Servers": "Server",
-  "Sunset": "Sunset"
+  "Sunset": "Sunset",
+  "Close + Remove": "Schließen + entfernen",
+  "Close + remove from loop": "Schließen + aus dem Loop entfernen",
+  "Closes Roblox and excludes the account from cycling.": "Schließt Roblox und nimmt das Konto aus dem Loop.",
+  "Closes Roblox and immediately re-queues a rejoin.": "Schließt Roblox und stellt einen sofortigen Rejoin in die Warteschlange.",
+  "Remove from loop": "Aus dem Loop entfernen",
+  "Stops cycling this account. Remove it from Player Accounts to resume.": "Stoppt den Loop für dieses Konto. Entferne es aus den Spielerkonten, um wieder zu starten."
 }
 
