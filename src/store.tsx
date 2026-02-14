@@ -958,7 +958,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         setJoiningAccounts(new Set());
         setLaunchProgress((prev) => {
           if (!prev) return null;
-  return {
+          return {
             ...prev,
             current: prev.total,
           };
