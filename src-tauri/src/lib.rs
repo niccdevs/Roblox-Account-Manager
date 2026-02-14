@@ -662,7 +662,7 @@ struct BottingStatusPayload {
     launch_data: String,
     interval_minutes: i64,
     launch_delay_seconds: i64,
-    player_user_id: Option<i64>,
+    player_user_ids: Vec<i64>,
     user_ids: Vec<i64>,
     accounts: Vec<BottingAccountStatusPayload>,
 }
@@ -674,7 +674,7 @@ struct BottingConfig {
     place_id: i64,
     job_id: String,
     launch_data: String,
-    player_user_id: Option<i64>,
+    player_user_ids: HashSet<i64>,
     interval_minutes: u64,
     launch_delay_seconds: u64,
     retry_max: u32,
@@ -779,6 +779,8 @@ fn botting_status_from_session(session: &BottingSession) -> BottingStatusPayload
         Err(_) => Vec::new(),
     };
     accounts.sort_by_key(|a| a.user_id);
+    let mut player_user_ids: Vec<i64> = config.player_user_ids.iter().copied().collect();
+    player_user_ids.sort();
     BottingStatusPayload {
         active: !session.stop_flag.load(Ordering::Relaxed),
         started_at_ms: Some(session.started_at_ms),
@@ -787,7 +789,7 @@ fn botting_status_from_session(session: &BottingSession) -> BottingStatusPayload
         launch_data: config.launch_data,
         interval_minutes: config.interval_minutes as i64,
         launch_delay_seconds: config.launch_delay_seconds as i64,
-        player_user_id: config.player_user_id,
+        player_user_ids,
         user_ids: config.user_ids,
         accounts,
     }
@@ -979,6 +981,7 @@ async fn run_botting_session(
             Err(_) => break,
         };
         let now = now_ms();
+        let tracker = platform::windows::tracker();
         let user_ids = cfg.user_ids.clone();
 
         for uid in user_ids {
@@ -991,7 +994,12 @@ async fn run_botting_session(
             if let Ok(mut map) = accounts.lock() {
                 if let Some(entry) = map.get_mut(&uid) {
                     if entry.is_player {
-                        entry.phase = "running-player";
+                        // Keep player accounts out of the restart loop and reflect actual process state.
+                        if tracker.get_pid(uid).is_some() {
+                            entry.phase = "running-player";
+                        } else if entry.phase != "queued-player" && entry.phase != "launching" {
+                            entry.phase = "queued-player";
+                        }
                         entry.next_restart_at_ms = None;
                         skip_for_player = true;
                     } else if let Some(next_ms) = entry.next_restart_at_ms {
@@ -1010,7 +1018,7 @@ async fn run_botting_session(
             }
             emit_botting_status(&app);
 
-            let _ = platform::windows::tracker().kill_for_user(uid);
+            let _ = tracker.kill_for_user(uid);
             tokio::time::sleep(std::time::Duration::from_millis(900)).await;
 
             let launch_result =
@@ -1078,7 +1086,7 @@ async fn start_botting_mode(
     place_id: i64,
     job_id: String,
     launch_data: String,
-    player_user_id: Option<i64>,
+    player_user_ids: Vec<i64>,
     interval_minutes: i64,
     launch_delay_seconds: i64,
 ) -> Result<BottingStatusPayload, String> {
@@ -1100,10 +1108,12 @@ async fn start_botting_mode(
         return Err("Select at least two unique accounts for Botting Mode".into());
     }
 
-    if let Some(player) = player_user_id {
-        if !dedup.contains(&player) {
+    let mut player_set = HashSet::new();
+    for uid in player_user_ids {
+        if !dedup.contains(&uid) {
             return Err("Player Account must be one of the selected accounts".into());
         }
+        player_set.insert(uid);
     }
 
     if let Some(existing) = BOTTING_MANAGER.get_session() {
@@ -1143,7 +1153,7 @@ async fn start_botting_mode(
         place_id,
         job_id,
         launch_data,
-        player_user_id,
+        player_user_ids: player_set,
         interval_minutes,
         launch_delay_seconds,
         retry_max,
@@ -1153,7 +1163,7 @@ async fn start_botting_mode(
 
     let mut runtime_map = HashMap::new();
     for uid in &dedup {
-        let is_player = player_user_id == Some(*uid);
+        let is_player = cfg.player_user_ids.contains(uid);
         runtime_map.insert(
             *uid,
             BottingAccountRuntime {
@@ -1209,7 +1219,7 @@ async fn start_botting_mode(
     _place_id: i64,
     _job_id: String,
     _launch_data: String,
-    _player_user_id: Option<i64>,
+    _player_user_ids: Vec<i64>,
     _interval_minutes: i64,
     _launch_delay_seconds: i64,
 ) -> Result<BottingStatusPayload, String> {
@@ -1230,7 +1240,7 @@ fn stop_botting_mode(app: tauri::AppHandle, close_bot_accounts: bool) -> Result<
                 .clone();
             let tracker = platform::windows::tracker();
             for uid in cfg.user_ids {
-                if cfg.player_user_id == Some(uid) {
+                if cfg.player_user_ids.contains(&uid) {
                     continue;
                 }
                 let _ = tracker.kill_for_user(uid);
@@ -1263,41 +1273,52 @@ fn get_botting_mode_status() -> Result<BottingStatusPayload, String> {
 
 #[cfg(target_os = "windows")]
 #[tauri::command]
-fn set_botting_player_account(
+fn set_botting_player_accounts(
     app: tauri::AppHandle,
-    player_user_id: Option<i64>,
+    player_user_ids: Vec<i64>,
 ) -> Result<BottingStatusPayload, String> {
     let Some(session) = BOTTING_MANAGER.get_session() else {
         return Err("Botting Mode is not running".into());
     };
 
     let mut cfg = session.config.lock().map_err(|e| e.to_string())?;
-    if let Some(uid) = player_user_id {
+    let mut next_set = HashSet::new();
+    for uid in player_user_ids {
         if !cfg.user_ids.contains(&uid) {
             return Err("Player Account must be one of the botting accounts".into());
         }
+        next_set.insert(uid);
     }
 
-    let old_player = cfg.player_user_id;
-    cfg.player_user_id = player_user_id;
+    let old_set = cfg.player_user_ids.clone();
+    cfg.player_user_ids = next_set.clone();
     let grace_ms = cfg.player_grace_minutes as i64 * 60_000;
     drop(cfg);
 
     let tracker = platform::windows::tracker();
     let mut accounts = session.accounts.lock().map_err(|e| e.to_string())?;
     for entry in accounts.values_mut() {
-        if Some(entry.user_id) == player_user_id {
+        let was_player = old_set.contains(&entry.user_id);
+        let is_player = next_set.contains(&entry.user_id);
+
+        if is_player {
             entry.is_player = true;
-            entry.phase = "running-player";
-            entry.next_restart_at_ms = None;
-            entry.player_grace_until_ms = None;
             entry.retry_count = 0;
             entry.last_error = None;
+            entry.player_grace_until_ms = None;
+            entry.next_restart_at_ms = None;
+            entry.phase = if tracker.get_pid(entry.user_id).is_some() {
+                "running-player"
+            } else {
+                "queued-player"
+            };
             continue;
         }
 
-        if Some(entry.user_id) == old_player && player_user_id != Some(entry.user_id) {
+        if was_player && !is_player {
             entry.is_player = false;
+            entry.retry_count = 0;
+            entry.last_error = None;
             if tracker.get_pid(entry.user_id).is_some() {
                 let due = now_ms() + grace_ms;
                 entry.phase = "player-grace";
@@ -1316,11 +1337,102 @@ fn set_botting_player_account(
     Ok(current_botting_status())
 }
 
+#[cfg(target_os = "windows")]
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+enum BottingAccountAction {
+    Disconnect,
+    Close,
+    CloseDisconnect,
+}
+
+#[cfg(not(target_os = "windows"))]
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+enum BottingAccountAction {
+    Disconnect,
+    Close,
+    CloseDisconnect,
+}
+
+#[cfg(target_os = "windows")]
+#[tauri::command]
+fn botting_account_action(
+    app: tauri::AppHandle,
+    user_id: i64,
+    action: BottingAccountAction,
+) -> Result<BottingStatusPayload, String> {
+    let Some(session) = BOTTING_MANAGER.get_session() else {
+        return Err("Botting Mode is not running".into());
+    };
+
+    let should_disconnect = matches!(action, BottingAccountAction::Disconnect | BottingAccountAction::CloseDisconnect);
+    let should_close = matches!(action, BottingAccountAction::Close | BottingAccountAction::CloseDisconnect);
+
+    let tracker = platform::windows::tracker();
+
+    // Update config first so status payload stays consistent with runtime updates below.
+    let is_player = {
+        let mut cfg = session.config.lock().map_err(|e| e.to_string())?;
+        if !cfg.user_ids.contains(&user_id) {
+            return Err("Account is not part of the current botting session".into());
+        }
+        if should_disconnect {
+            cfg.player_user_ids.insert(user_id);
+        }
+        cfg.player_user_ids.contains(&user_id)
+    };
+
+    if should_close {
+        let _ = tracker.kill_for_user(user_id);
+    }
+
+    let now = now_ms();
+    {
+        let mut accounts = session.accounts.lock().map_err(|e| e.to_string())?;
+        let Some(entry) = accounts.get_mut(&user_id) else {
+            return Err("Account runtime is missing for the current botting session".into());
+        };
+
+        entry.retry_count = 0;
+        entry.last_error = None;
+        entry.player_grace_until_ms = None;
+        entry.is_player = is_player;
+
+        if is_player {
+            // A disconnected account is treated like a player account: "due" and excluded from restart cycle.
+            entry.next_restart_at_ms = None;
+            entry.phase = if !should_close && tracker.get_pid(user_id).is_some() {
+                "running-player"
+            } else {
+                "queued-player"
+            };
+        } else {
+            // Closing a bot account should re-queue it for an immediate rejoin attempt.
+            entry.phase = "queued";
+            entry.next_restart_at_ms = Some(now);
+        }
+    }
+
+    emit_botting_status(&app);
+    Ok(current_botting_status())
+}
+
 #[cfg(not(target_os = "windows"))]
 #[tauri::command]
-fn set_botting_player_account(
+fn botting_account_action(
     _app: tauri::AppHandle,
-    _player_user_id: Option<i64>,
+    _user_id: i64,
+    _action: BottingAccountAction,
+) -> Result<BottingStatusPayload, String> {
+    Ok(BottingStatusPayload::default())
+}
+
+#[cfg(not(target_os = "windows"))]
+#[tauri::command]
+fn set_botting_player_accounts(
+    _app: tauri::AppHandle,
+    _player_user_ids: Vec<i64>,
 ) -> Result<BottingStatusPayload, String> {
     Ok(BottingStatusPayload::default())
 }
@@ -2722,7 +2834,8 @@ pub fn run() {
             start_botting_mode,
             stop_botting_mode,
             get_botting_mode_status,
-            set_botting_player_account,
+            set_botting_player_accounts,
+            botting_account_action,
             cmd_kill_roblox,
             cmd_kill_all_roblox,
             get_running_instances,

@@ -62,7 +62,7 @@ export interface BottingStatus {
   launchData: string;
   intervalMinutes: number;
   launchDelaySeconds: number;
-  playerUserId: number | null;
+  playerUserIds: number[];
   userIds: number[];
   accounts: BottingAccountStatus[];
 }
@@ -72,7 +72,7 @@ export interface BottingStartConfig {
   placeId: number;
   jobId: string;
   launchData: string;
-  playerUserId: number | null;
+  playerUserIds: number[];
   intervalMinutes: number;
   launchDelaySeconds: number;
 }
@@ -140,7 +140,8 @@ export interface StoreValue {
   killAllRobloxProcesses: () => Promise<void>;
   startBottingMode: (config: BottingStartConfig) => Promise<void>;
   stopBottingMode: (closeBotAccounts: boolean) => Promise<void>;
-  setBottingPlayerAccount: (userId: number | null) => Promise<void>;
+  setBottingPlayerAccounts: (userIds: number[]) => Promise<void>;
+  bottingAccountAction: (userId: number, action: "disconnect" | "close" | "closeDisconnect") => Promise<void>;
   refreshBottingStatus: () => Promise<void>;
   refreshCookie: (userId: number) => Promise<boolean>;
   moveToGroup: (userIds: number[], group: string) => Promise<void>;
@@ -789,7 +790,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         placeId: config.placeId,
         jobId: config.jobId,
         launchData: config.launchData,
-        playerUserId: config.playerUserId,
+        playerUserIds: config.playerUserIds,
         intervalMinutes: config.intervalMinutes,
         launchDelaySeconds: config.launchDelaySeconds,
       });
@@ -814,13 +815,29 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  async function setBottingPlayerAccount(userId: number | null) {
+  async function setBottingPlayerAccounts(userIds: number[]) {
     try {
-      const status = await invoke<BottingStatus>("set_botting_player_account", {
-        playerUserId: userId,
+      const status = await invoke<BottingStatus>("set_botting_player_accounts", {
+        playerUserIds: userIds,
       });
       setBottingStatus(status);
-      addToast(tr(userId === null ? "Player Account cleared" : "Player Account updated"));
+      addToast(tr(userIds.length === 0 ? "Player accounts cleared" : "Player accounts updated"));
+    } catch (e) {
+      setError(String(e));
+      throw e;
+    }
+  }
+
+  async function bottingAccountAction(
+    userId: number,
+    action: "disconnect" | "close" | "closeDisconnect"
+  ) {
+    try {
+      const status = await invoke<BottingStatus>("botting_account_action", {
+        userId,
+        action,
+      });
+      setBottingStatus(status);
     } catch (e) {
       setError(String(e));
       throw e;
@@ -973,7 +990,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }),
       listen("botting-stopped", () => {
         setBottingStatus((prev) =>
-          prev ? { ...prev, active: false } : { active: false, startedAtMs: null, placeId: 0, jobId: "", launchData: "", intervalMinutes: 19, launchDelaySeconds: 20, playerUserId: null, userIds: [], accounts: [] }
+          prev ? { ...prev, active: false } : { active: false, startedAtMs: null, placeId: 0, jobId: "", launchData: "", intervalMinutes: 19, launchDelaySeconds: 20, playerUserIds: [], userIds: [], accounts: [] }
         );
       }),
       listen<{ userId?: number; ok?: boolean }>("botting-account-cycle", (e) => {
@@ -1216,7 +1233,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     killAllRobloxProcesses,
     startBottingMode,
     stopBottingMode,
-    setBottingPlayerAccount,
+    setBottingPlayerAccounts,
+    bottingAccountAction,
     refreshBottingStatus,
     refreshCookie,
     moveToGroup,

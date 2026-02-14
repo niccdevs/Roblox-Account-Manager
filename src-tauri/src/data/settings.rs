@@ -263,6 +263,7 @@ impl SettingsStore {
             ("BottingDraftJobId", "", None),
             ("BottingDraftLaunchData", "", None),
             ("BottingDraftPlayerAccountId", "", None),
+            ("BottingDraftPlayerAccountIds", "", None),
             ("BottingDraftSelectedUserIds", "", None),
         ];
 
