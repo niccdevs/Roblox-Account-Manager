@@ -895,14 +895,23 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const unlisten = listen("browser-login-detected", async () => {
-      await new Promise((r) => setTimeout(r, 500));
-      try {
-        const cookie = await invoke<string>("extract_browser_cookie");
-        await addAccountByCookie(cookie);
-        await invoke("close_login_browser");
-      } catch (e) {
-        addToast(String(e));
+      let cookie = "";
+      for (let i = 0; i < 8; i++) {
+        try {
+          cookie = await invoke<string>("extract_browser_cookie");
+          if (cookie.trim().length > 0) break;
+        } catch {}
+        await new Promise((r) => setTimeout(r, 350));
       }
+
+      if (cookie.trim().length === 0) {
+        addToast("No .ROBLOSECURITY cookie found after login. Please try again.");
+        await invoke("close_login_browser").catch(() => {});
+        return;
+      }
+
+      await addAccountByCookie(cookie);
+      await invoke("close_login_browser").catch(() => {});
     });
     return () => {
       unlisten.then((fn) => fn());
