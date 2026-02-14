@@ -2679,6 +2679,7 @@ pub fn run() {
             None,
         ))
         .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(account_store)
         .manage(settings_store)
         .manage(theme_store)

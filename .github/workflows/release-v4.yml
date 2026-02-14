@@ -101,6 +101,15 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_SHA: ${{ github.sha }}
 
+      - name: Inject updater public key
+        shell: pwsh
+        run: |
+          $config = Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json
+          if (-not $config.plugins) { $config | Add-Member -Name "plugins" -Value ([PSCustomObject]@{}) -MemberType NoteProperty }
+          if (-not $config.plugins.updater) { $config.plugins | Add-Member -Name "updater" -Value ([PSCustomObject]@{}) -MemberType NoteProperty }
+          $config.plugins.updater | Add-Member -Name "pubkey" -Value "${{ secrets.TAURI_SIGNING_PUBLIC_KEY }}" -MemberType NoteProperty -Force
+          $config | ConvertTo-Json -Depth 100 | Set-Content src-tauri/tauri.conf.json
+
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
@@ -109,6 +118,7 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ env.RELEASE_GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
         with:
           projectPath: "."
           tauriScript: "bun tauri"
@@ -125,6 +135,18 @@ jobs:
           GH_TOKEN: ${{ env.RELEASE_GITHUB_TOKEN }}
         run: |
           gh release upload "${{ steps.meta.outputs.tag }}" "src-tauri/target/release/roblox-account-manager.exe" --clobber
+
+      - name: Generate and push update manifest
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ env.RELEASE_GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ steps.meta.outputs.tag }}
+          RELEASE_CHANNEL: ${{ steps.controls.outputs.channel }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          bun .github/scripts/generate-update-manifest.mjs
 
       - name: Finalize release notes
         uses: actions/github-script@v7

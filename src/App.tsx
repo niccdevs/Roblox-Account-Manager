@@ -1,7 +1,9 @@
+import { useEffect } from "react";
 import { StoreProvider, useStore } from "./store";
 import { PromptProvider } from "./hooks/usePrompt";
 import { PasswordScreen } from "./components/layout/PasswordScreen";
 import { TitleBar } from "./components/layout/TitleBar";
+import { UpdateBanner } from "./components/layout/UpdateBanner";
 import { Toolbar } from "./components/layout/Toolbar";
 import { AccountList } from "./components/accounts/AccountList";
 import { ContextMenu } from "./components/menus/ContextMenu";
@@ -14,6 +16,7 @@ import { AccountFieldsDialog } from "./components/dialogs/AccountFieldsDialog";
 import { AccountUtilsDialog } from "./components/dialogs/AccountUtilsDialog";
 import { MissingAssetsDialog } from "./components/dialogs/MissingAssetsDialog";
 import { ThemeEditorDialog } from "./components/dialogs/ThemeEditorDialog";
+import { UpdateDialog } from "./components/dialogs/UpdateDialog";
 import { NexusDialog } from "./components/dialogs/NexusDialog";
 import { BottingDialog } from "./components/dialogs/BottingDialog";
 import { useTr } from "./i18n/text";
@@ -25,6 +28,12 @@ function AppContent() {
   const showCloseRobloxAction =
     errorLower.includes("failed to enable multi roblox") ||
     (errorLower.includes("multi roblox") && errorLower.includes("close all roblox process"));
+
+  useEffect(() => {
+    if (store.initialized && !store.needsPassword) {
+      store.checkForUpdates();
+    }
+  }, [store.initialized, store.needsPassword]);
 
   if (!store.initialized) {
     return (
@@ -41,6 +50,7 @@ function AppContent() {
   return (
     <div className="theme-app flex h-screen flex-col">
       <TitleBar />
+      <UpdateBanner />
       <Toolbar />
 
       {store.error && (
@@ -132,6 +142,8 @@ function AppContent() {
         open={store.nexusOpen}
         onClose={() => store.setNexusOpen(false)}
       />
+
+      <UpdateDialog />
 
       {store.modal && (
         <div

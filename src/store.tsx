@@ -13,6 +13,7 @@ import { listen } from "@tauri-apps/api/event";
 import type { Account, ThemeData, ThumbnailData, ParsedGroup } from "./types";
 import { parseGroupName } from "./types";
 import { applyThemeCssVariables, normalizeTheme, DEFAULT_THEME } from "./theme";
+import { check as checkForUpdate } from "@tauri-apps/plugin-updater";
 import i18n, { normalizeLanguage } from "./i18n";
 import { tr } from "./i18n/text";
 
@@ -193,6 +194,11 @@ export interface StoreValue {
   nexusOpen: boolean;
   setNexusOpen: (open: boolean) => void;
 
+  updateInfo: { version: string; currentVersion: string; date: string; body: string } | null;
+  updateDialogOpen: boolean;
+  setUpdateDialogOpen: (open: boolean) => void;
+  checkForUpdates: (manual?: boolean) => Promise<void>;
+
   openLoginBrowser: () => Promise<void>;
   openAccountBrowser: (userId: number) => Promise<void>;
 }
@@ -264,6 +270,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [bottingStatus, setBottingStatus] = useState<BottingStatus | null>(null);
   const [missingAssets, setMissingAssets] = useState<{ userId: number; username: string; assetIds: number[] } | null>(null);
   const [nexusOpen, setNexusOpen] = useState(false);
+  const [updateInfo, setUpdateInfo] = useState<{ version: string; currentVersion: string; date: string; body: string } | null>(null);
+  const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
   const [joiningAccounts, setJoiningAccounts] = useState<Set<number>>(new Set());
   const [launchProgress, setLaunchProgress] = useState<LaunchProgressState | null>(null);
   const [actionStatus, setActionStatus] = useState<ActionStatusState | null>(null);
@@ -1179,6 +1187,28 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  const checkForUpdates = useCallback(async (manual?: boolean) => {
+    if (!manual && settings?.General?.CheckForUpdates === "false") return;
+    try {
+      const update = await checkForUpdate();
+      if (!update) {
+        if (manual) addToast(tr("No updates available"));
+        return;
+      }
+      const skipped = localStorage.getItem("skipped-update-version");
+      if (!manual && skipped === update.version) return;
+      setUpdateInfo({
+        version: update.version,
+        currentVersion: update.currentVersion,
+        date: update.date ?? "",
+        body: update.body ?? "",
+      });
+      setUpdateDialogOpen(true);
+    } catch (e) {
+      if (manual) addToast(tr("Update check failed"));
+    }
+  }, [settings?.General?.CheckForUpdates, addToast]);
+
   const value: StoreValue = {
     accounts,
     groups,
@@ -1280,6 +1310,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setMissingAssets,
     nexusOpen,
     setNexusOpen,
+    updateInfo,
+    updateDialogOpen,
+    setUpdateDialogOpen,
+    checkForUpdates,
     openLoginBrowser,
     openAccountBrowser,
   };
