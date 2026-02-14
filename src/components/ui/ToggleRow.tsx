@@ -16,12 +16,12 @@ export function ToggleRow({
       <button
         onClick={() => onChange(!checked)}
         className={`w-8 h-[18px] rounded-full transition-colors relative border ${
-          checked ? "bg-[var(--buttons-bg)] border-[var(--buttons-bc)]" : "bg-[var(--panel-soft)] border-[var(--border-color)]"
+          checked ? "bg-[var(--toggle-on-bg)] border-[var(--toggle-on-bg)]" : "bg-[var(--toggle-off-bg)] border-[var(--toggle-off-bg)]"
         }`}
         aria-pressed={checked}
       >
         <div
-          className={`w-3.5 h-3.5 rounded-full bg-[var(--buttons-fg)] absolute top-[2px] transition-all ${
+          className={`w-3.5 h-3.5 rounded-full bg-[var(--toggle-knob-bg)] absolute top-[2px] transition-all ${
             checked ? "left-[17px]" : "left-[2px]"
           }`}
         />

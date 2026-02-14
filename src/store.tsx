@@ -12,7 +12,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type { Account, ThemeData, ThumbnailData, ParsedGroup } from "./types";
 import { parseGroupName } from "./types";
-import { applyThemeCssVariables, normalizeTheme } from "./theme";
+import { applyThemeCssVariables, normalizeTheme, DEFAULT_THEME } from "./theme";
 import i18n, { normalizeLanguage } from "./i18n";
 import { tr } from "./i18n/text";
 
@@ -881,6 +881,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     (async () => {
+      // Apply defaults immediately so the UI has a consistent baseline while we load persisted theme.
+      applyThemePreview(DEFAULT_THEME);
       try {
         const needs = await invoke<boolean>("needs_password");
         setNeedsPassword(needs);

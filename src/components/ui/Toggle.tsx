@@ -20,12 +20,12 @@ export function Toggle({
       <div className="relative mt-0.5 shrink-0">
         <div
           className={`w-8 h-[18px] rounded-full transition-all duration-200 ${
-            checked ? "bg-sky-500" : "bg-zinc-700"
+            checked ? "bg-[var(--toggle-on-bg)]" : "bg-[var(--toggle-off-bg)]"
           }`}
         />
         <div
-          className={`absolute top-[2px] w-[14px] h-[14px] rounded-full bg-white transition-all duration-200 ${
-            checked ? "left-[16px] shadow-[0_0_6px_rgba(14,165,233,0.4)]" : "left-[2px] shadow-sm"
+          className={`absolute top-[2px] w-[14px] h-[14px] rounded-full bg-[var(--toggle-knob-bg)] transition-all duration-200 ${
+            checked ? "left-[16px] shadow-[0_0_6px_var(--toggle-on-shadow)]" : "left-[2px] shadow-sm"
           }`}
         />
       </div>

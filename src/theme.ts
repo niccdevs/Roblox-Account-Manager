@@ -1,8 +1,35 @@
-import type { ThemeData } from "./types";
+import type { ThemeData, ThemeFontSpec } from "./types";
+import { applyThemeFontLoading } from "./themeFonts";
 
 const HEX_COLOR_RE = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
 const RGB_COLOR_RE = /^rgba?\((.+)\)$/i;
 const DEFAULT_ACCENT = "#38bdf8";
+
+export const DEFAULT_FONT_SANS: ThemeFontSpec = {
+  source: "google",
+  family: "Outfit",
+  fallbacks: ["system-ui", "-apple-system", "Segoe UI", "sans-serif"],
+  google: { weights: [300, 400, 500, 600, 700] },
+};
+
+export const DEFAULT_FONT_MONO: ThemeFontSpec = {
+  source: "google",
+  family: "JetBrains Mono",
+  fallbacks: ["Cascadia Code", "Consolas", "monospace"],
+  google: { weights: [400, 500] },
+};
+
+export const SYSTEM_FONT_SANS: ThemeFontSpec = {
+  source: "system",
+  family: "system-ui",
+  fallbacks: ["-apple-system", "Segoe UI", "sans-serif"],
+};
+
+export const SYSTEM_FONT_MONO: ThemeFontSpec = {
+  source: "system",
+  family: "ui-monospace",
+  fallbacks: ["Cascadia Code", "Consolas", "monospace"],
+};
 
 const LEGACY_V4_THEME: ThemeData = {
   accounts_background: "#09090B",
@@ -10,6 +37,9 @@ const LEGACY_V4_THEME: ThemeData = {
   buttons_background: "#27272A",
   buttons_foreground: "#A1A1AA",
   buttons_border: "#3F3F46",
+  toggle_on_background: "#0EA5E9",
+  toggle_off_background: "#3F3F46",
+  toggle_knob_background: "#FFFFFF",
   forms_background: "#09090B",
   forms_foreground: "#E4E4E7",
   textboxes_background: "#18181B",
@@ -22,6 +52,8 @@ const LEGACY_V4_THEME: ThemeData = {
   show_headers: true,
   light_images: false,
   button_style: "Flat",
+  font_sans: { ...DEFAULT_FONT_SANS },
+  font_mono: { ...DEFAULT_FONT_MONO },
 };
 
 const CATPPUCCIN_THEME: ThemeData = {
@@ -30,6 +62,9 @@ const CATPPUCCIN_THEME: ThemeData = {
   buttons_background: "#313244",
   buttons_foreground: "#CDD6F4",
   buttons_border: "#45475A",
+  toggle_on_background: "#0EA5E9",
+  toggle_off_background: "#3F3F46",
+  toggle_knob_background: "#FFFFFF",
   forms_background: "#1E1E2E",
   forms_foreground: "#CDD6F4",
   textboxes_background: "#313244",
@@ -42,6 +77,8 @@ const CATPPUCCIN_THEME: ThemeData = {
   show_headers: true,
   light_images: false,
   button_style: "Flat",
+  font_sans: { ...DEFAULT_FONT_SANS },
+  font_mono: { ...DEFAULT_FONT_MONO },
 };
 
 export const DEFAULT_THEME: ThemeData = { ...LEGACY_V4_THEME };
@@ -56,6 +93,123 @@ export const THEME_PRESETS: Array<{ id: string; label: string; theme: ThemeData 
     id: "catppuccin",
     label: "Catppuccin",
     theme: { ...CATPPUCCIN_THEME },
+  },
+  {
+    id: "studio",
+    label: "Studio",
+    theme: {
+      ...LEGACY_V4_THEME,
+      font_sans: {
+        source: "google",
+        family: "Space Grotesk",
+        fallbacks: DEFAULT_FONT_SANS.fallbacks,
+        google: { weights: [300, 400, 500, 600, 700] },
+      },
+      font_mono: { ...DEFAULT_FONT_MONO },
+    },
+  },
+  {
+    id: "terminal",
+    label: "Terminal",
+    theme: {
+      ...LEGACY_V4_THEME,
+      font_sans: {
+        source: "google",
+        family: "Inter",
+        fallbacks: DEFAULT_FONT_SANS.fallbacks,
+        google: { weights: [300, 400, 500, 600, 700] },
+      },
+      font_mono: {
+        source: "google",
+        family: "Fira Code",
+        fallbacks: DEFAULT_FONT_MONO.fallbacks,
+        google: { weights: [400, 500, 600] },
+      },
+    },
+  },
+  {
+    id: "jakarta",
+    label: "Jakarta",
+    theme: {
+      ...LEGACY_V4_THEME,
+      font_sans: {
+        source: "google",
+        family: "Plus Jakarta Sans",
+        fallbacks: DEFAULT_FONT_SANS.fallbacks,
+        google: { weights: [300, 400, 500, 600, 700] },
+      },
+      font_mono: { ...DEFAULT_FONT_MONO },
+      buttons_foreground: "#BAE6FD",
+    },
+  },
+  {
+    id: "plex",
+    label: "Plex",
+    theme: {
+      ...LEGACY_V4_THEME,
+      font_sans: {
+        source: "google",
+        family: "IBM Plex Sans",
+        fallbacks: DEFAULT_FONT_SANS.fallbacks,
+        google: { weights: [300, 400, 500, 600, 700] },
+      },
+      font_mono: {
+        source: "google",
+        family: "IBM Plex Mono",
+        fallbacks: DEFAULT_FONT_MONO.fallbacks,
+        google: { weights: [400, 500, 600] },
+      },
+      buttons_background: "#1F2937",
+      buttons_border: "#334155",
+    },
+  },
+  {
+    id: "soft",
+    label: "Soft",
+    theme: {
+      ...LEGACY_V4_THEME,
+      font_sans: {
+        source: "google",
+        family: "Nunito",
+        fallbacks: DEFAULT_FONT_SANS.fallbacks,
+        google: { weights: [300, 400, 500, 600, 700] },
+      },
+      font_mono: {
+        source: "google",
+        family: "Source Code Pro",
+        fallbacks: DEFAULT_FONT_MONO.fallbacks,
+        google: { weights: [400, 500, 600] },
+      },
+      accounts_background: "#0B1220",
+      forms_background: "#070C16",
+      label_foreground: "#8B9AB6",
+    },
+  },
+  {
+    id: "bubble",
+    label: "Bubble",
+    theme: {
+      ...LEGACY_V4_THEME,
+      font_sans: {
+        source: "google",
+        family: "Rubik",
+        fallbacks: DEFAULT_FONT_SANS.fallbacks,
+        google: { weights: [300, 400, 500, 600, 700] },
+      },
+      font_mono: {
+        source: "google",
+        family: "Space Mono",
+        fallbacks: DEFAULT_FONT_MONO.fallbacks,
+        google: { weights: [400, 700] },
+      },
+      accounts_background: "#1B102A",
+      forms_background: "#120A1E",
+      buttons_background: "#2A1642",
+      buttons_border: "#3E2360",
+      buttons_foreground: "#FBCFE8",
+      label_foreground: "#E9A8D1",
+      button_style: "Popup",
+    },
   },
   {
     id: "graphite",
@@ -76,6 +230,8 @@ export const THEME_PRESETS: Array<{ id: string; label: string; theme: ThemeData 
       label_foreground: "#A5ABB9",
       dark_top_bar: true,
       button_style: "Standard",
+      font_sans: { ...DEFAULT_FONT_SANS },
+      font_mono: { ...DEFAULT_FONT_MONO },
     },
   },
   {
@@ -97,6 +253,8 @@ export const THEME_PRESETS: Array<{ id: string; label: string; theme: ThemeData 
       label_foreground: "#8FB8D8",
       dark_top_bar: true,
       button_style: "Popup",
+      font_sans: { ...DEFAULT_FONT_SANS },
+      font_mono: { ...DEFAULT_FONT_MONO },
     },
   },
   {
@@ -118,6 +276,8 @@ export const THEME_PRESETS: Array<{ id: string; label: string; theme: ThemeData 
       label_foreground: "#DFA4C7",
       dark_top_bar: true,
       button_style: "Popup",
+      font_sans: { ...DEFAULT_FONT_SANS },
+      font_mono: { ...DEFAULT_FONT_MONO },
     },
   },
 ];
@@ -215,6 +375,56 @@ function normalizeButtonStyle(value: string): ThemeData["button_style"] {
   return "Flat";
 }
 
+function normalizeFontSource(value: unknown): ThemeFontSpec["source"] {
+  if (value === "google" || value === "local" || value === "system") return value;
+  return "google";
+}
+
+function normalizeFontSpec(value: unknown, fallback: ThemeFontSpec): ThemeFontSpec {
+  if (!value || typeof value !== "object") return { ...fallback };
+  const v = value as Partial<ThemeFontSpec>;
+  const source = normalizeFontSource(v.source);
+  const family = typeof v.family === "string" ? v.family.trim() : "";
+  const fallbacks = Array.isArray(v.fallbacks) ? v.fallbacks.filter((x) => typeof x === "string" && x.trim()) as string[] : [];
+
+  const next: ThemeFontSpec = {
+    source,
+    family: family || fallback.family,
+    fallbacks: fallbacks.length > 0 ? fallbacks : fallback.fallbacks,
+  };
+
+  if (source === "google") {
+    const weightsRaw = Array.isArray(v.google?.weights)
+      ? v.google!.weights.filter((n) => Number.isFinite(n)).map((n) => Math.round(Number(n)))
+      : [];
+    const weights = Array.from(new Set(weightsRaw)).sort((a, b) => a - b);
+    next.google = { weights: weights.length > 0 ? weights : (fallback.google?.weights ?? [400, 500]) };
+  } else if (source === "local") {
+    const file = typeof v.local?.file === "string" ? v.local!.file.trim() : "";
+    next.local = {
+      file,
+      weight: Number.isFinite(v.local?.weight) ? Math.round(Number(v.local!.weight)) : 400,
+      style: v.local?.style === "italic" ? "italic" : "normal",
+    };
+    if (!next.local.file) return { ...fallback };
+  }
+
+  return next;
+}
+
+function quoteFontToken(token: string) {
+  const t = token.trim();
+  if (!t) return "";
+  // Quote if it contains whitespace or commas.
+  if (/[\\s,]/.test(t)) return `'${t.replace(/'/g, "\\'")}'`;
+  return t;
+}
+
+function fontStack(spec: ThemeFontSpec) {
+  const parts = [spec.family, ...(spec.fallbacks || [])].map(quoteFontToken).filter(Boolean);
+  return parts.join(", ");
+}
+
 export function normalizeTheme(theme: ThemeData | null | undefined): ThemeData {
   const source = theme ?? DEFAULT_THEME;
 
@@ -224,6 +434,9 @@ export function normalizeTheme(theme: ThemeData | null | undefined): ThemeData {
     buttons_background: sanitizeColor(source.buttons_background, DEFAULT_THEME.buttons_background),
     buttons_foreground: sanitizeColor(source.buttons_foreground, DEFAULT_THEME.buttons_foreground),
     buttons_border: sanitizeColor(source.buttons_border, DEFAULT_THEME.buttons_border),
+    toggle_on_background: sanitizeColor(source.toggle_on_background, pickAccentColor(sanitizeColor(source.buttons_foreground, DEFAULT_THEME.buttons_foreground))),
+    toggle_off_background: sanitizeColor(source.toggle_off_background, DEFAULT_THEME.buttons_border),
+    toggle_knob_background: sanitizeColor(source.toggle_knob_background, "#FFFFFF"),
     forms_background: sanitizeColor(source.forms_background, DEFAULT_THEME.forms_background),
     forms_foreground: sanitizeColor(source.forms_foreground, DEFAULT_THEME.forms_foreground),
     textboxes_background: sanitizeColor(source.textboxes_background, DEFAULT_THEME.textboxes_background),
@@ -236,6 +449,8 @@ export function normalizeTheme(theme: ThemeData | null | undefined): ThemeData {
     show_headers: !!source.show_headers,
     light_images: !!source.light_images,
     button_style: normalizeButtonStyle(source.button_style),
+    font_sans: normalizeFontSpec(source.font_sans, DEFAULT_FONT_SANS),
+    font_mono: normalizeFontSpec(source.font_mono, DEFAULT_FONT_MONO),
   };
 }
 
@@ -250,6 +465,9 @@ export function applyThemeCssVariables(themeInput: ThemeData) {
   style.setProperty("--buttons-bg", t.buttons_background);
   style.setProperty("--buttons-fg", t.buttons_foreground);
   style.setProperty("--buttons-bc", t.buttons_border);
+  style.setProperty("--toggle-on-bg", t.toggle_on_background ?? accentBase);
+  style.setProperty("--toggle-off-bg", t.toggle_off_background ?? DEFAULT_THEME.buttons_border);
+  style.setProperty("--toggle-knob-bg", t.toggle_knob_background ?? "#ffffff");
   style.setProperty("--forms-bg", t.forms_background);
   style.setProperty("--forms-fg", t.forms_foreground);
   style.setProperty("--textboxes-bg", t.textboxes_background);
@@ -271,9 +489,12 @@ export function applyThemeCssVariables(themeInput: ThemeData) {
   style.setProperty("--accent-color", accentBase);
   style.setProperty("--accent-soft", rgba(accentBase, 0.2, DEFAULT_ACCENT));
   style.setProperty("--accent-strong", rgba(accentBase, 0.38, DEFAULT_ACCENT));
+  style.setProperty("--toggle-on-shadow", rgba(t.toggle_on_background ?? accentBase, 0.4, DEFAULT_ACCENT));
   style.setProperty("--titlebar-bg", t.dark_top_bar ? "#09090b" : t.forms_background);
   style.setProperty("--titlebar-fg", t.dark_top_bar ? "#a1a1aa" : t.forms_foreground);
   style.setProperty("--avatar-filter", t.light_images ? "brightness(1.08) contrast(1.03) saturate(1.08)" : "none");
+  style.setProperty("--font-sans", fontStack(t.font_sans ?? DEFAULT_FONT_SANS));
+  style.setProperty("--font-mono", fontStack(t.font_mono ?? DEFAULT_FONT_MONO));
 
   const buttonStyle = normalizeButtonStyle(t.button_style);
   style.setProperty("--button-radius", buttonStyle === "Standard" ? "6px" : buttonStyle === "Popup" ? "10px" : "8px");
@@ -288,4 +509,6 @@ export function applyThemeCssVariables(themeInput: ThemeData) {
 
   root.dataset.buttonStyle = buttonStyle;
   root.dataset.showHeaders = t.show_headers ? "true" : "false";
+
+  void applyThemeFontLoading(t.font_sans ?? DEFAULT_FONT_SANS, t.font_mono ?? DEFAULT_FONT_MONO).catch(() => {});
 }
