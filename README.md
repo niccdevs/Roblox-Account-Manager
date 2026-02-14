@@ -10,7 +10,7 @@ Full credit to [ic3w0lf22](https://github.com/ic3w0lf22) for the original Roblox
 [![Latest v4 Beta](https://img.shields.io/github/v/release/niccsprojects/Roblox-Account-Manager?include_prereleases&label=Latest%20v4%20Beta)](https://github.com/niccsprojects/Roblox-Account-Manager/releases?q=beta)
 [![Latest Release Downloads](https://img.shields.io/github/downloads/niccsprojects/Roblox-Account-Manager/latest/total?label=Latest%20Release%20Downloads&color=3b82f6)](https://github.com/niccsprojects/Roblox-Account-Manager/releases/latest)
 [![Latest Release](https://img.shields.io/github/v/release/niccsprojects/Roblox-Account-Manager?include_prereleases&label=Latest%20Release)](https://github.com/niccsprojects/Roblox-Account-Manager/releases/latest)
-[![Crowdin](https://img.shields.io/badge/Crowdin-2E3340.svg?style=for-the-badge&logo=Crowdin&logoColor=white)]((https://crowdin.com/project/roblox-account-manager/invite?h=be52d9777639ec8192e314e2c59c8a2b2688814))
+[![Crowdin](https://img.shields.io/badge/Crowdin-2E3340.svg?style=for-the-badge&logo=Crowdin&logoColor=white)](https://crowdin.com/project/roblox-account-manager/invite?h=be52d9777639ec8192e314e2c59c8a2b2688814)
 
 Release download counts are based on GitHub release asset downloads across tags and are not unique installs.
 
