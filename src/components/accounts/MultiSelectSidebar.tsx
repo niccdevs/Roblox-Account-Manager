@@ -5,8 +5,10 @@ import { useJoinOnlineWarning } from "../../hooks/useJoinOnlineWarning";
 import { parseGroupName } from "../../types";
 import { SidebarSection } from "./SidebarSection";
 import { AccountChip } from "./AccountChip";
+import { tr, useTr } from "../../i18n/text";
 
 export function MultiSelectSidebar() {
+  const t = useTr();
   const store = useStore();
   const prompt = usePrompt();
   const confirm = useConfirm();
@@ -37,7 +39,7 @@ export function MultiSelectSidebar() {
     try {
       await store.launchMultiple(ids);
     } catch (e) {
-      store.addToast(`Launch failed: ${e}`);
+      store.addToast(tr("Launch failed: {{error}}", { error: String(e) }));
     }
   }
 
@@ -52,13 +54,13 @@ export function MultiSelectSidebar() {
       await new Promise((r) => setTimeout(r, 2000));
     }
     setRefreshing(false);
-    store.addToast(`Refreshed: ${ok} ok, ${fail} failed`);
+    store.addToast(tr("Refreshed: {{ok}} ok, {{fail}} failed", { ok, fail }));
   }
 
   async function handleCopyCookies() {
     const cookies = accounts.map((a) => a.SecurityToken).filter(Boolean);
     await navigator.clipboard.writeText(cookies.join("\n"));
-    store.addToast(`Copied ${cookies.length} cookies`);
+    store.addToast(tr("Copied {{count}} cookies", { count: cookies.length }));
   }
 
   async function handleMoveToGroup(group: string) {
@@ -71,7 +73,7 @@ export function MultiSelectSidebar() {
 
   async function handleNewGroup() {
     setMoveOpen(false);
-    const name = await prompt("New group name:");
+    const name = await prompt(tr("New group name:"));
     if (!name?.trim()) return;
     await store.moveToGroup(
       accounts.map((a) => a.UserID),
@@ -88,14 +90,14 @@ export function MultiSelectSidebar() {
               {count} selected
             </div>
             <div className="theme-muted text-[11px] mt-0.5">
-              Ctrl+click to toggle, Shift+click for range
+              {t("Ctrl+click to toggle, Shift+click for range")}
             </div>
           </div>
           <button
             onClick={store.deselectAll}
             className="theme-btn-ghost text-[11px] transition-colors px-2 py-0.5 rounded"
           >
-            Clear
+            {t("Clear")}
           </button>
         </div>
 
@@ -112,49 +114,52 @@ export function MultiSelectSidebar() {
           ))}
           {remaining > 0 && (
             <div className="theme-muted text-[11px] px-1 py-0.5">
-              +{remaining} more
+              {t("+{{count}} more", { count: remaining })}
             </div>
           )}
         </div>
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4">
-        <SidebarSection title="Launch">
+        <SidebarSection title={t("Launch")}>
           {store.launchProgress?.mode === "multi" && (
             <div className="theme-accent-bg theme-accent-border mb-2 rounded-lg border px-2.5 py-1.5 animate-fade-in">
               <div className="theme-accent flex items-center gap-2 text-[11px]">
                 <span className="w-2 h-2 rounded-full bg-[var(--accent-color)] animate-pulse" />
                 <span className="font-medium">
-                  Joining {store.launchProgress.current}/{store.launchProgress.total}
+                  {t("Joining {{current}}/{{total}}", {
+                    current: store.launchProgress.current,
+                    total: store.launchProgress.total,
+                  })}
                 </span>
               </div>
             </div>
           )}
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center gap-1.5">
-              <label className="theme-label text-[10px] w-10 shrink-0">Place</label>
+              <label className="theme-label text-[10px] w-10 shrink-0">{t("Place")}</label>
               <input
                 value={store.placeId}
                 onChange={(e) => store.setPlaceId(e.target.value)}
-                placeholder="Place ID"
+                placeholder={t("Place ID")}
                 className="sidebar-input flex-1 font-mono text-xs"
               />
             </div>
             <div className="flex items-center gap-1.5">
-              <label className="theme-label text-[10px] w-10 shrink-0">Job</label>
+              <label className="theme-label text-[10px] w-10 shrink-0">{t("Job")}</label>
               <input
                 value={store.jobId}
                 onChange={(e) => store.setJobId(e.target.value)}
-                placeholder="Job ID"
+                placeholder={t("Job ID")}
                 className="sidebar-input flex-1 font-mono text-xs"
               />
             </div>
             <div className="flex items-center gap-1.5">
-              <label className="theme-label text-[10px] w-10 shrink-0">Data</label>
+              <label className="theme-label text-[10px] w-10 shrink-0">{t("Data")}</label>
               <input
                 value={store.launchData}
                 onChange={(e) => store.setLaunchData(e.target.value)}
-                placeholder="Launch Data"
+                placeholder={t("Launch Data")}
                 className="sidebar-input flex-1 text-xs"
               />
             </div>
@@ -164,14 +169,14 @@ export function MultiSelectSidebar() {
             disabled={store.launchProgress?.mode === "multi"}
             className="sidebar-btn theme-btn mt-1.5 disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            {store.launchProgress?.mode === "multi" ? "Joining..." : `Join All (${count})`}
+            {store.launchProgress?.mode === "multi" ? t("Joining...") : t("Join All ({{count}})", { count })}
           </button>
           {showBottingButton && (
             <button
               onClick={() => store.setBottingDialogOpen(true)}
               className="sidebar-btn theme-btn mt-1.5 bg-[var(--buttons-bg)]/80 border-[var(--buttons-bc)] animate-fade-in"
             >
-              Open Botting Mode
+              {t("Open Botting Mode")}
             </button>
           )}
           <button
@@ -180,21 +185,21 @@ export function MultiSelectSidebar() {
               pulseCloseAction ? "animate-pulse" : ""
             }`}
           >
-            Close All Roblox
+            {t("Close All Roblox")}
           </button>
         </SidebarSection>
 
-        <SidebarSection title="Batch Actions">
+        <SidebarSection title={t("Batch Actions")}>
           <div className="flex flex-col gap-1.5">
             <button
               onClick={handleRefreshAll}
               disabled={refreshing}
               className="sidebar-btn theme-btn disabled:opacity-50"
             >
-              {refreshing ? "Refreshing..." : `Refresh Cookies (${count})`}
+              {refreshing ? t("Refreshing...") : t("Refresh Cookies ({{count}})", { count })}
             </button>
             <button onClick={handleCopyCookies} className="sidebar-btn theme-btn">
-              Copy All Cookies
+              {t("Copy All Cookies")}
             </button>
 
             <div className="relative">
@@ -202,7 +207,7 @@ export function MultiSelectSidebar() {
                 onClick={() => setMoveOpen(!moveOpen)}
                 className="sidebar-btn theme-btn flex items-center justify-between"
               >
-                <span>Move to Group</span>
+                <span>{t("Move to Group")}</span>
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="theme-muted">
                   <path d="m6 9 6 6 6-6" />
                 </svg>
@@ -223,7 +228,7 @@ export function MultiSelectSidebar() {
                     onClick={handleNewGroup}
                     className="theme-accent w-full text-left px-3 py-1.5 text-[12px] hover:bg-[var(--panel-soft)]"
                   >
-                    + New Group...
+                    {t("+ New Group...")}
                   </button>
                 </div>
               )}
@@ -231,16 +236,16 @@ export function MultiSelectSidebar() {
           </div>
         </SidebarSection>
 
-        <SidebarSection title="Danger Zone">
+        <SidebarSection title={t("Danger Zone")}>
           <button
             onClick={async () => {
-              if (await confirm(`Remove ${count} accounts?`, true)) {
+              if (await confirm(tr("Remove {{count}} accounts?", { count }), true)) {
                 store.removeAccounts(accounts.map((a) => a.UserID));
               }
             }}
             className="sidebar-btn theme-btn text-red-300/80 hover:bg-red-500/15 hover:text-red-300"
           >
-            Remove All ({count})
+            {t("Remove All ({{count}})", { count })}
           </button>
         </SidebarSection>
       </div>

@@ -7,6 +7,7 @@ import { UtilInput } from "../ui/UtilInput";
 import { UtilButton } from "../ui/UtilButton";
 import { Select } from "../ui/Select";
 import { useConfirm } from "../../hooks/usePrompt";
+import { useTr } from "../../i18n/text";
 
 interface BlockedUser {
   userId: number;
@@ -24,6 +25,7 @@ interface UniversePlace {
 }
 
 export function AccountUtilsDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const t = useTr();
   const store = useStore();
   const confirm = useConfirm();
   const { visible, closing, handleClose } = useModalClose(open, onClose);
@@ -94,9 +96,9 @@ export function AccountUtilsDialog({ open, onClose }: { open: boolean; onClose: 
           "validate_cookie",
           { cookie: account.SecurityToken }
         );
-        setEmailStatus(info.is_email_verified ? "Verified" : "Not verified");
+        setEmailStatus(info.is_email_verified ? t("Verified") : t("Not verified"));
       } catch {
-        setEmailStatus("Unknown");
+        setEmailStatus(t("Unknown"));
       }
       try {
         const privacy = await invoke<string>("get_private_server_invite_privacy", {
@@ -124,9 +126,9 @@ export function AccountUtilsDialog({ open, onClose }: { open: boolean; onClose: 
     setLoading("display");
     try {
       await invoke("set_display_name", { userId: account!.UserID, displayName: displayName.trim() });
-      store.addToast("Display name updated");
+      store.addToast(t("Display name updated"));
     } catch (e) {
-      store.addToast(`Error: ${e}`);
+      store.addToast(t("Error: {{error}}", { error: String(e) }));
     }
     setLoading("");
   }
@@ -136,7 +138,7 @@ export function AccountUtilsDialog({ open, onClose }: { open: boolean; onClose: 
     try {
       await invoke("set_follow_privacy", { userId: account!.UserID, privacy: value });
     } catch (e) {
-      store.addToast(`Error: ${e}`);
+      store.addToast(t("Error: {{error}}", { error: String(e) }));
     }
   }
 
@@ -147,9 +149,9 @@ export function AccountUtilsDialog({ open, onClose }: { open: boolean; onClose: 
         userId: account!.UserID,
         privacy: value,
       });
-      store.addToast("Private server privacy updated");
+      store.addToast(t("Private server privacy updated"));
     } catch (e) {
-      store.addToast(`Error: ${e}`);
+      store.addToast(t("Error: {{error}}", { error: String(e) }));
     }
   }
 
@@ -162,11 +164,11 @@ export function AccountUtilsDialog({ open, onClose }: { open: boolean; onClose: 
         currentPassword,
         newPassword,
       });
-      store.addToast("Password changed");
+      store.addToast(t("Password changed"));
       setCurrentPassword("");
       setNewPassword("");
     } catch (e) {
-      store.addToast(`Error: ${e}`);
+      store.addToast(t("Error: {{error}}", { error: String(e) }));
     }
     setLoading("");
   }
@@ -180,10 +182,10 @@ export function AccountUtilsDialog({ open, onClose }: { open: boolean; onClose: 
         password: currentPassword,
         newEmail: emailInput,
       });
-      store.addToast("Email changed");
+      store.addToast(t("Email changed"));
       setEmailInput("");
     } catch (e) {
-      store.addToast(`Error: ${e}`);
+      store.addToast(t("Error: {{error}}", { error: String(e) }));
     }
     setLoading("");
   }
@@ -193,22 +195,22 @@ export function AccountUtilsDialog({ open, onClose }: { open: boolean; onClose: 
     setLoading("pin");
     try {
       const ok = await invoke<boolean>("unlock_pin", { userId: account!.UserID, pin: pinInput });
-      store.addToast(ok ? "PIN unlocked" : "Invalid PIN");
+      store.addToast(ok ? t("PIN unlocked") : t("Invalid PIN"));
       setPinInput("");
     } catch (e) {
-      store.addToast(`Error: ${e}`);
+      store.addToast(t("Error: {{error}}", { error: String(e) }));
     }
     setLoading("");
   }
 
   async function handleSignOut() {
-    if (!(await confirm("Sign out of all other sessions?"))) return;
+    if (!(await confirm(t("Sign out of all other sessions?")))) return;
     setLoading("signout");
     try {
       const ok = await store.refreshCookie(account!.UserID);
-      store.addToast(ok ? "Signed out of other sessions" : "Sign out failed");
+      store.addToast(ok ? t("Signed out of other sessions") : t("Sign out failed"));
     } catch (e) {
-      store.addToast(`Error: ${e}`);
+      store.addToast(t("Error: {{error}}", { error: String(e) }));
     }
     setLoading("");
   }
@@ -218,7 +220,7 @@ export function AccountUtilsDialog({ open, onClose }: { open: boolean; onClose: 
     try {
       return await invoke<{ id: number; name: string }>("lookup_user", { username: targetUsername.trim() });
     } catch (e) {
-      store.addToast(`User not found: ${e}`);
+      store.addToast(t("User not found: {{error}}", { error: String(e) }));
       return null;
     }
   }
@@ -229,9 +231,9 @@ export function AccountUtilsDialog({ open, onClose }: { open: boolean; onClose: 
     setLoading("block");
     try {
       await invoke("block_user", { userId: account!.UserID, targetUserId: target.id });
-      store.addToast(`Blocked ${target.name}`);
+      store.addToast(t("Blocked {{name}}", { name: target.name }));
     } catch (e) {
-      store.addToast(`Error: ${e}`);
+      store.addToast(t("Error: {{error}}", { error: String(e) }));
     }
     setLoading("");
   }
@@ -242,9 +244,9 @@ export function AccountUtilsDialog({ open, onClose }: { open: boolean; onClose: 
     setLoading("friend");
     try {
       await invoke("send_friend_request", { userId: account!.UserID, targetUserId: target.id });
-      store.addToast(`Friend request sent to ${target.name}`);
+      store.addToast(t("Friend request sent to {{name}}", { name: target.name }));
     } catch (e) {
-      store.addToast(`Error: ${e}`);
+      store.addToast(t("Error: {{error}}", { error: String(e) }));
     }
     setLoading("");
   }
@@ -257,7 +259,7 @@ export function AccountUtilsDialog({ open, onClose }: { open: boolean; onClose: 
       const users = await invoke<BlockedUser[]>("get_blocked_users", { userId: account!.UserID });
       setBlockedUsers(users);
     } catch {
-      setBlockedError("Unable to load blocked users");
+      setBlockedError(t("Unable to load blocked users"));
       setBlockedUsers([]);
     }
   }
@@ -266,21 +268,21 @@ export function AccountUtilsDialog({ open, onClose }: { open: boolean; onClose: 
     try {
       await invoke("unblock_user", { userId: account!.UserID, targetUserId: targetId });
       setBlockedUsers((prev) => prev.filter((u) => u.userId !== targetId));
-      store.addToast(`Unblocked ${name}`);
+      store.addToast(t("Unblocked {{name}}", { name }));
     } catch (e) {
-      store.addToast(`Error: ${e}`);
+      store.addToast(t("Error: {{error}}", { error: String(e) }));
     }
   }
 
   async function handleUnblockAll() {
-    if (!(await confirm(`Unblock all ${blockedUsers.length} users?`, true))) return;
+    if (!(await confirm(t("Unblock all {{count}} users?", { count: blockedUsers.length }), true))) return;
     setLoading("unblockall");
     try {
       const count = await invoke<number>("unblock_all_users", { userId: account!.UserID });
-      store.addToast(`Unblocked ${count} users`);
+      store.addToast(t("Unblocked {{count}} users", { count }));
       setBlockedUsers([]);
     } catch (e) {
-      store.addToast(`Error: ${e}`);
+      store.addToast(t("Error: {{error}}", { error: String(e) }));
     }
     setLoading("");
   }
@@ -298,7 +300,7 @@ export function AccountUtilsDialog({ open, onClose }: { open: boolean; onClose: 
       setOutfits(list);
       setOutfitsLoaded(true);
     } catch (e) {
-      store.addToast(`Error: ${e}`);
+      store.addToast(t("Error: {{error}}", { error: String(e) }));
     }
     setLoading("");
   }
@@ -322,10 +324,10 @@ export function AccountUtilsDialog({ open, onClose }: { open: boolean; onClose: 
           assetIds: invalidIds,
         });
       } else {
-        store.addToast("Outfit applied");
+        store.addToast(t("Outfit applied"));
       }
     } catch (e) {
-      store.addToast(`Error: ${e}`);
+      store.addToast(t("Error: {{error}}", { error: String(e) }));
     }
     setLoading("");
   }
@@ -341,7 +343,7 @@ export function AccountUtilsDialog({ open, onClose }: { open: boolean; onClose: 
       });
       setUniversePlaces(places);
     } catch (e) {
-      store.addToast(`Error: ${e}`);
+      store.addToast(t("Error: {{error}}", { error: String(e) }));
       setUniversePlaces([]);
     }
     setLoading("");
@@ -363,10 +365,10 @@ export function AccountUtilsDialog({ open, onClose }: { open: boolean; onClose: 
           assetIds: invalidIds,
         });
       } else {
-        store.addToast("Avatar applied");
+        store.addToast(t("Avatar applied"));
       }
     } catch (e) {
-      store.addToast(`Error: ${e}`);
+      store.addToast(t("Error: {{error}}", { error: String(e) }));
     }
     setLoading("");
   }
@@ -394,7 +396,7 @@ export function AccountUtilsDialog({ open, onClose }: { open: boolean; onClose: 
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-5 pt-4 pb-3 shrink-0">
-          <h2 className="text-sm font-semibold text-zinc-100">Account Utilities</h2>
+          <h2 className="text-sm font-semibold text-zinc-100">{t("Account Utilities")}</h2>
           <button onClick={handleClose} className="text-zinc-600 hover:text-zinc-400 transition-colors">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M18 6 6 18M6 6l12 12" />
@@ -436,7 +438,7 @@ export function AccountUtilsDialog({ open, onClose }: { open: boolean; onClose: 
               </UtilButton>
             </div>
             <div className="flex items-center gap-2">
-              <label className="text-xs text-zinc-400 shrink-0 w-28">Follow Privacy</label>
+              <label className="text-xs text-zinc-400 shrink-0 w-28">{t("Follow Privacy")}</label>
               <Select
                 value={followPrivacy}
                 options={privacyOptions}
@@ -445,7 +447,7 @@ export function AccountUtilsDialog({ open, onClose }: { open: boolean; onClose: 
               />
             </div>
             <div className="flex items-center gap-2">
-              <label className="text-xs text-zinc-400 shrink-0 w-28">Private Servers</label>
+              <label className="text-xs text-zinc-400 shrink-0 w-28">{t("Private Servers")}</label>
               <Select
                 value={privateServerPrivacy}
                 options={privateServerPrivacyOptions}
@@ -525,7 +527,7 @@ export function AccountUtilsDialog({ open, onClose }: { open: boolean; onClose: 
               onClick={handleLoadBlocked}
               className="text-[11px] text-zinc-500 hover:text-zinc-300 transition-colors"
             >
-              {blockedExpanded ? "Hide" : "View"} Blocked Users
+              {blockedExpanded ? t("Hide") : t("View")} {t("Blocked Users")}
             </button>
             {blockedExpanded && (
               <div className="bg-zinc-800/30 rounded-lg p-2 space-y-1 max-h-[120px] overflow-y-auto">
@@ -533,7 +535,7 @@ export function AccountUtilsDialog({ open, onClose }: { open: boolean; onClose: 
                   <p className="text-[11px] text-zinc-500">{blockedError}</p>
                 )}
                 {blockedUsers.length === 0 && !blockedError && (
-                  <p className="text-[11px] text-zinc-500">No blocked users</p>
+                  <p className="text-[11px] text-zinc-500">{t("No blocked users")}</p>
                 )}
                 {blockedUsers.map((u) => (
                   <div key={u.userId} className="flex items-center justify-between">
@@ -542,7 +544,7 @@ export function AccountUtilsDialog({ open, onClose }: { open: boolean; onClose: 
                       onClick={() => handleUnblock(u.userId, u.name)}
                       className="text-[10px] text-red-400/60 hover:text-red-400 transition-colors"
                     >
-                      Unblock
+                      {t("Unblock")}
                     </button>
                   </div>
                 ))}
@@ -552,7 +554,7 @@ export function AccountUtilsDialog({ open, onClose }: { open: boolean; onClose: 
                     disabled={loading === "unblockall"}
                     className="text-[10px] text-red-400/60 hover:text-red-400 transition-colors mt-1"
                   >
-                    Unblock All ({blockedUsers.length})
+                    {t("Unblock All ({{count}})", { count: blockedUsers.length })}
                   </button>
                 )}
               </div>
@@ -576,7 +578,7 @@ export function AccountUtilsDialog({ open, onClose }: { open: boolean; onClose: 
             {outfitsLoaded && (
               <div className="bg-zinc-800/30 rounded-lg p-2 max-h-[140px] overflow-y-auto space-y-0.5">
                 {outfits.length === 0 && (
-                  <p className="text-[11px] text-zinc-500">No outfits found</p>
+                  <p className="text-[11px] text-zinc-500">{t("No outfits found")}</p>
                 )}
                 {outfits.map((o) => (
                   <button
@@ -621,7 +623,7 @@ export function AccountUtilsDialog({ open, onClose }: { open: boolean; onClose: 
                     key={p.id}
                     onClick={() => {
                       store.setPlaceId(String(p.id));
-                      store.addToast(`Place set to ${p.id}`);
+                      store.addToast(t("Place set to {{id}}", { id: p.id }));
                     }}
                     className="w-full text-left px-2 py-1 rounded text-xs text-zinc-300 hover:bg-zinc-700/50 transition-colors"
                   >

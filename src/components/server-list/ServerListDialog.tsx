@@ -4,6 +4,7 @@ import { useStore } from "../../store";
 import { usePrompt } from "../../hooks/usePrompt";
 import { useJoinOnlineWarning } from "../../hooks/useJoinOnlineWarning";
 import { useModalClose } from "../../hooks/useModalClose";
+import { useTr } from "../../i18n/text";
 import type { TabId, GameEntry } from "./types";
 import { addRecentGame, loadFavorites, saveFavorites } from "./types";
 import { ServersTab } from "./ServersTab";
@@ -18,6 +19,7 @@ interface ServerListDialogProps {
 }
 
 export function ServerListDialog({ open, onClose }: ServerListDialogProps) {
+  const t = useTr();
   const store = useStore();
   const prompt = usePrompt();
   const confirmJoinOnline = useJoinOnlineWarning();
@@ -76,7 +78,7 @@ export function ServerListDialog({ open, onClose }: ServerListDialogProps) {
 
   async function handleJoinGame(placeId: number) {
     if (!userId) {
-      store.addToast("No account selected");
+      store.addToast(t("No account selected"));
       return;
     }
     if (!(await confirmJoinOnline([userId]))) return;
@@ -91,19 +93,19 @@ export function ServerListDialog({ open, onClose }: ServerListDialogProps) {
         linkCode: "",
         shuffleJob: false,
       });
-      store.addToast("Launching game...");
+      store.addToast(t("Launching game..."));
     } catch (e) {
-      store.addToast(`Failed to join: ${e}`);
+      store.addToast(t("Failed to join: {{error}}", { error: String(e) }));
     }
   }
 
   async function handleAddFavorite(game: GameEntry) {
     const existing = loadFavorites();
     if (existing.some((f) => f.placeId === game.placeId)) {
-      store.addToast("Already in favorites");
+      store.addToast(t("Already in favorites"));
       return;
     }
-    const customName = await prompt("Favorite name:", game.name);
+    const customName = await prompt(t("Favorite name:"), game.name);
     if (!customName?.trim()) return;
     existing.push({
       placeId: game.placeId,
@@ -112,7 +114,7 @@ export function ServerListDialog({ open, onClose }: ServerListDialogProps) {
       addedAt: Date.now(),
     });
     saveFavorites(existing);
-    store.addToast("Added to favorites");
+    store.addToast(t("Added to favorites"));
   }
 
   if (!visible) return null;
@@ -128,7 +130,7 @@ export function ServerListDialog({ open, onClose }: ServerListDialogProps) {
       >
         <div className="flex items-center justify-between px-5 pt-4 pb-3 shrink-0">
           <div className="flex items-center gap-2.5">
-            <h2 className="text-[15px] font-semibold text-zinc-100 tracking-tight">Server List</h2>
+            <h2 className="text-[15px] font-semibold text-zinc-100 tracking-tight">{t("Server List")}</h2>
             {userId && (
               <span className="text-[10px] text-zinc-600 bg-zinc-800/60 px-2 py-0.5 rounded">
                 {store.selectedAccount?.Alias || store.selectedAccount?.Username}

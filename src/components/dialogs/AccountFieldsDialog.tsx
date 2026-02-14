@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useStore } from "../../store";
 import { useModalClose } from "../../hooks/useModalClose";
+import { useTr } from "../../i18n/text";
 
 interface FieldRow {
   id: number;
@@ -11,6 +12,7 @@ interface FieldRow {
 let nextId = 0;
 
 export function AccountFieldsDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const t = useTr();
   const store = useStore();
   const { visible, closing, handleClose } = useModalClose(open, onClose);
   const account = store.selectedAccount;
@@ -57,12 +59,12 @@ export function AccountFieldsDialog({ open, onClose }: { open: boolean; onClose:
     if (e.key === "Enter") {
       e.preventDefault();
       const updated = rows.map((r) => (r.id === id ? { ...r } : r));
-      saveFields(updated);
+      void saveFields(updated);
     }
   }
 
   function addRow() {
-    setRows((prev) => [...prev, { id: nextId++, key: "Field", value: "Value" }]);
+    setRows((prev) => [...prev, { id: nextId++, key: t("Field"), value: t("Value") }]);
   }
 
   async function deleteRow(id: number) {
@@ -71,7 +73,7 @@ export function AccountFieldsDialog({ open, onClose }: { open: boolean; onClose:
     await saveFields(updated);
   }
 
-  const title = `Fields — ${account.Alias || account.Username}`;
+  const title = t("Fields - {{name}}", { name: account.Alias || account.Username });
 
   return (
     <div
@@ -95,7 +97,7 @@ export function AccountFieldsDialog({ open, onClose }: { open: boolean; onClose:
             <button
               onClick={addRow}
               className="text-zinc-500 hover:text-zinc-300 transition-colors text-lg leading-none"
-              title="Add field"
+              title={t("Add field")}
             >
               +
             </button>
@@ -109,7 +111,7 @@ export function AccountFieldsDialog({ open, onClose }: { open: boolean; onClose:
 
         <div className="flex-1 overflow-y-auto px-5 pb-4 space-y-1.5">
           {rows.length === 0 && (
-            <p className="text-[11px] text-zinc-600 text-center py-6">No fields. Click + to add one.</p>
+            <p className="text-[11px] text-zinc-600 text-center py-6">{t("No fields. Click + to add one.")}</p>
           )}
           {rows.map((row) => (
             <div key={row.id} className="flex items-center gap-1.5">
@@ -118,7 +120,7 @@ export function AccountFieldsDialog({ open, onClose }: { open: boolean; onClose:
                 onChange={(e) => handleKeyChange(row.id, e.target.value)}
                 className="flex-[45] min-w-0 px-2.5 py-1.5 bg-zinc-800/50 border border-zinc-700/50 rounded-lg text-xs text-zinc-300 focus:outline-none focus:border-zinc-600 transition-colors"
                 spellCheck={false}
-                placeholder="Key"
+                placeholder={t("Key")}
               />
               <input
                 value={row.value}
@@ -126,12 +128,12 @@ export function AccountFieldsDialog({ open, onClose }: { open: boolean; onClose:
                 onKeyDown={(e) => handleValueKeyDown(e, row.id)}
                 className="flex-[45] min-w-0 px-2.5 py-1.5 bg-zinc-800/50 border border-zinc-700/50 rounded-lg text-xs text-zinc-300 focus:outline-none focus:border-zinc-600 transition-colors"
                 spellCheck={false}
-                placeholder="Value"
+                placeholder={t("Value")}
               />
               <button
-                onClick={() => deleteRow(row.id)}
+                onClick={() => void deleteRow(row.id)}
                 className="shrink-0 w-6 h-6 flex items-center justify-center text-red-500/60 hover:text-red-400 transition-colors rounded"
-                title="Remove field"
+                title={t("Remove field")}
               >
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                   <path d="M18 6 6 18M6 6l12 12" />
