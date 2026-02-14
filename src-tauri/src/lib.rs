@@ -981,6 +981,7 @@ async fn run_botting_session(
             Err(_) => break,
         };
         let now = now_ms();
+        let tracker = platform::windows::tracker();
         let user_ids = cfg.user_ids.clone();
 
         for uid in user_ids {
@@ -993,7 +994,12 @@ async fn run_botting_session(
             if let Ok(mut map) = accounts.lock() {
                 if let Some(entry) = map.get_mut(&uid) {
                     if entry.is_player {
-                        entry.phase = "running-player";
+                        // Keep player accounts out of the restart loop and reflect actual process state.
+                        if tracker.get_pid(uid).is_some() {
+                            entry.phase = "running-player";
+                        } else if entry.phase != "queued-player" && entry.phase != "launching" {
+                            entry.phase = "queued-player";
+                        }
                         entry.next_restart_at_ms = None;
                         skip_for_player = true;
                     } else if let Some(next_ms) = entry.next_restart_at_ms {
@@ -1012,7 +1018,7 @@ async fn run_botting_session(
             }
             emit_botting_status(&app);
 
-            let _ = platform::windows::tracker().kill_for_user(uid);
+            let _ = tracker.kill_for_user(uid);
             tokio::time::sleep(std::time::Duration::from_millis(900)).await;
 
             let launch_result =
