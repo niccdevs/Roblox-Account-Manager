@@ -264,14 +264,20 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
           >
             <div className="text-[12px] font-medium text-[var(--panel-fg)] mb-2">{t("Targets")}</div>
             <div className="flex flex-wrap gap-1.5 mb-2">
-              {selectedAccounts.map((a) => (
-                <span
-                  key={a.UserID}
-                  className="px-2 py-1 rounded-md text-[11px] border theme-border theme-soft text-[var(--panel-fg)]"
-                >
-                  {a.Alias || a.Username}
-                </span>
-              ))}
+              {selectedAccounts.map((a) => {
+                const isPlayer = playerUserIds.includes(a.UserID) || !!statusMap.get(a.UserID)?.isPlayer;
+                return (
+                  <span
+                    key={a.UserID}
+                    className={[
+                      "px-2 py-1 rounded-md text-[11px] border theme-soft",
+                      isPlayer ? "theme-accent-bg theme-accent-border theme-accent" : "theme-border text-[var(--panel-fg)]",
+                    ].join(" ")}
+                  >
+                    {a.Alias || a.Username}
+                  </span>
+                );
+              })}
             </div>
             <div className="flex items-center gap-2">
               <label className="text-[11px] theme-muted w-24 shrink-0">{t("Player Accounts")}</label>
@@ -446,7 +452,10 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
                 return (
                   <div
                     key={a.UserID}
-                    className="flex items-center justify-between gap-3 rounded-lg border theme-border px-2.5 py-1.5 theme-soft"
+                    className={[
+                      "flex items-center justify-between gap-3 rounded-lg border px-2.5 py-1.5 theme-soft",
+                      isPlayer ? "theme-accent-border" : "theme-border",
+                    ].join(" ")}
                   >
                     <div className="min-w-0">
                       <div className="text-[12px] text-[var(--panel-fg)] truncate">
@@ -458,14 +467,7 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
                       </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      <div className="text-right w-[88px]">
-                        <div className="text-[11px] text-[var(--panel-fg)]">
-                          {t(formatRemaining(row?.nextRestartAtMs ?? null, nowMs))}
-                        </div>
-                        <div className="text-[10px] theme-muted">
-                          {t("retries")}: {row?.retryCount || 0}
-                        </div>
-                      </div>
+                      <div className="flex items-center gap-1.5">
                       <button
                         type="button"
                         disabled={disableDisconnect}
@@ -474,7 +476,7 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
                             ? t("Already disconnected")
                             : t("Remove from loop (set to due)")
                         }
-                        className="sidebar-btn-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="sidebar-btn-sm px-2.5 py-1 text-[11px] disabled:opacity-50 disabled:cursor-not-allowed"
                         onClick={async () => {
                           setRowBusy(a.UserID);
                           try {
@@ -489,7 +491,7 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
                         type="button"
                         disabled={disableClose}
                         title={t("Close Roblox but keep in loop")}
-                        className="sidebar-btn-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="sidebar-btn-sm px-2.5 py-1 text-[11px] disabled:opacity-50 disabled:cursor-not-allowed"
                         onClick={async () => {
                           setRowBusy(a.UserID);
                           try {
@@ -504,7 +506,7 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
                         type="button"
                         disabled={!canAct || isRowBusy}
                         title={t("Close Roblox and remove from loop")}
-                        className="sidebar-btn-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="sidebar-btn-sm px-2.5 py-1 text-[11px] text-red-200 border-red-400/30 hover:bg-red-500/15 disabled:opacity-50 disabled:cursor-not-allowed"
                         onClick={async () => {
                           setRowBusy(a.UserID);
                           try {
@@ -515,6 +517,15 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
                       >
                         {t("Close + Disconnect")}
                       </button>
+                      </div>
+                      <div className="text-right w-[88px]">
+                        <div className="text-[11px] text-[var(--panel-fg)]">
+                          {t(formatRemaining(row?.nextRestartAtMs ?? null, nowMs))}
+                        </div>
+                        <div className="text-[10px] theme-muted">
+                          {t("retries")}: {row?.retryCount || 0}
+                        </div>
+                      </div>
                     </div>
                   </div>
                 );
