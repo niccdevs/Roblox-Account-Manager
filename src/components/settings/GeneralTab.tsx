@@ -15,6 +15,26 @@ export function GeneralTab({ s }: { s: UseSettingsReturn }) {
 
   return (
     <div className="space-y-0">
+      <div className="flex items-center gap-3 py-2 px-1">
+        <span className="text-[13px] text-zinc-300 shrink-0">{t("Language")}</span>
+        <div className="ml-auto min-w-[180px]">
+          <Select
+            value={normalizeLanguage(s.get("General", "Language", "en"))}
+            options={[
+              { value: "en", label: "English" },
+              { value: "de", label: "German" },
+            ]}
+            onChange={(value) => {
+              const next = normalizeLanguage(value);
+              s.set("General", "Language", next);
+              void i18n.changeLanguage(next);
+            }}
+          />
+        </div>
+      </div>
+
+      <Divider />
+
       <Toggle
         checked={s.getBool("General", "CheckForUpdates")}
         onChange={(v) => s.setBool("General", "CheckForUpdates", v)}
@@ -154,24 +174,6 @@ export function GeneralTab({ s }: { s: UseSettingsReturn }) {
         label="Region Format"
         placeholder="<city>, <countryCode>"
       />
-
-      <div className="flex items-center gap-3 py-2 px-1">
-        <span className="text-[13px] text-zinc-300 shrink-0">{t("Language")}</span>
-        <div className="ml-auto min-w-[180px]">
-          <Select
-            value={normalizeLanguage(s.get("General", "Language", "en"))}
-            options={[
-              { value: "en", label: "English" },
-              { value: "de", label: "German" },
-            ]}
-            onChange={(value) => {
-              const next = normalizeLanguage(value);
-              s.set("General", "Language", next);
-              void i18n.changeLanguage(next);
-            }}
-          />
-        </div>
-      </div>
     </div>
   );
 }
