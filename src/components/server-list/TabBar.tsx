@@ -1,6 +1,7 @@
 import { useState, useRef, useLayoutEffect } from "react";
 import type { TabId } from "./types";
 import { useTr } from "../../i18n/text";
+import { Server, Gamepad2, Star, Clock } from "lucide-react";
 
 export interface TabBarProps {
   activeTab: TabId;
@@ -16,45 +17,22 @@ export function TabBar({
     {
       id: "servers",
       label: "Servers",
-      icon: (
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-          <rect x="2" y="2" width="20" height="8" rx="2" ry="2" />
-          <rect x="2" y="14" width="20" height="8" rx="2" ry="2" />
-          <line x1="6" y1="6" x2="6.01" y2="6" />
-          <line x1="6" y1="18" x2="6.01" y2="18" />
-        </svg>
-      ),
+      icon: <Server size={14} strokeWidth={1.5} />,
     },
     {
       id: "games",
       label: "Games",
-      icon: (
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-          <line x1="6" y1="3" x2="6" y2="15" />
-          <circle cx="18" cy="6" r="3" />
-          <circle cx="6" cy="18" r="3" />
-          <path d="M18 9a9 9 0 0 1-9 9" />
-        </svg>
-      ),
+      icon: <Gamepad2 size={14} strokeWidth={1.5} />,
     },
     {
       id: "favorites",
       label: "Favorites",
-      icon: (
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-        </svg>
-      ),
+      icon: <Star size={14} strokeWidth={1.5} />,
     },
     {
       id: "recent",
       label: "Recent",
-      icon: (
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-          <circle cx="12" cy="12" r="10" />
-          <polyline points="12 6 12 12 16 14" />
-        </svg>
-      ),
+      icon: <Clock size={14} strokeWidth={1.5} />,
     },
   ];
 

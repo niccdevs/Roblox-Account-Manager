@@ -1,4 +1,5 @@
 import { useRef, useEffect } from "react";
+import { User } from "lucide-react";
 import { useStore } from "../../store";
 import { GroupSection } from "./GroupSection";
 import { useTr } from "../../i18n/text";
@@ -95,12 +96,7 @@ export function AccountList() {
         onDrop={handleExternalDrop}
       >
         <div className="theme-panel theme-border w-14 h-14 rounded-2xl border flex items-center justify-center mb-4 animate-fade-in">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="theme-muted">
-            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-            <circle cx="9" cy="7" r="4" />
-            <line x1="19" y1="8" x2="19" y2="14" />
-            <line x1="22" y1="11" x2="16" y2="11" />
-          </svg>
+          <User size={24} strokeWidth={1.5} className="theme-muted" />
         </div>
         <p className="theme-muted text-sm mb-1 animate-fade-in">{t("No accounts yet")}</p>
         <p className="theme-label text-xs animate-fade-in">

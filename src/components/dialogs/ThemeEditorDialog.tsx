@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { X, ChevronDown } from "lucide-react";
 import { useStore } from "../../store";
 import { useModalClose } from "../../hooks/useModalClose";
 import { useConfirm, usePrompt } from "../../hooks/usePrompt";
@@ -473,9 +474,7 @@ export function ThemeEditorDialog({ open, onClose }: { open: boolean; onClose: (
         <div className="flex items-center justify-between px-5 pt-4 pb-3 shrink-0">
           <h2 className="text-sm font-semibold text-[var(--panel-fg)]">{t("Theme Editor")}</h2>
           <button onClick={handleCancel} className="theme-muted hover:opacity-100 transition-opacity">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M18 6 6 18M6 6l12 12" />
-            </svg>
+            <X size={16} strokeWidth={2} />
           </button>
         </div>
 
@@ -491,17 +490,7 @@ export function ThemeEditorDialog({ open, onClose }: { open: boolean; onClose: (
                 <span className="truncate text-[var(--panel-fg)]">
                   {cleanPresetLabel(selectedPreset?.label ?? t("Select preset"))}
                 </span>
-                <svg
-                  width="12"
-                  height="12"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  className={`theme-muted transition-transform duration-150 ${presetMenuOpen ? "rotate-180" : ""}`}
-                >
-                  <path d="m6 9 6 6 6-6" />
-                </svg>
+                <ChevronDown size={12} strokeWidth={2} className={`theme-muted transition-transform duration-150 ${presetMenuOpen ? "rotate-180" : ""}`} />
               </button>
               <div
                 className={`absolute left-0 right-0 top-full mt-2 z-30 transition-all duration-150 origin-top ${

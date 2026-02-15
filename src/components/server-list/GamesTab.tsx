@@ -5,6 +5,7 @@ import type { GameEntry } from "./types";
 import { GameContextMenu } from "./GameContextMenu";
 import { Tooltip } from "../ui/Tooltip";
 import { tr, useTr } from "../../i18n/text";
+import { Search, Play } from "lucide-react";
 
 export interface GamesTabProps {
   onSelectGame: (placeId: number, name: string, iconUrl: string | null) => void;
@@ -112,10 +113,7 @@ export function GamesTab({
     <div className="flex flex-col h-full">
       <div className="flex items-center gap-2 px-1 pb-3">
         <div className="relative flex-1">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600">
-            <circle cx="11" cy="11" r="8" />
-            <path d="m21 21-4.35-4.35" />
-          </svg>
+          <Search size={14} strokeWidth={2} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600" />
           <input
             value={search}
             onChange={(e) => handleSearchInput(e.target.value)}
@@ -132,10 +130,7 @@ export function GamesTab({
           </div>
         ) : games.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16">
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" className="text-zinc-800 mb-2">
-              <circle cx="11" cy="11" r="8" />
-              <path d="m21 21-4.35-4.35" />
-            </svg>
+            <Search size={28} strokeWidth={1} className="text-zinc-800 mb-2" />
             <span className="text-xs text-zinc-700">{t("No games found")}</span>
           </div>
         ) : (
@@ -155,9 +150,7 @@ export function GamesTab({
                     <img src={game.iconUrl} alt="" className="w-full h-full object-cover" />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-zinc-700">
-                        <polygon points="5 3 19 12 5 21 5 3" />
-                      </svg>
+                      <Play size={16} strokeWidth={1.5} className="text-zinc-700" />
                     </div>
                   )}
                 </div>
@@ -191,9 +184,7 @@ export function GamesTab({
                     onClick={(e) => { e.stopPropagation(); onJoinGame(game.placeId); }}
                     className="shrink-0 w-7 h-7 rounded-md bg-emerald-600/20 hover:bg-emerald-600/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"
                   >
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" className="text-emerald-400">
-                      <polygon points="5 3 19 12 5 21 5 3" />
-                    </svg>
+                    <Play size={12} fill="currentColor" stroke="none" className="text-emerald-400" />
                   </button>
                 </Tooltip>
               </div>

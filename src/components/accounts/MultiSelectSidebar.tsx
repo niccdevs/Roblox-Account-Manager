@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { ChevronDown } from "lucide-react";
 import { useStore } from "../../store";
 import { usePrompt, useConfirm } from "../../hooks/usePrompt";
 import { useJoinOnlineWarning } from "../../hooks/useJoinOnlineWarning";
@@ -208,9 +209,7 @@ export function MultiSelectSidebar() {
                 className="sidebar-btn theme-btn flex items-center justify-between"
               >
                 <span>{t("Move to Group")}</span>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="theme-muted">
-                  <path d="m6 9 6 6 6-6" />
-                </svg>
+                <ChevronDown size={12} strokeWidth={2} className="theme-muted" />
               </button>
               {moveOpen && (
                 <div className="theme-panel theme-border absolute left-0 right-0 top-full mt-1 border rounded-lg shadow-xl z-20 py-1 max-h-40 overflow-y-auto animate-scale-in">

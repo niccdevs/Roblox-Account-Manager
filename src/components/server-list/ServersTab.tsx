@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import type { ServerData, ServersResponse, PlaceDetails, ServerRegion } from "./types";
 import { ServerContextMenu } from "./ServerContextMenu";
 import { useTr } from "../../i18n/text";
+import { Server } from "lucide-react";
 
 export interface ServersTabProps {
   placeId: string;
@@ -290,12 +291,7 @@ export function ServersTab({
               <tr>
                 <td colSpan={5} className="py-12 text-center">
                   <div className="flex flex-col items-center gap-2">
-                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" className="text-zinc-800">
-                      <rect x="2" y="2" width="20" height="8" rx="2" ry="2" />
-                      <rect x="2" y="14" width="20" height="8" rx="2" ry="2" />
-                      <line x1="6" y1="6" x2="6.01" y2="6" />
-                      <line x1="6" y1="18" x2="6.01" y2="18" />
-                    </svg>
+                    <Server size={28} strokeWidth={1} className="text-zinc-800" />
                     <span className="text-xs text-zinc-700">{t("Enter a Place ID and click Refresh")}</span>
                   </div>
                 </td>

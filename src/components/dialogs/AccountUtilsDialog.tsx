@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { X } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { useStore } from "../../store";
 import { useModalClose } from "../../hooks/useModalClose";
@@ -398,9 +399,7 @@ export function AccountUtilsDialog({ open, onClose }: { open: boolean; onClose: 
         <div className="flex items-center justify-between px-5 pt-4 pb-3 shrink-0">
           <h2 className="text-sm font-semibold text-zinc-100">{t("Account Utilities")}</h2>
           <button onClick={handleClose} className="text-zinc-600 hover:text-zinc-400 transition-colors">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M18 6 6 18M6 6l12 12" />
-            </svg>
+            <X size={16} strokeWidth={2} />
           </button>
         </div>
 
