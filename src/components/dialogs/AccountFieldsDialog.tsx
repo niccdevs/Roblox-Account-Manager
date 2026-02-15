@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useStore } from "../../store";
 import { useModalClose } from "../../hooks/useModalClose";
+import { Tooltip } from "../ui/Tooltip";
 import { useTr } from "../../i18n/text";
 
 interface FieldRow {
@@ -94,13 +95,14 @@ export function AccountFieldsDialog({ open, onClose }: { open: boolean; onClose:
             {title}
           </h2>
           <div className="flex items-center gap-2">
-            <button
-              onClick={addRow}
-              className="text-zinc-500 hover:text-zinc-300 transition-colors text-lg leading-none"
-              title={t("Add field")}
-            >
-              +
-            </button>
+            <Tooltip content={t("Add field")} side="bottom">
+              <button
+                onClick={addRow}
+                className="text-zinc-500 hover:text-zinc-300 transition-colors text-lg leading-none"
+              >
+                +
+              </button>
+            </Tooltip>
             <button onClick={handleClose} className="text-zinc-600 hover:text-zinc-400 transition-colors">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M18 6 6 18M6 6l12 12" />
@@ -130,15 +132,16 @@ export function AccountFieldsDialog({ open, onClose }: { open: boolean; onClose:
                 spellCheck={false}
                 placeholder={t("Value")}
               />
-              <button
-                onClick={() => void deleteRow(row.id)}
-                className="shrink-0 w-6 h-6 flex items-center justify-center text-red-500/60 hover:text-red-400 transition-colors rounded"
-                title={t("Remove field")}
-              >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                  <path d="M18 6 6 18M6 6l12 12" />
-                </svg>
-              </button>
+              <Tooltip content={t("Remove field")}>
+                <button
+                  onClick={() => void deleteRow(row.id)}
+                  className="shrink-0 w-6 h-6 flex items-center justify-center text-red-500/60 hover:text-red-400 transition-colors rounded"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <path d="M18 6 6 18M6 6l12 12" />
+                  </svg>
+                </button>
+              </Tooltip>
             </div>
           ))}
         </div>

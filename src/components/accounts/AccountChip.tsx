@@ -1,5 +1,6 @@
 import { useStore } from "../../store";
 import type { Account } from "../../types";
+import { Tooltip } from "../ui/Tooltip";
 import { useTr } from "../../i18n/text";
 
 function chipMaskName(name: string, previewLetters: number): string {
@@ -56,22 +57,25 @@ export function AccountChip({
         <span className="truncate">{displayName}</span>
       </span>
       {isJoining && (
-        <span
-          className="w-2.5 h-2.5 border border-[var(--accent-color)] border-t-transparent rounded-full animate-spin shrink-0"
-          title={t("Joining...")}
-        />
+        <Tooltip content={t("Joining...")}>
+          <span
+            className="w-2.5 h-2.5 border border-[var(--accent-color)] border-t-transparent rounded-full animate-spin shrink-0"
+          />
+        </Tooltip>
       )}
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          onRemove();
-        }}
-        className="theme-muted hover:text-[var(--panel-fg)] opacity-0 group-hover/chip:opacity-100 transition-opacity shrink-0"
-      >
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <path d="M18 6 6 18M6 6l12 12" />
-        </svg>
-      </button>
+      <Tooltip content={t("Remove from selection")}>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemove();
+          }}
+          className="theme-muted hover:text-[var(--panel-fg)] opacity-0 group-hover/chip:opacity-100 transition-opacity shrink-0"
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M18 6 6 18M6 6l12 12" />
+          </svg>
+        </button>
+      </Tooltip>
     </div>
   );
 }

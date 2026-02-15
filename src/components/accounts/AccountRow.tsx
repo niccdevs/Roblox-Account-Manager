@@ -1,6 +1,7 @@
 import { useStore } from "../../store";
 import type { Account } from "../../types";
 import { timeAgo, getFreshnessColor } from "../../types";
+import { Tooltip } from "../ui/Tooltip";
 import { useTr } from "../../i18n/text";
 
 function maskName(name: string, previewLetters: number): string {
@@ -137,12 +138,12 @@ export function AccountRow({ account }: { account: Account }) {
         {statusDots.length > 0 && (
           <div className="absolute -left-1.5 -top-1 z-10 flex items-center gap-0.5">
             {statusDots.map((dot, index) => (
-              <span
-                key={index}
-                title={dot.title}
-                className="w-2 h-2 rounded-full"
-                style={{ boxShadow: "0 0 0 1px var(--app-bg)", backgroundColor: dot.color }}
-              />
+              <Tooltip key={index} content={dot.title} side="bottom">
+                <span
+                  className="w-2 h-2 rounded-full"
+                  style={{ boxShadow: "0 0 0 1px var(--app-bg)", backgroundColor: dot.color }}
+                />
+              </Tooltip>
             ))}
           </div>
         )}
@@ -170,11 +171,12 @@ export function AccountRow({ account }: { account: Account }) {
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5 min-w-0">
           {showPresence && presenceType >= 1 && (
-            <span
-              className={`w-1.5 h-1.5 rounded-full shrink-0 ${presenceMeta.dotClass} ${presenceType >= 1 ? "animate-pulse" : ""}`}
-              style={presenceMeta.dotStyle}
-              title={presenceMeta.label}
-            />
+            <Tooltip content={presenceMeta.label} side="bottom">
+              <span
+                className={`w-1.5 h-1.5 rounded-full shrink-0 ${presenceMeta.dotClass} ${presenceType >= 1 ? "animate-pulse" : ""}`}
+                style={presenceMeta.dotStyle}
+              />
+            </Tooltip>
           )}
           <div
             className={`text-[13px] truncate leading-tight transition-colors duration-100 ${
@@ -192,11 +194,12 @@ export function AccountRow({ account }: { account: Account }) {
       </div>
 
       {description && (
-        <div
-          className="min-w-0 max-w-[38%] text-[11px] theme-muted truncate leading-tight text-right"
-          title={description}
-        >
-          {description}
+        <div className="min-w-0 max-w-[38%]">
+          <Tooltip content={description}>
+            <div className="text-[11px] theme-muted truncate leading-tight text-right">
+              {description}
+            </div>
+          </Tooltip>
         </div>
       )}
 

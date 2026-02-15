@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { useStore } from "../../store";
 import type { GameEntry } from "./types";
 import { GameContextMenu } from "./GameContextMenu";
+import { Tooltip } from "../ui/Tooltip";
 import { tr, useTr } from "../../i18n/text";
 
 export interface GamesTabProps {
@@ -185,15 +186,16 @@ export function GamesTab({
                     )}
                   </div>
                 </div>
-                <button
-                  onClick={(e) => { e.stopPropagation(); onJoinGame(game.placeId); }}
-                  className="shrink-0 w-7 h-7 rounded-md bg-emerald-600/20 hover:bg-emerald-600/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"
-                  title={t("Join Game")}
-                >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" className="text-emerald-400">
-                    <polygon points="5 3 19 12 5 21 5 3" />
-                  </svg>
-                </button>
+                <Tooltip content={t("Join Game")}>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onJoinGame(game.placeId); }}
+                    className="shrink-0 w-7 h-7 rounded-md bg-emerald-600/20 hover:bg-emerald-600/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all"
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" className="text-emerald-400">
+                      <polygon points="5 3 19 12 5 21 5 3" />
+                    </svg>
+                  </button>
+                </Tooltip>
               </div>
             ))}
           </div>

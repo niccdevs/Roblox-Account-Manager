@@ -5,6 +5,7 @@ import { useConfirm, usePrompt } from "../../hooks/usePrompt";
 import { useJoinOnlineWarning } from "../../hooks/useJoinOnlineWarning";
 import { SidebarSection } from "./SidebarSection";
 import { ArgumentsForm } from "../dialogs/ArgumentsForm";
+import { Tooltip } from "../ui/Tooltip";
 import { loadRecentGames, type RecentGame } from "../server-list/types";
 import { tr, useTr } from "../../i18n/text";
 
@@ -253,23 +254,24 @@ export function SingleSelectSidebar() {
                 placeholder={t("Job ID")}
                 className="sidebar-input flex-1 font-mono text-xs"
               />
-              <button
-                onClick={() => store.setShuffleJobId(!store.shuffleJobId)}
-                className={`p-1 rounded text-xs ${
-                  store.shuffleJobId
-                    ? "text-emerald-400 bg-emerald-500/10"
-                    : "theme-muted hover:text-[var(--panel-fg)]"
-                }`}
-                title={t("Shuffle Job ID")}
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                  <polyline points="16 3 21 3 21 8" />
-                  <line x1="4" y1="20" x2="21" y2="3" />
-                  <polyline points="21 16 21 21 16 21" />
-                  <line x1="15" y1="15" x2="21" y2="21" />
-                  <line x1="4" y1="4" x2="9" y2="9" />
-                </svg>
-              </button>
+              <Tooltip content={t("Shuffle Job ID")}>
+                <button
+                  onClick={() => store.setShuffleJobId(!store.shuffleJobId)}
+                  className={`p-1 rounded text-xs ${
+                    store.shuffleJobId
+                      ? "text-emerald-400 bg-emerald-500/10"
+                      : "theme-muted hover:text-[var(--panel-fg)]"
+                  }`}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                    <polyline points="16 3 21 3 21 8" />
+                    <line x1="4" y1="20" x2="21" y2="3" />
+                    <polyline points="21 16 21 21 16 21" />
+                    <line x1="15" y1="15" x2="21" y2="21" />
+                    <line x1="4" y1="4" x2="9" y2="9" />
+                  </svg>
+                </button>
+              </Tooltip>
             </div>
             <div className="flex items-center gap-1.5">
               <label className="theme-label text-[10px] w-10 shrink-0">{t("Data")}</label>
@@ -279,17 +281,18 @@ export function SingleSelectSidebar() {
                 placeholder={t("Launch Data")}
                 className="sidebar-input flex-1 text-xs"
               />
-              <button
-                onClick={handleSavePlace}
-                className="theme-muted p-1 rounded hover:text-[var(--panel-fg)]"
-                title={t("Save to account")}
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                  <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
-                  <polyline points="17 21 17 13 7 13 7 21" />
-                  <polyline points="7 3 7 8 15 8" />
-                </svg>
-              </button>
+              <Tooltip content={t("Save to account")}>
+                <button
+                  onClick={handleSavePlace}
+                  className="theme-muted p-1 rounded hover:text-[var(--panel-fg)]"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+                    <polyline points="17 21 17 13 7 13 7 21" />
+                    <polyline points="7 3 7 8 15 8" />
+                  </svg>
+                </button>
+              </Tooltip>
             </div>
           </div>
           <div className="flex items-center gap-1.5 mt-2 relative">
@@ -300,17 +303,18 @@ export function SingleSelectSidebar() {
             >
               {isJoining ? t("Joining...") : t("Join Server")}
             </button>
-            <button
-              ref={argsRef}
-              onClick={() => setArgsOpen(!argsOpen)}
-              className="theme-btn-ghost p-1.5 rounded-lg transition-colors"
-              title={t("Launch Arguments")}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
-                <circle cx="12" cy="12" r="3" />
-              </svg>
-            </button>
+            <Tooltip content={t("Launch Arguments")}>
+              <button
+                ref={argsRef}
+                onClick={() => setArgsOpen(!argsOpen)}
+                className="theme-btn-ghost p-1.5 rounded-lg transition-colors"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                  <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+                  <circle cx="12" cy="12" r="3" />
+                </svg>
+              </button>
+            </Tooltip>
             <ArgumentsForm open={argsOpen} onClose={() => setArgsOpen(false)} anchorRef={argsRef} />
           </div>
           {isJoining && (
@@ -351,22 +355,10 @@ export function SingleSelectSidebar() {
               {t("Utilities")}
             </button>
             <button
-              onClick={() => store.setNexusOpen(true)}
-              className="sidebar-btn-tool"
-            >
-              Nexus
-            </button>
-            <button
               onClick={() => store.openAccountBrowser(account.UserID)}
               className="sidebar-btn-tool"
             >
               {t("Browser")}
-            </button>
-            <button
-              onClick={() => store.setThemeEditorOpen(true)}
-              className="sidebar-btn-tool"
-            >
-              {t("Theme")}
             </button>
             <button
               onClick={handleJoinGroup}

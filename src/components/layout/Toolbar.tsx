@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useStore } from "../../store";
 import { usePrompt } from "../../hooks/usePrompt";
+import { Tooltip } from "../ui/Tooltip";
 import { tr, useTr } from "../../i18n/text";
 
 export function Toolbar() {
@@ -91,39 +92,42 @@ export function Toolbar() {
           className="theme-input w-full pl-9 pr-3 py-1.5 rounded-lg text-sm transition-colors"
         />
         {store.searchQuery && (
-          <button
-            onClick={() => store.setSearchQuery("")}
-            className="absolute right-2 top-1/2 -translate-y-1/2 theme-muted hover:opacity-100"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M18 6 6 18M6 6l12 12" />
-            </svg>
-          </button>
+          <Tooltip content={t("Clear search")} side="bottom">
+            <button
+              onClick={() => store.setSearchQuery("")}
+              className="absolute right-2 top-1/2 -translate-y-1/2 theme-muted hover:opacity-100"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M18 6 6 18M6 6l12 12" />
+              </svg>
+            </button>
+          </Tooltip>
         )}
       </div>
 
       <div className="flex items-center gap-1.5 ml-auto">
-        <button
-          onClick={() => store.toggleSelectAll()}
-          className={`px-2.5 py-1.5 text-xs rounded-lg border transition-colors ${
-            store.selectedIds.size > 0
-              ? activeToggleStyle
-              : "theme-btn-ghost"
-          }`}
-          title={store.selectedIds.size > 0 ? t("Deselect all ({{count}})", { count: store.selectedIds.size }) : t("Select all")}
-        >
-          {store.selectedIds.size > 0 ? (
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <rect x="3" y="3" width="18" height="18" rx="2" />
-              <path d="m9 9 6 6M15 9l-6 6" />
-            </svg>
-          ) : (
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <rect x="3" y="3" width="18" height="18" rx="2" />
-              <path d="m9 12 2 2 4-4" />
-            </svg>
-          )}
-        </button>
+        <Tooltip content={store.selectedIds.size > 0 ? t("Deselect all ({{count}})", { count: store.selectedIds.size }) : t("Select all")} side="bottom">
+          <button
+            onClick={() => store.toggleSelectAll()}
+            className={`px-2.5 py-1.5 text-xs rounded-lg border transition-colors ${
+              store.selectedIds.size > 0
+                ? activeToggleStyle
+                : "theme-btn-ghost"
+            }`}
+          >
+            {store.selectedIds.size > 0 ? (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <rect x="3" y="3" width="18" height="18" rx="2" />
+                <path d="m9 9 6 6M15 9l-6 6" />
+              </svg>
+            ) : (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <rect x="3" y="3" width="18" height="18" rx="2" />
+                <path d="m9 12 2 2 4-4" />
+              </svg>
+            )}
+          </button>
+        </Tooltip>
 
         <button
           onClick={() => store.setHideUsernames(!store.hideUsernames)}
@@ -136,20 +140,21 @@ export function Toolbar() {
           {store.hideUsernames ? t("Hidden") : t("Names")}
         </button>
 
-        <button
-          onClick={() => store.setSidebarOpen(!store.sidebarOpen)}
-          className={`p-1.5 rounded-lg border transition-colors ${
-            store.sidebarOpen
-              ? activeToggleStyle
-              : "theme-btn-ghost"
-          }`}
-          title={store.sidebarOpen ? t("Hide panel") : t("Show panel")}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-            <rect x="3" y="3" width="18" height="18" rx="2" />
-            <path d="M15 3v18" />
-          </svg>
-        </button>
+        <Tooltip content={store.sidebarOpen ? t("Hide panel") : t("Show panel")} side="bottom">
+          <button
+            onClick={() => store.setSidebarOpen(!store.sidebarOpen)}
+            className={`p-1.5 rounded-lg border transition-colors ${
+              store.sidebarOpen
+                ? activeToggleStyle
+                : "theme-btn-ghost"
+            }`}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <rect x="3" y="3" width="18" height="18" rx="2" />
+              <path d="M15 3v18" />
+            </svg>
+          </button>
+        </Tooltip>
 
         <div className="w-px h-5 mx-1 bg-[var(--border-color)]" />
 
@@ -214,16 +219,45 @@ export function Toolbar() {
           )}
         </div>
 
-        <button
-          onClick={() => store.setSettingsOpen(true)}
-          className="theme-btn-ghost p-1.5 rounded-lg transition-colors"
-          title={t("Settings")}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-            <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
-            <circle cx="12" cy="12" r="3" />
-          </svg>
-        </button>
+        <Tooltip content={t("Theme")} side="bottom">
+          <button
+            onClick={() => store.setThemeEditorOpen(true)}
+            className="theme-btn-ghost p-1.5 rounded-lg transition-colors"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <circle cx="13.5" cy="6.5" r="2.5" />
+              <circle cx="17.5" cy="10.5" r="2.5" />
+              <circle cx="8.5" cy="7.5" r="2.5" />
+              <circle cx="6.5" cy="12.5" r="2.5" />
+              <path d="M12 22C6.5 22 2 17.5 2 12S6.5 2 12 2s10 4.5 10 10-1.5 4-3.5 4c-1 0-1.8-.8-1.5-1.5.5-1 .8-2 .8-3.5" />
+            </svg>
+          </button>
+        </Tooltip>
+
+        <Tooltip content="Nexus" side="bottom">
+          <button
+            onClick={() => store.setNexusOpen(true)}
+            className="theme-btn-ghost p-1.5 rounded-lg transition-colors"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <polygon points="12 2 2 7 12 12 22 7 12 2" />
+              <polyline points="2 17 12 22 22 17" />
+              <polyline points="2 12 12 17 22 12" />
+            </svg>
+          </button>
+        </Tooltip>
+
+        <Tooltip content={t("Settings")} side="bottom">
+          <button
+            onClick={() => store.setSettingsOpen(true)}
+            className="theme-btn-ghost p-1.5 rounded-lg transition-colors"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+              <circle cx="12" cy="12" r="3" />
+            </svg>
+          </button>
+        </Tooltip>
       </div>
     </div>
   );
