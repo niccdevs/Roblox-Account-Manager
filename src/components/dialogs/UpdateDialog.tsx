@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { check, type Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { useStore } from "../../store";
@@ -6,6 +6,88 @@ import { useModalClose } from "../../hooks/useModalClose";
 import { useTr } from "../../i18n/text";
 
 type Phase = "available" | "downloading" | "ready" | "installing" | "error";
+
+function renderMarkdown(src: string): React.ReactNode[] {
+  const htmlTag = /<[a-z][^>]*>/i;
+  const lines = src.split(/\r?\n/);
+  const nodes: React.ReactNode[] = [];
+  let key = 0;
+
+  function inlinePass(text: string): React.ReactNode[] {
+    const parts: React.ReactNode[] = [];
+    let cursor = 0;
+    const re = /\*\*(.+?)\*\*|\[([^\]]+)\]\((https?:\/\/[^)]+)\)|(https?:\/\/\S+)/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(text)) !== null) {
+      if (m.index > cursor) parts.push(text.slice(cursor, m.index));
+      if (m[1]) {
+        parts.push(<strong key={key++} className="font-semibold text-[var(--panel-fg)]">{m[1]}</strong>);
+      } else if (m[2] && m[3]) {
+        parts.push(
+          <a key={key++} href={m[3]} target="_blank" rel="noreferrer" className="text-sky-400 hover:underline break-all">
+            {m[2]}
+          </a>
+        );
+      } else if (m[4]) {
+        parts.push(
+          <a key={key++} href={m[4]} target="_blank" rel="noreferrer" className="text-sky-400 hover:underline break-all">
+            {m[4]}
+          </a>
+        );
+      }
+      cursor = m.index + m[0].length;
+    }
+    if (cursor < text.length) parts.push(text.slice(cursor));
+    return parts;
+  }
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+
+    if (htmlTag.test(line)) continue;
+
+    if (/^>\s*\[!WARNING\]/.test(line)) continue;
+
+    if (/^>\s*/.test(line)) {
+      const text = line.replace(/^>\s*/, "");
+      if (!text.trim()) continue;
+      nodes.push(
+        <div key={key++} className="border-l-2 border-amber-500/50 pl-2.5 py-0.5 text-amber-200/80">
+          {inlinePass(text)}
+        </div>
+      );
+      continue;
+    }
+
+    if (/^##\s+/.test(line)) {
+      nodes.push(
+        <div key={key++} className="text-[11px] font-semibold text-[var(--panel-fg)] mt-2.5 mb-1 uppercase tracking-wide opacity-70">
+          {line.replace(/^##\s+/, "")}
+        </div>
+      );
+      continue;
+    }
+
+    if (/^-\s+/.test(line)) {
+      nodes.push(
+        <div key={key++} className="flex gap-1.5 pl-1">
+          <span className="text-sky-400/60 shrink-0 mt-px">•</span>
+          <span>{inlinePass(line.replace(/^-\s+/, ""))}</span>
+        </div>
+      );
+      continue;
+    }
+
+    if (!line.trim()) {
+      nodes.push(<div key={key++} className="h-1.5" />);
+      continue;
+    }
+
+    nodes.push(<div key={key++}>{inlinePass(line)}</div>);
+  }
+
+  return nodes;
+}
 
 interface DownloadProgress {
   downloaded: number;
@@ -35,6 +117,7 @@ export function UpdateDialog() {
   const [notesLoading, setNotesLoading] = useState(false);
   const updateRef = useRef<Update | null>(null);
   const speedSamplesRef = useRef<{ time: number; bytes: number }[]>([]);
+  const renderedNotes = useMemo(() => (releaseNotes ? renderMarkdown(releaseNotes) : null), [releaseNotes]);
 
   useEffect(() => {
     if (!open) {
@@ -169,10 +252,12 @@ export function UpdateDialog() {
 
         <div className="px-5 pb-3">
           <div className="text-xs font-medium theme-muted mb-1.5">{t("Release Notes")}</div>
-          <div className="theme-input rounded-lg p-3 max-h-48 overflow-y-auto text-xs text-[var(--panel-fg)] whitespace-pre-wrap leading-relaxed">
+          <div className="theme-input rounded-lg p-3 max-h-48 overflow-y-auto text-xs text-[var(--panel-fg)] leading-relaxed">
             {notesLoading
               ? t("Loading release notes...")
-              : releaseNotes || t("Could not load release notes")}
+              : releaseNotes
+                ? renderedNotes
+                : t("Could not load release notes")}
           </div>
         </div>
 
