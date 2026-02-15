@@ -32,8 +32,14 @@ if (!manifest.notes) {
   }
 }
 
+const token = process.env.GH_TOKEN || process.env.GITHUB_TOKEN;
+if (!token) {
+  console.error("GH_TOKEN or GITHUB_TOKEN is required for pushing");
+  process.exit(1);
+}
+
 const tmpDir = ".tmp-update-manifest";
-execSync(`git clone --depth 1 --branch update-manifests --single-branch "https://github.com/${repo}.git" "${tmpDir}"`, {
+execSync(`git clone --depth 1 --branch update-manifests --single-branch "https://x-access-token:${token}@github.com/${repo}.git" "${tmpDir}"`, {
   stdio: "inherit",
 });
 
