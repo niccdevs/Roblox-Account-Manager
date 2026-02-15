@@ -135,7 +135,8 @@ jobs:
         env:
           GH_TOKEN: ${{ env.RELEASE_GITHUB_TOKEN }}
         run: |
-          gh release upload "${{ steps.meta.outputs.tag }}" "src-tauri/target/release/roblox-account-manager.exe" --clobber
+          Copy-Item "src-tauri/target/release/roblox-account-manager.exe" "src-tauri/target/release/Roblox Account Manager_portable.exe"
+          gh release upload "${{ steps.meta.outputs.tag }}" "src-tauri/target/release/Roblox Account Manager_portable.exe" --clobber
 
       - name: Generate and push update manifest
         shell: pwsh
@@ -148,6 +149,14 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
           bun .github/scripts/generate-update-manifest.mjs
+
+      - name: Clean up release assets
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ env.RELEASE_GITHUB_TOKEN }}
+        run: |
+          gh release delete-asset "${{ steps.meta.outputs.tag }}" "latest.json" --yes
+          gh release delete-asset "${{ steps.meta.outputs.tag }}" "roblox-account-manager.exe" --yes 2>$null
 
       - name: Finalize release notes
         uses: actions/github-script@v7
