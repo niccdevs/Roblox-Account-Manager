@@ -1,5 +1,5 @@
 import { execSync } from "node:child_process";
-import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 
 const tag = process.env.RELEASE_TAG;
@@ -13,40 +13,24 @@ if (!tag || !repo) {
 
 const version = tag.startsWith("v") ? tag.slice(1) : tag;
 
-const assetsJson = execSync(`gh release view "${tag}" --repo "${repo}" --json assets`, {
-  encoding: "utf-8",
-});
-const { assets } = JSON.parse(assetsJson);
+const manifest = JSON.parse(
+  execSync(`gh release download "${tag}" --repo "${repo}" --pattern "latest.json" --output -`, {
+    encoding: "utf-8",
+  })
+);
 
-const nsisZip = assets.find((a) => a.name.endsWith(".nsis.zip"));
-const nsisZipSig = assets.find((a) => a.name.endsWith(".nsis.zip.sig"));
+manifest.version = version;
 
-if (!nsisZip || !nsisZipSig) {
-  console.error("Could not find .nsis.zip or .nsis.zip.sig in release assets");
-  console.error("Available assets:", assets.map((a) => a.name).join(", "));
-  process.exit(1);
+if (!manifest.notes) {
+  const releaseJson = execSync(`gh release view "${tag}" --repo "${repo}" --json body,publishedAt`, {
+    encoding: "utf-8",
+  });
+  const releaseData = JSON.parse(releaseJson);
+  manifest.notes = releaseData.body || "";
+  if (!manifest.pub_date) {
+    manifest.pub_date = releaseData.publishedAt || new Date().toISOString();
+  }
 }
-
-const signature = execSync(`gh release download "${tag}" --repo "${repo}" --pattern "${nsisZipSig.name}" --output -`, {
-  encoding: "utf-8",
-}).trim();
-
-const releaseJson = execSync(`gh release view "${tag}" --repo "${repo}" --json body,publishedAt`, {
-  encoding: "utf-8",
-});
-const releaseData = JSON.parse(releaseJson);
-
-const manifest = {
-  version,
-  notes: releaseData.body || "",
-  pub_date: releaseData.publishedAt || new Date().toISOString(),
-  platforms: {
-    "windows-x86_64": {
-      signature,
-      url: nsisZip.url,
-    },
-  },
-};
 
 const tmpDir = ".tmp-update-manifest";
 execSync(`git clone --depth 1 --branch update-manifests --single-branch "https://github.com/${repo}.git" "${tmpDir}"`, {

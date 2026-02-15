@@ -130,16 +130,12 @@ jobs:
           prerelease: ${{ steps.controls.outputs.channel == 'beta' }}
           releaseDraft: false
 
-      - name: Upload portable EXE and updater artifacts
+      - name: Upload portable EXE
         shell: pwsh
         env:
           GH_TOKEN: ${{ env.RELEASE_GITHUB_TOKEN }}
         run: |
           gh release upload "${{ steps.meta.outputs.tag }}" "src-tauri/target/release/roblox-account-manager.exe" --clobber
-          $nsisZips = Get-ChildItem "src-tauri/target/release/bundle/nsis/*.nsis.zip*"
-          foreach ($file in $nsisZips) {
-            gh release upload "${{ steps.meta.outputs.tag }}" $file.FullName --clobber
-          }
 
       - name: Generate and push update manifest
         shell: pwsh
