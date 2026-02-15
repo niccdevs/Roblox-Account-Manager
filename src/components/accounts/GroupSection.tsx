@@ -1,3 +1,4 @@
+import { Check, ChevronRight } from "lucide-react";
 import { useStore } from "../../store";
 import type { ParsedGroup } from "../../types";
 import { AccountRow } from "./AccountRow";
@@ -74,31 +75,14 @@ export function GroupSection({
               onClick={handleGroupCheckbox}
             >
               {allSelected && (
-                <svg
-                  width="8"
-                  height="8"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="var(--forms-bg)"
-                  strokeWidth="3.5"
-                >
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
+                <Check size={8} stroke="var(--forms-bg)" strokeWidth={3.5} />
               )}
               {someSelected && !allSelected && (
                 <div className="w-1.5 h-1.5 rounded-sm bg-[var(--accent-color)]" />
               )}
             </div>
           </div>
-          <svg
-            width="12"
-            height="12"
-            viewBox="0 0 24 24"
-            fill="currentColor"
-            className={`theme-muted transition-transform duration-200 ${collapsed ? "" : "rotate-90"}`}
-          >
-            <path d="M8 5l8 7-8 7z" />
-          </svg>
+          <ChevronRight size={12} fill="currentColor" stroke="none" className={`theme-muted transition-transform duration-200 ${collapsed ? "" : "rotate-90"}`} />
           <span className="theme-label font-medium">{group.displayName === "Default" ? t("Default") : group.displayName}</span>
           <span className="theme-muted text-[10px] tabular-nums">{group.accounts.length}</span>
         </div>

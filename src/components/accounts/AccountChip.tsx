@@ -1,3 +1,4 @@
+import { User, X } from "lucide-react";
 import { useStore } from "../../store";
 import type { Account } from "../../types";
 import { Tooltip } from "../ui/Tooltip";
@@ -35,10 +36,7 @@ export function AccountChip({
     <div className="theme-panel theme-border flex items-center gap-2 px-1.5 py-1 rounded-md border group/chip">
       {hideAvatar ? (
         <div className="theme-avatar w-5 h-5 rounded-full bg-[var(--panel-soft)] flex items-center justify-center theme-muted shrink-0">
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-            <circle cx="9" cy="7" r="4" />
-          </svg>
+          <User size={10} strokeWidth={1.5} />
         </div>
       ) : avatarUrl ? (
         <img src={avatarUrl} alt="" className="theme-avatar w-5 h-5 rounded-full bg-[var(--panel-soft)] shrink-0" />
@@ -71,9 +69,7 @@ export function AccountChip({
           }}
           className="theme-muted hover:text-[var(--panel-fg)] opacity-0 group-hover/chip:opacity-100 transition-opacity shrink-0"
         >
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M18 6 6 18M6 6l12 12" />
-          </svg>
+          <X size={12} strokeWidth={2} />
         </button>
       </Tooltip>
     </div>

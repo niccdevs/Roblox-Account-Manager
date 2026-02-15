@@ -4,6 +4,7 @@ import { useStore } from "../../store";
 import { usePrompt } from "../../hooks/usePrompt";
 import { Tooltip } from "../ui/Tooltip";
 import { tr, useTr } from "../../i18n/text";
+import { Search, X, SquareX, SquareCheckBig, PanelRight, Plus, ChevronDown, Globe, File, FileText, Palette, Layers, Settings } from "lucide-react";
 
 export function Toolbar() {
   const t = useTr();
@@ -69,18 +70,7 @@ export function Toolbar() {
   return (
     <div className="theme-panel theme-border flex items-center gap-3 px-4 py-2 border-b shrink-0">
       <div className="relative flex-1 max-w-xs">
-        <svg
-          width="15"
-          height="15"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          className="absolute left-3 top-1/2 -translate-y-1/2 theme-muted"
-        >
-          <circle cx="11" cy="11" r="8" />
-          <path d="m21 21-4.35-4.35" />
-        </svg>
+        <Search size={15} strokeWidth={2} className="absolute left-3 top-1/2 -translate-y-1/2 theme-muted" />
         <input
           type="text"
           value={store.searchQuery}
@@ -97,9 +87,7 @@ export function Toolbar() {
               onClick={() => store.setSearchQuery("")}
               className="absolute right-2 top-1/2 -translate-y-1/2 theme-muted hover:opacity-100"
             >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M18 6 6 18M6 6l12 12" />
-              </svg>
+              <X size={14} strokeWidth={2} />
             </button>
           </Tooltip>
         )}
@@ -116,15 +104,9 @@ export function Toolbar() {
             }`}
           >
             {store.selectedIds.size > 0 ? (
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <rect x="3" y="3" width="18" height="18" rx="2" />
-                <path d="m9 9 6 6M15 9l-6 6" />
-              </svg>
+              <SquareX size={14} strokeWidth={2} />
             ) : (
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <rect x="3" y="3" width="18" height="18" rx="2" />
-                <path d="m9 12 2 2 4-4" />
-              </svg>
+              <SquareCheckBig size={14} strokeWidth={2} />
             )}
           </button>
         </Tooltip>
@@ -149,10 +131,7 @@ export function Toolbar() {
                 : "theme-btn-ghost"
             }`}
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-              <rect x="3" y="3" width="18" height="18" rx="2" />
-              <path d="M15 3v18" />
-            </svg>
+            <PanelRight size={16} strokeWidth={1.5} />
           </button>
         </Tooltip>
 
@@ -163,13 +142,9 @@ export function Toolbar() {
             onClick={() => setAddMenuOpen(!addMenuOpen)}
             className="theme-btn flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors"
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <path d="M12 5v14M5 12h14" />
-            </svg>
+            <Plus size={14} strokeWidth={2.5} />
             {t("Add")}
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <path d="m6 9 6 6 6-6" />
-            </svg>
+            <ChevronDown size={10} strokeWidth={2.5} />
           </button>
           {addMenuOpen && (
             <div className="theme-panel theme-border absolute right-0 top-full mt-1.5 w-52 border rounded-xl shadow-2xl z-50 animate-scale-in py-1">
@@ -177,20 +152,14 @@ export function Toolbar() {
                 onClick={handleQuickAdd}
                 className="flex items-center gap-2.5 w-full px-3.5 py-2 text-sm text-[var(--panel-fg)] hover:bg-[var(--panel-soft)] text-left"
               >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="theme-muted">
-                  <path d="M12 5v14M5 12h14" />
-                </svg>
+                <Plus size={14} strokeWidth={1.5} className="theme-muted" />
                 {t("Quick Add")}
               </button>
               <button
                 onClick={handleBrowserLogin}
                 className="flex items-center gap-2.5 w-full px-3.5 py-2 text-sm text-[var(--panel-fg)] hover:bg-[var(--panel-soft)] text-left"
               >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="theme-muted">
-                  <circle cx="12" cy="12" r="10" />
-                  <path d="M2 12h20" />
-                  <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
-                </svg>
+                <Globe size={14} strokeWidth={1.5} className="theme-muted" />
                 {t("Browser Login")}
               </button>
               <div className="mx-3 my-0.5 border-t theme-border" />
@@ -198,21 +167,14 @@ export function Toolbar() {
                 onClick={handleImportCookie}
                 className="flex items-center gap-2.5 w-full px-3.5 py-2 text-sm text-[var(--panel-fg)] hover:bg-[var(--panel-soft)] text-left"
               >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="theme-muted">
-                  <path d="M15.5 2H8.6c-.4 0-.8.2-1.1.5-.3.3-.5.7-.5 1.1v16.8c0 .4.2.8.5 1.1.3.3.7.5 1.1.5h10.8c.4 0 .8-.2 1.1-.5.3-.3.5-.7.5-1.1V7.5L15.5 2z" />
-                  <polyline points="14 2 14 8 20 8" />
-                </svg>
+                <File size={14} strokeWidth={1.5} className="theme-muted" />
                 {t("Import Cookie")}
               </button>
               <button
                 onClick={handleImportOldAccountData}
                 className="flex items-center gap-2.5 w-full px-3.5 py-2 text-sm text-[var(--panel-fg)] hover:bg-[var(--panel-soft)] text-left"
               >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="theme-muted">
-                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                  <polyline points="14 2 14 8 20 8" />
-                  <path d="M9 15h6" />
-                </svg>
+                <FileText size={14} strokeWidth={1.5} className="theme-muted" />
                 {t("Import Old Account Data")}
               </button>
             </div>
@@ -224,13 +186,7 @@ export function Toolbar() {
             onClick={() => store.setThemeEditorOpen(true)}
             className="theme-btn-ghost p-1.5 rounded-lg transition-colors"
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-              <circle cx="13.5" cy="6.5" r="2.5" />
-              <circle cx="17.5" cy="10.5" r="2.5" />
-              <circle cx="8.5" cy="7.5" r="2.5" />
-              <circle cx="6.5" cy="12.5" r="2.5" />
-              <path d="M12 22C6.5 22 2 17.5 2 12S6.5 2 12 2s10 4.5 10 10-1.5 4-3.5 4c-1 0-1.8-.8-1.5-1.5.5-1 .8-2 .8-3.5" />
-            </svg>
+            <Palette size={16} strokeWidth={1.5} />
           </button>
         </Tooltip>
 
@@ -239,11 +195,7 @@ export function Toolbar() {
             onClick={() => store.setNexusOpen(true)}
             className="theme-btn-ghost p-1.5 rounded-lg transition-colors"
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-              <polygon points="12 2 2 7 12 12 22 7 12 2" />
-              <polyline points="2 17 12 22 22 17" />
-              <polyline points="2 12 12 17 22 12" />
-            </svg>
+            <Layers size={16} strokeWidth={1.5} />
           </button>
         </Tooltip>
 
@@ -252,10 +204,7 @@ export function Toolbar() {
             onClick={() => store.setSettingsOpen(true)}
             className="theme-btn-ghost p-1.5 rounded-lg transition-colors"
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-              <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
-              <circle cx="12" cy="12" r="3" />
-            </svg>
+            <Settings size={16} strokeWidth={1.5} />
           </button>
         </Tooltip>
       </div>

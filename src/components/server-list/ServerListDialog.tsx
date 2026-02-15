@@ -12,6 +12,7 @@ import { GamesTab } from "./GamesTab";
 import { FavoritesTab } from "./FavoritesTab";
 import { RecentTab } from "./RecentTab";
 import { TabBar } from "./TabBar";
+import { X } from "lucide-react";
 
 interface ServerListDialogProps {
   open: boolean;
@@ -141,9 +142,7 @@ export function ServerListDialog({ open, onClose }: ServerListDialogProps) {
             onClick={handleClose}
             className="p-1 rounded-md text-zinc-600 hover:text-zinc-400 hover:bg-zinc-800 transition-colors"
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M18 6 6 18M6 6l12 12" />
-            </svg>
+            <X size={16} strokeWidth={2} />
           </button>
         </div>
 

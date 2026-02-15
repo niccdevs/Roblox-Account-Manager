@@ -4,6 +4,7 @@ import { useStore } from "../../store";
 import { useModalClose } from "../../hooks/useModalClose";
 import { useTr } from "../../i18n/text";
 import { Tooltip } from "../ui/Tooltip";
+import { X, ChevronDown } from "lucide-react";
 
 interface BottingDialogProps {
   open: boolean;
@@ -250,9 +251,7 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
               onClick={handleClose}
               className="p-1 rounded-md theme-muted hover:text-[var(--panel-fg)] transition-colors"
             >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M18 6 6 18M6 6l12 12" />
-              </svg>
+              <X size={16} strokeWidth={2} />
             </button>
           </div>
         </div>
@@ -291,19 +290,7 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
                   aria-expanded={playerMenuOpen}
                 >
                   <span className="truncate">{playerAccountLabel}</span>
-                  <svg
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    className={`theme-muted transition-transform duration-150 ${
-                      playerMenuOpen ? "rotate-180" : ""
-                    }`}
-                  >
-                    <path d="m6 9 6 6 6-6" />
-                  </svg>
+                  <ChevronDown size={14} strokeWidth={2} className={`theme-muted transition-transform duration-150 ${playerMenuOpen ? "rotate-180" : ""}`} />
                 </button>
                 <div
                   className={`absolute left-0 right-0 top-[calc(100%+6px)] z-20 rounded-lg border theme-border theme-panel shadow-2xl overflow-hidden transition-all duration-150 ${

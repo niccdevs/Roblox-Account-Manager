@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { X, File as FileIcon } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { useStore } from "../../store";
 import { useModalClose } from "../../hooks/useModalClose";
@@ -220,9 +221,7 @@ export function ImportDialog({
         <div className="flex items-center justify-between px-5 pt-4 pb-0">
           <h2 className="text-sm font-semibold text-zinc-100">{t("Import Accounts")}</h2>
           <button onClick={handleClose} className="text-zinc-600 hover:text-zinc-400 transition-colors">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M18 6 6 18M6 6l12 12" />
-            </svg>
+            <X size={16} strokeWidth={2} />
           </button>
         </div>
 
@@ -270,10 +269,7 @@ export function ImportDialog({
               >
                 <div className="flex items-center gap-3">
                   <div className="h-8 w-8 rounded-lg bg-zinc-900/70 border border-zinc-700/70 flex items-center justify-center text-zinc-400">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
-                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                      <polyline points="14 2 14 8 20 8" />
-                    </svg>
+                    <FileIcon size={14} strokeWidth={1.75} />
                   </div>
                   <div>
                     <div className="text-xs text-zinc-200 font-medium">{t("Choose AccountData.json")}</div>

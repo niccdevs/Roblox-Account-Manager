@@ -7,6 +7,7 @@ import { useModalClose } from "../../hooks/useModalClose";
 import { SlidingTabBar } from "../ui/SlidingTabBar";
 import { Select } from "../ui/Select";
 import { tr, useTr } from "../../i18n/text";
+import { X, ChevronRight } from "lucide-react";
 
 interface NexusAccount {
   username: string;
@@ -335,9 +336,7 @@ export function NexusDialog({ open, onClose }: { open: boolean; onClose: () => v
               {status.running ? tr("Stop") : tr("Start")}
             </button>
             <button onClick={handleClose} className="p-1 rounded-md text-zinc-600 hover:text-zinc-400 hover:bg-zinc-800 transition-colors">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M18 6 6 18M6 6l12 12" />
-              </svg>
+              <X size={16} strokeWidth={2} />
             </button>
           </div>
         </div>
@@ -845,17 +844,7 @@ function CollapsibleSection({
     <div>
       <div className="flex items-center gap-2 mb-1">
         <button onClick={onToggle} className="flex items-center gap-1.5 text-[11px] text-zinc-500 hover:text-zinc-300 transition-colors">
-          <svg
-            width="10"
-            height="10"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            className={`transition-transform duration-150 ${open ? "rotate-90" : ""}`}
-          >
-            <polyline points="9 18 15 12 9 6" />
-          </svg>
+          <ChevronRight size={10} strokeWidth={2} className={`transition-transform duration-150 ${open ? "rotate-90" : ""}`} />
           {title}
         </button>
         {actions && <div className="ml-auto">{actions}</div>}

@@ -1,3 +1,4 @@
+import { Check, User } from "lucide-react";
 import { useStore } from "../../store";
 import type { Account } from "../../types";
 import { timeAgo, getFreshnessColor } from "../../types";
@@ -120,16 +121,7 @@ export function AccountRow({ account }: { account: Account }) {
           }
         >
           {selected && (
-            <svg
-              width="10"
-              height="10"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="var(--forms-bg)"
-              strokeWidth="3"
-            >
-              <polyline points="20 6 9 17 4 12" />
-            </svg>
+            <Check size={10} stroke="var(--forms-bg)" strokeWidth={3} />
           )}
         </div>
       </div>
@@ -149,10 +141,7 @@ export function AccountRow({ account }: { account: Account }) {
         )}
         {hideAvatar ? (
           <div className="theme-avatar w-8 h-8 rounded-full bg-[var(--panel-soft)] flex items-center justify-center theme-muted">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-              <circle cx="9" cy="7" r="4" />
-            </svg>
+            <User size={14} strokeWidth={1.5} />
           </div>
         ) : avatarUrl ? (
           <img
