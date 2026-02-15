@@ -8,6 +8,15 @@ on:
       - "**/*.md"
       - "**/*.MD"
   workflow_dispatch:
+    inputs:
+      bump:
+        description: "Version bump type"
+        required: false
+        default: "patch"
+        type: choice
+        options:
+          - patch
+          - minor
 
 concurrency:
   group: release-v4
@@ -63,7 +72,8 @@ jobs:
         with:
           script: |
             const message = (context.payload.head_commit?.message || "").toLowerCase();
-            let bump = "patch";
+            const dispatchBump = context.payload.inputs?.bump || "";
+            let bump = dispatchBump === "minor" ? "minor" : "patch";
             let channel = "beta";
 
             if (message.includes("[bump:minor]")) bump = "minor";
