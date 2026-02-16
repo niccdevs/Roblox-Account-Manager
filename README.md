@@ -76,12 +76,6 @@ Current default:
 - The default theme is **Legacy v4 (Original)** to preserve the pre-refactor v4 look.
 - Catppuccin and other styles are presets, not defaults.
 
-When changing themes:
-1. Changing default colors: update `DEFAULT_THEME` in `src/theme.ts`, `ThemeData::default()` in `src-tauri/src/data/settings.rs`, and `:root` vars in `src/index.css`.
-2. Changing presets: update `THEME_PRESETS` in `src/theme.ts` and keep preset IDs stable once used.
-3. Changing theme application: update `applyThemeCssVariables` in `src/theme.ts` and prefer `theme-*` + CSS vars over hardcoded utility colors.
-4. Theme editor behavior: live preview uses `store.applyThemePreview(...)`, persist uses `store.saveTheme(...)`, and cancel should restore the opening snapshot.
-
 # WARNING
 If someone asks you to generate an "rbx-player link", **DO NOT** do it, they can use these to join any game using your account, or even launch roblox studio with one of your games. They can do many things in game such as spend your robux or even do things that can get your account terminated. **USE THESE FEATURES AT YOUR OWN RISK**
 
@@ -117,12 +111,6 @@ Be careful executing random scripts when having dangerous settings enabled.
 
 **A:** A byfron developer has stated that using multiple clients may be considered as malicious behavior, so I have decided to disable mutli-roblox by default and instead have users enable the option manually at their own risk.
 ![2023-05-06 23_58_33-Clipboard](https://user-images.githubusercontent.com/11778654/236662271-ce6bc2c8-7690-436a-97d0-1cfea56b541f.png)
-
-
-
-## **Q:** Why am I getting CefSharp.Core.Runtime.dll/Object reference not set errors, how do I fix it?
-
-**A:** Download the x86 version from https://docs.microsoft.com/en-US/cpp/windows/latest-supported-vc-redist | On an older OS? Try downloading [older versions of vcredist](https://docs.microsoft.com/en-US/cpp/windows/latest-supported-vc-redist?view=msvc-170#visual-studio-2013-vc-120) by scrolling down on or clicking the link | If that doesn't work, download the latest .NET Framework from https://dotnet.microsoft.com/download/dotnet-framework
 
 
 ## **Q:** Why do my accounts have yellow/red dots on them?
