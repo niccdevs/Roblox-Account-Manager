@@ -109,13 +109,23 @@ pub async fn get_auth_ticket(security_token: &str) -> Result<String, String> {
         .await
         .map_err(|e| format!("Request failed: {}", e))?;
 
-    response
+    if let Some(ticket) = response
         .headers()
         .get("rbx-authentication-ticket")
         .and_then(|v| v.to_str().ok())
         .map(|s| s.to_string())
         .filter(|s| !s.is_empty())
-        .ok_or_else(|| "Failed to get authentication ticket".to_string())
+    {
+        return Ok(ticket);
+    }
+
+    let status = response.status();
+    let body = response.text().await.unwrap_or_default();
+    Err(format!(
+        "Failed to get authentication ticket (status {}): {}",
+        status.as_u16(),
+        body
+    ))
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
