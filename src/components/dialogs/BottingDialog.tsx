@@ -625,7 +625,7 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
                             <span>
                               <button
                                 type="button"
-                                disabled={!canAct || isRowBusy || row?.disconnected}
+                                disabled={!canAct || isRowBusy || row?.disconnected || !!row?.isPlayer}
                                 className={[
                                   "px-3 py-1 text-[11px] font-medium rounded-lg border theme-border",
                                   "bg-[var(--buttons-bg)] text-[var(--buttons-fg)]",

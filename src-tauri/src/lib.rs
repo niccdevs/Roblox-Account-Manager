@@ -1531,8 +1531,7 @@ fn botting_account_action(
                 | BottingAccountAction::RestartLoop
         );
     let should_restart_loop = matches!(action, BottingAccountAction::RestartLoop);
-    let keep_in_loop =
-        matches!(action, BottingAccountAction::Close | BottingAccountAction::RestartLoop);
+    let keep_in_loop = matches!(action, BottingAccountAction::RestartLoop);
 
     let tracker = platform::windows::tracker();
 
