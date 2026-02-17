@@ -11,20 +11,101 @@ interface BottingDialogProps {
   onClose: () => void;
 }
 
-function formatRemaining(targetMs: number | null, nowMs: number): string {
-  if (!targetMs || targetMs <= nowMs) return "due";
+function clampNumber(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+function ThemedStepperInput({
+  value,
+  min,
+  max,
+  onChange,
+  onBlur,
+}: {
+  value: number;
+  min: number;
+  max: number;
+  onChange: (value: number) => void;
+  onBlur: () => void;
+}) {
+  const commitRaw = (raw: string) => {
+    const parsed = Number.parseInt(raw, 10);
+    if (!Number.isFinite(parsed)) {
+      onChange(min);
+      return;
+    }
+    onChange(clampNumber(parsed, min, max));
+  };
+
+  return (
+    <div className="relative w-full">
+      <input
+        type="number"
+        min={min}
+        max={max}
+        value={value}
+        onChange={(e) => commitRaw(e.target.value)}
+        onBlur={onBlur}
+        className={[
+          "sidebar-input text-xs pr-10",
+          "[appearance:textfield]",
+          "[&::-webkit-outer-spin-button]:appearance-none",
+          "[&::-webkit-inner-spin-button]:appearance-none",
+        ].join(" ")}
+      />
+      <div className="absolute inset-y-1 right-1 flex w-7 flex-col overflow-hidden rounded-md border theme-border bg-[linear-gradient(180deg,rgba(255,255,255,0.12),rgba(255,255,255,0.03))]">
+        <button
+          type="button"
+          aria-label="Increment"
+          className="flex h-1/2 items-center justify-center border-b theme-border text-[9px] text-[var(--panel-muted)] hover:text-[var(--panel-fg)] hover:bg-[rgba(255,255,255,0.06)] transition"
+          onClick={() => onChange(clampNumber(value + 1, min, max))}
+        >
+          ^
+        </button>
+        <button
+          type="button"
+          aria-label="Decrement"
+          className="flex h-1/2 items-center justify-center text-[9px] text-[var(--panel-muted)] hover:text-[var(--panel-fg)] hover:bg-[rgba(255,255,255,0.06)] transition"
+          onClick={() => onChange(clampNumber(value - 1, min, max))}
+        >
+          v
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function formatCountdown(targetMs: number | null, nowMs: number): string {
+  if (targetMs === null) return "--";
+  if (targetMs <= nowMs) return "due";
   const secs = Math.ceil((targetMs - nowMs) / 1000);
-  const m = Math.floor(secs / 60);
+  const h = Math.floor(secs / 3600);
+  const m = Math.floor((secs % 3600) / 60);
   const s = secs % 60;
+  if (h > 0) {
+    return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  }
   return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+function formatDueTime(targetMs: number | null): string {
+  if (targetMs === null) return "--";
+  return new Date(targetMs).toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
 }
 
 function phaseTone(phase: string): string {
   const p = phase.toLowerCase();
+  if (p.includes("disconnected")) return "text-zinc-300";
   if (p.includes("player")) return "text-sky-300";
   if (p.includes("retry") || p.includes("backoff")) return "text-amber-300";
   if (p.includes("error")) return "text-red-300";
   if (p.includes("launch") || p.includes("restart")) return "text-violet-300";
+  if (p.includes("wait")) return "text-cyan-300";
   return "text-emerald-300";
 }
 
@@ -36,6 +117,10 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
   const selectedIds = useMemo(
     () => selectedAccounts.map((a) => a.UserID),
     [selectedAccounts]
+  );
+  const accountById = useMemo(
+    () => new Map(store.accounts.map((a) => [a.UserID, a])),
+    [store.accounts]
   );
   const status = store.bottingStatus;
   const [placeId, setPlaceId] = useState("");
@@ -167,6 +252,11 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
       store.addToast(t("Place ID is required"));
       return;
     }
+    const multiRbxEnabled = store.settings?.General?.EnableMultiRbx === "true";
+    if (!multiRbxEnabled) {
+      store.addToast(t("Botting Mode currently requires Multi Roblox to be enabled"));
+      return;
+    }
     if (selectedIds.length < 2) {
       store.addToast(t("Select at least 2 accounts"));
       return;
@@ -190,7 +280,13 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
         intervalMinutes,
         launchDelaySeconds,
       });
-    } catch {}
+    } catch (e) {
+      store.addToast(
+        t("Botting start failed: {{error}}", {
+          error: String(e),
+        })
+      );
+    }
     setBusy(false);
   }
 
@@ -205,15 +301,42 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
     }
   }
 
+  async function runRowAction(
+    userId: number,
+    action: "disconnect" | "close" | "closeDisconnect" | "restartLoop"
+  ) {
+    setRowBusy(userId);
+    try {
+      await store.bottingAccountAction(userId, action);
+    } catch (e) {
+      store.addToast(
+        t("Botting account action failed: {{error}}", {
+          error: String(e),
+        })
+      );
+    } finally {
+      setRowBusy(null);
+    }
+  }
+
   if (!visible) return null;
 
   const statusMap = new Map((status?.accounts || []).map((a) => [a.userId, a]));
-  const canStart = selectedIds.length >= 2 && !!placeId.trim() && !busy;
+  const multiRbxEnabled = store.settings?.General?.EnableMultiRbx === "true";
+  const liveUserIds = status?.active && (status.userIds?.length || 0) > 0
+    ? status.userIds
+    : selectedIds;
+  const liveRows = liveUserIds.map((userId) => ({
+    userId,
+    account: accountById.get(userId) || null,
+    row: statusMap.get(userId) || null,
+  }));
+  const canStart = selectedIds.length >= 2 && !!placeId.trim() && !busy && multiRbxEnabled;
   const playerAccountLabel = playerUserIds.length === 0
     ? t("None")
     : playerUserIds.length === 1
-      ? selectedAccounts.find((a) => a.UserID === playerUserIds[0])?.Alias ||
-        selectedAccounts.find((a) => a.UserID === playerUserIds[0])?.Username ||
+      ? accountById.get(playerUserIds[0])?.Alias ||
+        accountById.get(playerUserIds[0])?.Username ||
         t("Unknown")
       : t("{{count}} selected", { count: playerUserIds.length });
 
@@ -225,7 +348,7 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
       onClick={handleClose}
     >
       <div
-        className={`theme-panel theme-border rounded-2xl border w-[760px] max-w-[calc(100vw-24px)] max-h-[88vh] overflow-hidden shadow-2xl ${
+        className={`theme-panel theme-border rounded-2xl border w-[820px] h-[640px] max-w-[calc(100vw-24px)] max-h-[calc(100vh-24px)] flex flex-col overflow-hidden shadow-2xl ${
           closing ? "animate-scale-out" : "animate-scale-in"
         }`}
         onClick={(e) => e.stopPropagation()}
@@ -256,13 +379,13 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
           </div>
         </div>
 
-        <div className="p-5 overflow-y-auto max-h-[calc(88vh-130px)] space-y-4">
+        <div className="p-4 md:p-5 overflow-y-auto flex-1 space-y-3">
           <section
             className={`theme-surface rounded-xl border theme-border p-3 animate-fade-in relative ${
               playerMenuOpen ? "z-30" : "z-10"
             }`}
           >
-            <div className="text-[12px] font-medium text-[var(--panel-fg)] mb-2">{t("Targets")}</div>
+            <div className="text-[13px] font-medium text-[var(--panel-fg)] mb-2">{t("Targets")}</div>
             <div className="flex flex-wrap gap-1.5 mb-2">
               {selectedAccounts.map((a) => {
                 const isPlayer = playerUserIds.includes(a.UserID) || !!statusMap.get(a.UserID)?.isPlayer;
@@ -346,7 +469,7 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
           </section>
 
           <section className="theme-surface rounded-xl border theme-border p-3 animate-fade-in">
-            <div className="text-[12px] font-medium text-[var(--panel-fg)] mb-2">{t("Server")}</div>
+            <div className="text-[13px] font-medium text-[var(--panel-fg)] mb-2">{t("Server")}</div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
               <input
                 value={placeId}
@@ -391,84 +514,110 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
           </section>
 
           <section className="theme-surface rounded-xl border theme-border p-3 animate-fade-in">
-            <div className="text-[12px] font-medium text-[var(--panel-fg)] mb-2">{t("Timing")}</div>
+            <div className="text-[13px] font-medium text-[var(--panel-fg)] mb-2">{t("Timing")}</div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
               <div className="flex items-center gap-2">
                 <label className="text-[11px] theme-muted w-36 shrink-0">{t("Rejoin Interval (minutes)")}</label>
-                <input
-                  type="number"
+                <ThemedStepperInput
+                  value={intervalMinutes}
                   min={10}
                   max={120}
-                  value={intervalMinutes}
-                  onChange={(e) => setIntervalMinutes(parseInt(e.target.value || "19", 10))}
+                  onChange={setIntervalMinutes}
                   onBlur={() =>
                     saveDraft(placeId.trim(), jobId.trim(), launchData, playerUserIds, intervalMinutes, launchDelaySeconds)
                   }
-                  className="sidebar-input text-xs"
                 />
               </div>
               <div className="flex items-center gap-2">
                 <label className="text-[11px] theme-muted w-36 shrink-0">{t("Launch Delay (seconds)")}</label>
-                <input
-                  type="number"
+                <ThemedStepperInput
+                  value={launchDelaySeconds}
                   min={5}
                   max={120}
-                  value={launchDelaySeconds}
-                  onChange={(e) => setLaunchDelaySeconds(parseInt(e.target.value || "20", 10))}
+                  onChange={setLaunchDelaySeconds}
                   onBlur={() =>
                     saveDraft(placeId.trim(), jobId.trim(), launchData, playerUserIds, intervalMinutes, launchDelaySeconds)
                   }
-                  className="sidebar-input text-xs"
                 />
               </div>
             </div>
             <div className="text-[10px] theme-muted mt-2">
               {t("Player account demotion grace is 15 minutes before it enters normal restart cycle.")}
             </div>
+            {!multiRbxEnabled ? (
+              <div className="text-[10px] text-amber-300 mt-1">
+                {t("Botting Mode currently requires Multi Roblox to be enabled")}
+              </div>
+            ) : null}
           </section>
 
           <section className="theme-surface rounded-xl border theme-border p-3 animate-fade-in">
-            <div className="text-[12px] font-medium text-[var(--panel-fg)] mb-2">{t("Live Cycle")}</div>
+            <div className="text-[13px] font-medium text-[var(--panel-fg)] mb-2">{t("Live Cycle")}</div>
             <div className="space-y-1.5">
-              {selectedAccounts.map((a) => {
-                const row = statusMap.get(a.UserID);
-                const isRowBusy = rowBusy === a.UserID;
-                const isPlayer = !!row?.isPlayer || playerUserIds.includes(a.UserID);
-                const canAct = !!status?.active && !busy;
-                const disableDisconnect = !canAct || isRowBusy || isPlayer;
-                const disableClose = !canAct || isRowBusy;
+              {liveRows.map(({ userId, account, row }) => {
+                const isRowBusy = rowBusy === userId;
+                const canAct = !!status?.active && !busy && !!row;
+                const dueCountdownRaw = row?.disconnected
+                  ? "disconnected"
+                  : row?.isPlayer
+                    ? row.phase || "queued-player"
+                    : formatCountdown(row?.nextRestartAtMs ?? null, nowMs);
+                const dueCountdown = dueCountdownRaw.includes(":") || dueCountdownRaw === "--"
+                  ? dueCountdownRaw
+                  : t(dueCountdownRaw);
+                const dueClock = row && !row.disconnected && !row.isPlayer
+                  ? formatDueTime(row.nextRestartAtMs ?? null)
+                  : "--";
+                const retryCount = row?.retryCount || 0;
+                const retryTone = retryCount >= 4
+                  ? "border-red-500/30 bg-red-500/15 text-red-200"
+                  : retryCount >= 2
+                    ? "border-amber-400/35 bg-amber-500/15 text-amber-200"
+                    : "theme-border bg-[rgba(0,0,0,0.18)] text-[var(--panel-fg)]";
+                const dueTone = !row
+                  ? "theme-border bg-[rgba(0,0,0,0.18)] text-[var(--panel-fg)]"
+                  : row.disconnected
+                  ? "border-zinc-500/35 bg-zinc-500/15 text-zinc-200"
+                  : row.isPlayer
+                    ? "border-sky-500/30 bg-sky-500/15 text-sky-200"
+                    : (row.nextRestartAtMs ?? 0) <= nowMs
+                      ? "border-amber-400/35 bg-amber-500/15 text-amber-100"
+                      : "border-emerald-500/30 bg-emerald-500/15 text-emerald-200";
                 return (
                   <div
-                    key={a.UserID}
+                    key={userId}
                     className={[
-                      "flex items-center gap-3 rounded-lg border px-3 py-2 theme-soft",
-                      isPlayer ? "theme-accent-border" : "theme-border",
+                      "rounded-xl border px-3 py-2.5 theme-soft",
+                      row?.disconnected
+                        ? "border-zinc-500/30"
+                        : row?.isPlayer
+                          ? "theme-accent-border"
+                          : "theme-border",
                     ].join(" ")}
                   >
-                    <div className="flex-1 min-w-0">
-                      <div className="text-[12px] text-[var(--panel-fg)] truncate">
-                        {a.Alias || a.Username}
+                    <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[13px] text-[var(--panel-fg)] truncate">
+                          {account?.Alias || account?.Username || `${t("User ID")}: ${userId}`}
+                        </div>
+                        <div className={`text-[11px] ${phaseTone(row?.phase || "idle")}`}>
+                          {t(row?.phase || "idle")}
+                          {row?.lastError ? ` - ${row.lastError}` : ""}
+                        </div>
                       </div>
-                      <div className={`text-[10px] ${phaseTone(row?.phase || "idle")}`}>
-                        {t(row?.phase || "idle")}
-                        {row?.lastError ? ` - ${row.lastError}` : ""}
-                      </div>
-                    </div>
-                    <div className="shrink-0">
-                      <div
-                        className={[
-                          "inline-flex items-center gap-2 rounded-xl border theme-border",
-                          "bg-[linear-gradient(90deg,rgba(255,255,255,0.06),rgba(255,255,255,0.02))]",
-                          "px-2 py-1",
-                        ].join(" ")}
-                      >
-                        <div className="flex items-center gap-1.5 min-w-0">
+                      <div className="flex w-full flex-col gap-1.5 md:w-auto md:items-end">
+                        <div
+                          className={[
+                            "flex flex-wrap items-center gap-1.5 rounded-xl border theme-border p-1.5",
+                            "bg-[linear-gradient(95deg,rgba(255,255,255,0.09),rgba(255,255,255,0.02))]",
+                          ].join(" ")}
+                        >
                           <Tooltip
                             content={
                               <div className="space-y-0.5">
-                                <div className="font-semibold">{t("Remove from loop")}</div>
+                                <div className="font-semibold">{t("Disconnect from loop")}</div>
                                 <div className="theme-muted">
-                                  {t("Stops cycling this account. Remove it from Player Accounts to resume.")}
+                                  {t("Stops cycling this account without closing Roblox.")}
                                 </div>
                               </div>
                             }
@@ -476,22 +625,18 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
                             <span>
                               <button
                                 type="button"
-                                disabled={disableDisconnect}
+                                disabled={!canAct || isRowBusy || row?.disconnected}
                                 className={[
-                                  "px-2.5 py-0.5 text-[11px] rounded-lg border theme-border",
+                                  "px-3 py-1 text-[11px] font-medium rounded-lg border theme-border",
                                   "bg-[var(--buttons-bg)] text-[var(--buttons-fg)]",
                                   "hover:text-[var(--panel-fg)] hover:brightness-110 transition",
                                   "disabled:opacity-50 disabled:cursor-not-allowed",
                                 ].join(" ")}
-                                onClick={async () => {
-                                  setRowBusy(a.UserID);
-                                  try {
-                                    await store.bottingAccountAction(a.UserID, "disconnect");
-                                  } catch {}
-                                  setRowBusy(null);
+                                onClick={() => {
+                                  void runRowAction(userId, "disconnect");
                                 }}
                               >
-                                {t("Remove from loop")}
+                                {t("Disconnect")}
                               </button>
                             </span>
                           </Tooltip>
@@ -499,30 +644,53 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
                           <Tooltip
                             content={
                               <div className="space-y-0.5">
-                                <div className="font-semibold">{t("Close Roblox")}</div>
-                                <div className="theme-muted">{t("Closes Roblox and immediately re-queues a rejoin.")}</div>
+                                <div className="font-semibold">{t("Close client")}</div>
+                                <div className="theme-muted">{t("Closes Roblox. If disconnected, it rejoins immediately; otherwise it waits for the next scheduled rejoin.")}</div>
                               </div>
                             }
                           >
                             <span>
                               <button
                                 type="button"
-                                disabled={disableClose}
+                                disabled={!canAct || isRowBusy}
                                 className={[
-                                  "px-2.5 py-0.5 text-[11px] rounded-lg border theme-border",
+                                  "px-3 py-1 text-[11px] font-medium rounded-lg border theme-border",
                                   "bg-[var(--buttons-bg)] text-[var(--buttons-fg)]",
                                   "hover:text-[var(--panel-fg)] hover:brightness-110 transition",
                                   "disabled:opacity-50 disabled:cursor-not-allowed",
                                 ].join(" ")}
-                                onClick={async () => {
-                                  setRowBusy(a.UserID);
-                                  try {
-                                    await store.bottingAccountAction(a.UserID, "close");
-                                  } catch {}
-                                  setRowBusy(null);
+                                onClick={() => {
+                                  void runRowAction(userId, "close");
                                 }}
                               >
-                                {t("Close")}
+                                {t("Close client")}
+                              </button>
+                            </span>
+                          </Tooltip>
+
+                          <Tooltip
+                            content={
+                              <div className="space-y-0.5">
+                                <div className="font-semibold">{t("Restart loop")}</div>
+                                <div className="theme-muted">{t("Restarts the client now and resets this account to the standard rejoin interval.")}</div>
+                              </div>
+                            }
+                          >
+                            <span>
+                              <button
+                                type="button"
+                                disabled={!canAct || isRowBusy}
+                                className={[
+                                  "px-3 py-1 text-[11px] font-medium rounded-lg border border-amber-400/30",
+                                  "bg-[rgba(245,158,11,0.10)] text-amber-100",
+                                  "hover:bg-[rgba(245,158,11,0.18)] hover:border-amber-300/40 transition",
+                                  "disabled:opacity-50 disabled:cursor-not-allowed",
+                                ].join(" ")}
+                                onClick={() => {
+                                  void runRowAction(userId, "restartLoop");
+                                }}
+                              >
+                                {t("Restart loop")}
                               </button>
                             </span>
                           </Tooltip>
@@ -538,34 +706,40 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
                             <span>
                               <button
                                 type="button"
-                                disabled={!canAct || isRowBusy}
+                                disabled={!canAct || isRowBusy || row?.disconnected}
                                 className={[
-                                  "px-2.5 py-0.5 text-[11px] rounded-lg border border-red-400/25",
+                                  "px-3 py-1 text-[11px] font-medium rounded-lg border border-red-400/25",
                                   "bg-[rgba(239,68,68,0.10)] text-red-200",
                                   "hover:bg-[rgba(239,68,68,0.18)] hover:border-red-400/35 transition",
                                   "disabled:opacity-50 disabled:cursor-not-allowed",
                                 ].join(" ")}
-                                onClick={async () => {
-                                  setRowBusy(a.UserID);
-                                  try {
-                                    await store.bottingAccountAction(a.UserID, "closeDisconnect");
-                                  } catch {}
-                                  setRowBusy(null);
+                                onClick={() => {
+                                  void runRowAction(userId, "closeDisconnect");
                                 }}
                               >
-                                {t("Close + Remove")}
+                                {t("Close + Disconnect")}
                               </button>
                             </span>
                           </Tooltip>
                         </div>
 
-                        <div className="flex items-center gap-2 shrink-0">
-                          <div className="px-2.5 py-0.5 rounded-lg border theme-border bg-[rgba(0,0,0,0.18)] text-right">
-                            <div className="text-[11px] text-[var(--panel-fg)] font-mono leading-none">
-                              {t(formatRemaining(row?.nextRestartAtMs ?? null, nowMs))}
+                        <div className="grid grid-cols-3 gap-1.5 w-full md:min-w-[300px]">
+                          <div className={`rounded-lg border px-2.5 py-1.5 ${dueTone}`}>
+                            <div className="text-[9px] uppercase tracking-[0.08em] opacity-80">{t("due")}</div>
+                            <div className="text-[12px] font-mono leading-tight">
+                              {dueCountdown}
                             </div>
-                            <div className="text-[10px] theme-muted leading-none mt-1">
-                              {t("retries")}: {row?.retryCount || 0}
+                          </div>
+                          <div className="rounded-lg border theme-border px-2.5 py-1.5 bg-[rgba(0,0,0,0.18)]">
+                            <div className="text-[9px] uppercase tracking-[0.08em] theme-muted">{t("next")}</div>
+                            <div className="text-[12px] font-mono text-[var(--panel-fg)] leading-tight">
+                              {dueClock}
+                            </div>
+                          </div>
+                          <div className={`rounded-lg border px-2.5 py-1.5 ${retryTone}`}>
+                            <div className="text-[9px] uppercase tracking-[0.08em] opacity-80">{t("retries")}</div>
+                            <div className="text-[12px] font-mono leading-tight">
+                              {retryCount}
                             </div>
                           </div>
                         </div>
