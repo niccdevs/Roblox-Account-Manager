@@ -1540,6 +1540,10 @@ fn botting_account_action(
         if !cfg.user_ids.contains(&user_id) {
             return Err("Account is not part of the current botting session".into());
         }
+        let is_player_account = cfg.player_user_ids.contains(&user_id);
+        if should_disconnect && is_player_account {
+            return Err("Player accounts cannot be disconnected; remove them from Player Accounts first".into());
+        }
         if keep_in_loop {
             cfg.player_user_ids.remove(&user_id);
         }
