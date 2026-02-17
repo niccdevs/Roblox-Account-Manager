@@ -987,7 +987,7 @@ async fn run_botting_session(
         .map(|c| c.user_ids.clone())
         .unwrap_or_else(|_| Vec::new());
     let mut last_launch_at: Option<std::time::Instant> = None;
-    let mut auth429_cooldown_until: Option<std::time::Instant> = None;
+    let mut auth429_cooldowns: HashMap<i64, std::time::Instant> = HashMap::new();
 
     for uid in &initial_user_ids {
         if stop_flag.load(Ordering::Relaxed) {
@@ -1021,11 +1021,20 @@ async fn run_botting_session(
             Ok(c) => c.clone(),
             Err(_) => break,
         };
-        if let Some(until) = auth429_cooldown_until {
-            let now = std::time::Instant::now();
-            if until > now {
-                tokio::time::sleep(until - now).await;
+        if let Some(until) = auth429_cooldowns.get(uid).copied() {
+            let now_instant = std::time::Instant::now();
+            if until > now_instant {
+                let remaining_ms = (until - now_instant).as_millis().min(i64::MAX as u128) as i64;
+                if let Ok(mut map) = accounts.lock() {
+                    if let Some(entry) = map.get_mut(uid) {
+                        entry.phase = "retry-backoff";
+                        entry.next_restart_at_ms = Some(now_ms().saturating_add(remaining_ms));
+                    }
+                }
+                emit_botting_status(&app);
+                continue;
             }
+            auth429_cooldowns.remove(uid);
         }
         wait_for_launch_slot(&mut last_launch_at, cfg.launch_delay_seconds).await;
         if stop_flag.load(Ordering::Relaxed) {
@@ -1042,6 +1051,7 @@ async fn run_botting_session(
         if let Ok(mut map) = accounts.lock() {
             if let Some(entry) = map.get_mut(uid) {
                 if launch_ok {
+                    auth429_cooldowns.remove(uid);
                     entry.retry_count = 0;
                     entry.last_error = None;
                     if entry.is_player {
@@ -1066,10 +1076,13 @@ async fn run_botting_session(
                         .unwrap_or(false);
                     if is_429 {
                         delay = delay.max(45).max((cfg.launch_delay_seconds as i64).saturating_mul(2));
-                        auth429_cooldown_until = Some(
+                        auth429_cooldowns.insert(
+                            *uid,
                             std::time::Instant::now()
                                 + std::time::Duration::from_secs(delay as u64),
                         );
+                    } else {
+                        auth429_cooldowns.remove(uid);
                     }
                     entry.phase = "retry-backoff";
                     entry.last_error = launch_error.clone();
@@ -1144,11 +1157,20 @@ async fn run_botting_session(
             }
             emit_botting_status(&app);
 
-            if let Some(until) = auth429_cooldown_until {
-                let now = std::time::Instant::now();
-                if until > now {
-                    tokio::time::sleep(until - now).await;
+            if let Some(until) = auth429_cooldowns.get(&uid).copied() {
+                let now_instant = std::time::Instant::now();
+                if until > now_instant {
+                    let remaining_ms = (until - now_instant).as_millis().min(i64::MAX as u128) as i64;
+                    if let Ok(mut map) = accounts.lock() {
+                        if let Some(entry) = map.get_mut(&uid) {
+                            entry.phase = "retry-backoff";
+                            entry.next_restart_at_ms = Some(now_ms().saturating_add(remaining_ms));
+                        }
+                    }
+                    emit_botting_status(&app);
+                    continue;
                 }
+                auth429_cooldowns.remove(&uid);
             }
             wait_for_launch_slot(&mut last_launch_at, cfg.launch_delay_seconds).await;
             if stop_flag.load(Ordering::Relaxed) {
@@ -1167,6 +1189,7 @@ async fn run_botting_session(
             if let Ok(mut map) = accounts.lock() {
                 if let Some(entry) = map.get_mut(&uid) {
                     if launch_ok {
+                        auth429_cooldowns.remove(&uid);
                         entry.retry_count = 0;
                         entry.last_error = None;
                         entry.phase = "running";
@@ -1186,10 +1209,13 @@ async fn run_botting_session(
                             .unwrap_or(false);
                         if is_429 {
                             delay = delay.max(45).max((cfg.launch_delay_seconds as i64).saturating_mul(2));
-                            auth429_cooldown_until = Some(
+                            auth429_cooldowns.insert(
+                                uid,
                                 std::time::Instant::now()
                                     + std::time::Duration::from_secs(delay as u64),
                             );
+                        } else {
+                            auth429_cooldowns.remove(&uid);
                         }
                         entry.phase = "retry-backoff";
                         entry.last_error = launch_error.clone();
