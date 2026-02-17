@@ -48,6 +48,7 @@ interface ActionStatusState {
 export interface BottingAccountStatus {
   userId: number;
   isPlayer: boolean;
+  disconnected: boolean;
   phase: string;
   retryCount: number;
   nextRestartAtMs: number | null;
@@ -142,7 +143,10 @@ export interface StoreValue {
   startBottingMode: (config: BottingStartConfig) => Promise<void>;
   stopBottingMode: (closeBotAccounts: boolean) => Promise<void>;
   setBottingPlayerAccounts: (userIds: number[]) => Promise<void>;
-  bottingAccountAction: (userId: number, action: "disconnect" | "close" | "closeDisconnect") => Promise<void>;
+  bottingAccountAction: (
+    userId: number,
+    action: "disconnect" | "close" | "closeDisconnect" | "restartLoop"
+  ) => Promise<void>;
   refreshBottingStatus: () => Promise<void>;
   refreshCookie: (userId: number) => Promise<boolean>;
   moveToGroup: (userIds: number[], group: string) => Promise<void>;
@@ -838,7 +842,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   async function bottingAccountAction(
     userId: number,
-    action: "disconnect" | "close" | "closeDisconnect"
+    action: "disconnect" | "close" | "closeDisconnect" | "restartLoop"
   ) {
     try {
       const status = await invoke<BottingStatus>("botting_account_action", {
@@ -1003,11 +1007,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           prev ? { ...prev, active: false } : { active: false, startedAtMs: null, placeId: 0, jobId: "", launchData: "", intervalMinutes: 19, launchDelaySeconds: 20, playerUserIds: [], userIds: [], accounts: [] }
         );
       }),
-      listen<{ userId?: number; ok?: boolean }>("botting-account-cycle", (e) => {
+      listen<{ userId?: number; ok?: boolean; error?: string | null }>("botting-account-cycle", (e) => {
         const uid = e.payload?.userId;
         const ok = e.payload?.ok;
         if (typeof uid === "number" && ok === false) {
-          setActionStatusMessage(tr("Botting rejoin failed for {{userId}}", { userId: uid }), "warn", 2500);
+          const errorText =
+            typeof e.payload?.error === "string" && e.payload.error.trim().length > 0
+              ? `: ${e.payload.error}`
+              : "";
+          setActionStatusMessage(
+            `${tr("Botting rejoin failed for {{userId}}", { userId: uid })}${errorText}`,
+            "warn",
+            3500
+          );
         }
       }),
     ];
