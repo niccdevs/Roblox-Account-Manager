@@ -1,7 +1,5 @@
 Full credit to [ic3w0lf22](https://github.com/ic3w0lf22) for the original Roblox Account Manager. I am just continuing the project where I think optimizations or additions could be made.
 
-[![Discord](https://img.shields.io/discord/871845273800957982?label=Discord)](https://discord.gg/MsEH7smXY8)
-
 **[Download Latest v4 Beta Pre-release](https://github.com/niccsprojects/Roblox-Account-Manager/releases?q=beta)**
 
 ## State of Development
