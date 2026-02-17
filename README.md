@@ -5,7 +5,8 @@ Full credit to [ic3w0lf22](https://github.com/ic3w0lf22) for the original Roblox
 **[Download Latest v4 Beta Pre-release](https://github.com/niccsprojects/Roblox-Account-Manager/releases?q=beta)**
 
 ## State of Development
-**v4 Beta**
+#### v4 Beta
+
 [![Build](https://github.com/niccsprojects/Roblox-Account-Manager/actions/workflows/release-v4.yml/badge.svg)](https://github.com/niccsprojects/Roblox-Account-Manager/actions/workflows/release-v4.yml)
 
 ## Downloads
