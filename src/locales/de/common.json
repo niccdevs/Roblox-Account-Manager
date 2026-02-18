@@ -116,7 +116,6 @@
   "Store passwords when logging in via user:pass": "Passwörter beim Login über user:pass speichern",
   "Disable Aging Alert": "Aging-Warnung deaktivieren",
   "Hide the freshness dots on accounts unused for 20+ days": "Frische-Punkte bei Konten ausblenden, die 20+ Tage ungenutzt sind",
-  "Hide Multi Roblox Alert": "Multi-Roblox-Warnung ausblenden",
   "Disable Image Loading": "Bildladen deaktivieren",
   "Reduces memory usage by skipping avatar thumbnails": "Reduziert Speicherverbrauch durch Überspringen von Avatar-Vorschaubildern",
   "Hidden Names": "Versteckte Namen",

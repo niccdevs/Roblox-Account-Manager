@@ -69,11 +69,6 @@ export function GeneralTab({ s }: { s: UseSettingsReturn }) {
         description="Hide the freshness dots on accounts unused for 20+ days"
       />
       <Toggle
-        checked={s.getBool("General", "HideRbxAlert")}
-        onChange={(v) => s.setBool("General", "HideRbxAlert", v)}
-        label="Hide Multi Roblox Alert"
-      />
-      <Toggle
         checked={s.getBool("General", "DisableImages")}
         onChange={(v) => s.setBool("General", "DisableImages", v)}
         label="Disable Image Loading"
