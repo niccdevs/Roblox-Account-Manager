@@ -332,6 +332,10 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
     row: statusMap.get(userId) || null,
   }));
   const canStart = selectedIds.length >= 2 && !!placeId.trim() && !busy && multiRbxEnabled;
+  const errorLower = (store.error || "").toLowerCase();
+  const showCloseRobloxAction =
+    errorLower.includes("failed to enable multi roblox") ||
+    (errorLower.includes("multi roblox") && errorLower.includes("close all roblox process"));
   const playerAccountLabel = playerUserIds.length === 0
     ? t("None")
     : playerUserIds.length === 1
@@ -380,6 +384,28 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
         </div>
 
         <div className="p-4 md:p-5 overflow-y-auto flex-1 space-y-3">
+          {store.error && showCloseRobloxAction && (
+            <div className="rounded-lg bg-red-500/10 border border-red-500/20 px-3 py-2 text-xs text-red-300 flex items-center justify-between animate-fade-in">
+              <span className="truncate pr-2">{store.error}</span>
+              <div className="ml-2 flex items-center gap-2 shrink-0">
+                <button
+                  onClick={() => store.killAllRobloxProcesses()}
+                  className="px-2 py-1 rounded-md bg-red-500/20 border border-red-500/30 text-red-200 hover:bg-red-500/30 transition-colors animate-pulse"
+                >
+                  {t("Close Roblox")}
+                </button>
+                <button
+                  onClick={() => store.setError(null)}
+                  className="text-red-500/60 hover:text-red-300 transition-colors"
+                  aria-label={t("Close")}
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M18 6 6 18M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          )}
           <section
             className={`theme-surface rounded-xl border theme-border p-3 animate-fade-in relative ${
               playerMenuOpen ? "z-30" : "z-10"
