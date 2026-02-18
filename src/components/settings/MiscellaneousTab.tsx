@@ -8,6 +8,7 @@ import { SectionLabel } from "../ui/SectionLabel";
 export function MiscellaneousTab({ s }: { s: UseSettingsReturn }) {
   const customClientSettings = s.get("General", "CustomClientSettings", "").trim();
   const customClientSettingsEnabled = customClientSettings.length > 0;
+  const clientVolume = s.getNumber("General", "ClientVolume", 0.5);
 
   return (
     <div className="space-y-0">
@@ -37,6 +38,59 @@ export function MiscellaneousTab({ s }: { s: UseSettingsReturn }) {
         onChange={(v) => s.set("General", "CustomClientSettings", v)}
         label="Custom ClientSettings"
         placeholder="C:\\path\\ClientAppSettings.json"
+      />
+
+      <Divider />
+      <SectionLabel>Roblox Client</SectionLabel>
+
+      <Toggle
+        checked={s.getBool("General", "OverrideClientVolume")}
+        onChange={(v) => s.setBool("General", "OverrideClientVolume", v)}
+        label="Override Client Volume"
+        description="Apply this volume level before launching Roblox"
+      />
+      <NumberField
+        value={Math.round(clientVolume * 100)}
+        onChange={(v) => s.setNumber("General", "ClientVolume", Math.max(0, Math.min(100, v)) / 100)}
+        label="Client Volume"
+        min={0}
+        max={100}
+        suffix="%"
+      />
+
+      <Toggle
+        checked={s.getBool("General", "OverrideClientGraphics")}
+        onChange={(v) => s.setBool("General", "OverrideClientGraphics", v)}
+        label="Override Graphics Level"
+        description="Forces manual graphics quality at launch"
+      />
+      <NumberField
+        value={s.getNumber("General", "ClientGraphicsLevel", 10)}
+        onChange={(v) => s.setNumber("General", "ClientGraphicsLevel", v)}
+        label="Graphics Level"
+        min={1}
+        max={10}
+      />
+
+      <Toggle
+        checked={s.getBool("General", "OverrideClientWindowSize")}
+        onChange={(v) => s.setBool("General", "OverrideClientWindowSize", v)}
+        label="Override Window Size"
+        description="Optional: start Roblox in windowed mode with this size"
+      />
+      <NumberField
+        value={s.getNumber("General", "ClientWindowWidth", 1280)}
+        onChange={(v) => s.setNumber("General", "ClientWindowWidth", v)}
+        label="Window Width"
+        min={320}
+        max={7680}
+      />
+      <NumberField
+        value={s.getNumber("General", "ClientWindowHeight", 720)}
+        onChange={(v) => s.setNumber("General", "ClientWindowHeight", v)}
+        label="Window Height"
+        min={240}
+        max={4320}
       />
 
       <Divider />
