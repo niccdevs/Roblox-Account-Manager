@@ -115,7 +115,6 @@ export function UpdateDialog() {
   const [progress, setProgress] = useState<DownloadProgress>({ downloaded: 0, total: null, speed: 0 });
   const [errorMsg, setErrorMsg] = useState("");
   const [releaseNotes, setReleaseNotes] = useState<string | null>(null);
-  const [notesLoading, setNotesLoading] = useState(false);
   const updateRef = useRef<Update | null>(null);
   const speedSamplesRef = useRef<{ time: number; bytes: number }[]>([]);
   const renderedNotes = useMemo(() => (releaseNotes ? renderMarkdown(releaseNotes) : null), [releaseNotes]);
@@ -127,24 +126,12 @@ export function UpdateDialog() {
       setErrorMsg("");
       setReleaseNotes(null);
       speedSamplesRef.current = [];
+      return;
     }
-  }, [open]);
 
-  useEffect(() => {
-    if (!open || !info) return;
-    setNotesLoading(true);
-    fetch(`https://api.github.com/repos/niccsprojects/roblox-account-manager/releases/tags/v${info.version}`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (data?.body) {
-          setReleaseNotes(data.body);
-        } else {
-          setReleaseNotes(null);
-        }
-      })
-      .catch(() => setReleaseNotes(null))
-      .finally(() => setNotesLoading(false));
-  }, [open, info?.version]);
+    const nextNotes = info?.body?.trim() ? info.body : null;
+    setReleaseNotes(nextNotes);
+  }, [open, info?.body]);
 
   const startDownload = useCallback(async () => {
     setPhase("downloading");
@@ -250,11 +237,9 @@ export function UpdateDialog() {
         <div className="px-5 pb-3">
           <div className="text-xs font-medium theme-muted mb-1.5">{t("Release Notes")}</div>
           <div className="theme-input rounded-lg p-3 max-h-48 overflow-y-auto text-xs text-[var(--panel-fg)] leading-relaxed">
-            {notesLoading
-              ? t("Loading release notes...")
-              : releaseNotes
-                ? renderedNotes
-                : t("Could not load release notes")}
+            {releaseNotes
+              ? renderedNotes
+              : t("Could not load release notes")}
           </div>
         </div>
 
