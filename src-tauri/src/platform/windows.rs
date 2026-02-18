@@ -484,7 +484,7 @@ fn apply_global_basic_settings_overrides(
     }
 
     if let Some(level) = graphics_level {
-        let clamped = level.clamp(1, 21);
+        let clamped = level.clamp(1, 10);
         upsert_scalar_property(
             &mut props,
             "int",

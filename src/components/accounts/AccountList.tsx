@@ -1,13 +1,15 @@
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState } from "react";
 import { User } from "lucide-react";
 import { useStore } from "../../store";
 import { GroupSection } from "./GroupSection";
 import { useTr } from "../../i18n/text";
+import { AddAccountDialog } from "../dialogs/AddAccountDialog";
 
 export function AccountList() {
   const t = useTr();
   const store = useStore();
   const listRef = useRef<HTMLDivElement>(null);
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
 
   useEffect(() => {
     const el = listRef.current;
@@ -90,19 +92,30 @@ export function AccountList() {
 
   if (store.accounts.length === 0 && !store.searchQuery) {
     return (
-      <div
-        className="theme-surface flex-1 flex flex-col items-center justify-center min-h-0 text-center px-8"
-        onDragOver={handleDragOver}
-        onDrop={handleExternalDrop}
-      >
-        <div className="theme-panel theme-border w-14 h-14 rounded-2xl border flex items-center justify-center mb-4 animate-fade-in">
-          <User size={24} strokeWidth={1.5} className="theme-muted" />
+      <>
+        <div
+          className="theme-surface flex-1 flex flex-col items-center justify-center min-h-0 text-center px-8"
+          onDragOver={handleDragOver}
+          onDrop={handleExternalDrop}
+        >
+          <div className="theme-panel theme-border w-14 h-14 rounded-2xl border flex items-center justify-center mb-4 animate-fade-in">
+            <User size={24} strokeWidth={1.5} className="theme-muted" />
+          </div>
+          <p className="theme-muted text-sm mb-1 animate-fade-in">{t("No accounts yet")}</p>
+          <p className="theme-label text-xs animate-fade-in">
+            {t("Click")}{" "}
+            <button
+              type="button"
+              onClick={() => setAddDialogOpen(true)}
+              className="theme-accent hover:underline underline-offset-2"
+            >
+              {t("Add")}
+            </button>{" "}
+            {t("or drop a cookie here")}
+          </p>
         </div>
-        <p className="theme-muted text-sm mb-1 animate-fade-in">{t("No accounts yet")}</p>
-        <p className="theme-label text-xs animate-fade-in">
-          {t("Click")} <span className="theme-accent">{t("Add")}</span> {t("or drop a cookie here")}
-        </p>
-      </div>
+        <AddAccountDialog open={addDialogOpen} onClose={() => setAddDialogOpen(false)} />
+      </>
     );
   }
 

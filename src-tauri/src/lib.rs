@@ -530,7 +530,7 @@ fn windows_client_overrides(
         settings
             .get_int("General", "ClientGraphicsLevel")
             .filter(|lvl| *lvl > 0)
-            .map(|lvl| lvl.clamp(1, 21) as u32)
+            .map(|lvl| lvl.clamp(1, 10) as u32)
     } else {
         None
     };

@@ -245,7 +245,7 @@ impl SettingsStore {
             ("WindowScale", "1.0", None),
             ("ScaleFonts", "true", None),
             ("AutoCookieRefresh", "true", None),
-            ("AutoCloseLastProcess", "true", None),
+            ("AutoCloseLastProcess", "false", None),
             ("ShowPresence", "true", None),
             ("PresenceUpdateRate", "5", None),
             ("WarnOnOnlineJoin", "true", None),

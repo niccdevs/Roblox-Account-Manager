@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { ChevronDown, ChevronUp, Save } from "lucide-react";
+import { ChevronDown, Save } from "lucide-react";
 import { useStore } from "../../store";
 import { usePrompt, useConfirm } from "../../hooks/usePrompt";
 import { useJoinOnlineWarning } from "../../hooks/useJoinOnlineWarning";
@@ -132,8 +132,10 @@ export function MultiSelectSidebar() {
         </div>
 
         <div
-          className={`mt-3 flex flex-col gap-1 ${
-            accountsExpanded ? "max-h-56 overflow-y-auto pr-1" : ""
+          className={`mt-3 flex flex-col gap-1 overflow-hidden transition-[max-height,opacity] duration-200 ease-out ${
+            accountsExpanded
+              ? "max-h-56 overflow-y-auto pr-1 opacity-100"
+              : "max-h-44 opacity-95"
           }`}
         >
           {shownAccounts.map((a) => (
@@ -155,16 +157,19 @@ export function MultiSelectSidebar() {
         {hasManySelected && (
           <button
             onClick={() => setAccountsExpanded((v) => !v)}
-            className="mt-2 w-full theme-btn-ghost text-[11px] px-2 py-1 rounded flex items-center justify-center gap-1.5"
+            className="mt-2 w-full theme-btn-ghost text-[11px] px-2 py-1 rounded flex items-center justify-center gap-1.5 transition-colors"
           >
+            <ChevronDown
+              size={12}
+              strokeWidth={2}
+              className={`transition-transform duration-200 ${accountsExpanded ? "rotate-180" : "rotate-0"}`}
+            />
             {accountsExpanded ? (
               <>
-                <ChevronUp size={12} strokeWidth={2} />
                 <span>{t("Show less")}</span>
               </>
             ) : (
               <>
-                <ChevronDown size={12} strokeWidth={2} />
                 <span>{t("Show all ({{count}})", { count })}</span>
               </>
             )}
