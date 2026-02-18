@@ -121,9 +121,10 @@ export function SingleSelectSidebar() {
   const hideAvatar = store.hideUsernames && !store.showAvatarsWhenHidden;
   const presenceType = store.presenceByUserId.get(account.UserID) ?? 0;
   const isJoining = store.joiningAccounts.has(account.UserID);
+  const savedPlaceId = account.Fields?.SavedPlaceId ?? "";
   const recentGameSelectValue = recentGames.some((g) => String(g.placeId) === store.placeId)
     ? store.placeId
-    : "";
+    : "__none__";
   const presenceMeta =
     presenceType === 3
       ? { label: t("In Studio"), dot: "bg-violet-500", dotStyle: undefined as React.CSSProperties | undefined, text: "text-violet-400" }
@@ -223,10 +224,14 @@ export function SingleSelectSidebar() {
               <Select
                 value={recentGameSelectValue}
                 options={[
-                  { value: "", label: "Recent games..." },
+                  { value: "__none__", label: "None" },
                   ...recentGames.map((g) => ({ value: String(g.placeId), label: g.name })),
                 ]}
                 onChange={(e) => {
+                  if (e === "__none__") {
+                    store.setPlaceId(savedPlaceId);
+                    return;
+                  }
                   const selected = recentGames.find((g) => String(g.placeId) === e);
                   if (!selected) return;
                   store.setPlaceId(String(selected.placeId));
