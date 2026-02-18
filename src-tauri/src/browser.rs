@@ -2,21 +2,49 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
-use cookie::Cookie;
-use tauri::{AppHandle, Emitter, Manager, Url, WebviewUrl, WebviewWindowBuilder};
+use cookie::{Cookie, SameSite};
+use tauri::{AppHandle, Emitter, Manager, Url, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 
 use crate::data::accounts::AccountStore;
 
+const ROBLOX_COOKIE_URLS: [&str; 4] = [
+    "https://www.roblox.com",
+    "https://www.roblox.com/home",
+    "https://roblox.com",
+    "https://web.roblox.com",
+];
+
+fn normalize_security_token(raw: &str) -> String {
+    let trimmed = raw.trim();
+    let no_name = trimmed
+        .strip_prefix(".ROBLOSECURITY=")
+        .unwrap_or(trimmed);
+    let no_attrs = no_name.split(';').next().unwrap_or(no_name);
+    no_attrs.trim_matches('"').trim().to_string()
+}
+
+fn has_roblosecurity_cookie(browser: &WebviewWindow, expected_value: &str) -> bool {
+    for raw in ROBLOX_COOKIE_URLS {
+        if let Ok(url) = raw.parse::<Url>() {
+            if let Ok(cookies) = browser.cookies_for_url(url) {
+                if cookies.iter().any(|c| {
+                    c.name() == ".ROBLOSECURITY"
+                        && !c.value().is_empty()
+                        && (expected_value.is_empty() || c.value() == expected_value)
+                }) {
+                    return true;
+                }
+            }
+        }
+    }
+
+    false
+}
+
 fn find_roblosecurity(app: &AppHandle) -> Option<String> {
     let browser = app.get_webview_window("login-browser")?;
-    let urls: [&str; 4] = [
-        "https://www.roblox.com",
-        "https://www.roblox.com/home",
-        "https://roblox.com",
-        "https://web.roblox.com",
-    ];
 
-    for raw in urls {
+    for raw in ROBLOX_COOKIE_URLS {
         if let Ok(url) = raw.parse::<Url>() {
             if let Ok(cookies) = browser.cookies_for_url(url) {
                 if let Some(cookie) = cookies
@@ -129,7 +157,11 @@ pub async fn open_account_browser(
         .find(|a| a.user_id == user_id)
         .ok_or("Account not found")?;
 
-    let security_token = account.security_token.clone();
+    let security_token = normalize_security_token(&account.security_token);
+    if security_token.is_empty() {
+        return Err("Account has no .ROBLOSECURITY token".to_string());
+    }
+
     let username = account.username.clone();
     let label = format!("account-browser-{}", user_id);
 
@@ -148,14 +180,37 @@ pub async fn open_account_browser(
     .build()
     .map_err(|e| e.to_string())?;
 
-    let cookie = Cookie::build((".ROBLOSECURITY", security_token))
+    let base_cookie = Cookie::build((".ROBLOSECURITY", security_token.clone()))
         .domain(".roblox.com")
         .path("/")
         .secure(true)
         .http_only(true)
+        .same_site(SameSite::None)
         .build();
 
-    browser.set_cookie(cookie).map_err(|e| e.to_string())?;
+    browser.set_cookie(base_cookie).map_err(|e| e.to_string())?;
+
+    // Some runtimes only honor exact-host domain cookies on initial navigation.
+    let www_cookie = Cookie::build((".ROBLOSECURITY", security_token.clone()))
+        .domain("www.roblox.com")
+        .path("/")
+        .secure(true)
+        .http_only(true)
+        .same_site(SameSite::None)
+        .build();
+    browser.set_cookie(www_cookie).map_err(|e| e.to_string())?;
+
+    for _ in 0..40 {
+        if has_roblosecurity_cookie(&browser, &security_token) {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+
+    if !has_roblosecurity_cookie(&browser, &security_token) {
+        return Err("Failed to apply .ROBLOSECURITY cookie to browser window".to_string());
+    }
+
     browser
         .eval("window.location.href = 'https://www.roblox.com/home'")
         .map_err(|e| e.to_string())?;
