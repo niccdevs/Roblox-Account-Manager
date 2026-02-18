@@ -496,14 +496,63 @@ async fn clear_image_cache(image_cache: tauri::State<'_, ImageCache>) -> Result<
 }
 
 #[cfg(target_os = "windows")]
-fn fps_unlock_target(settings: &SettingsStore) -> Option<u32> {
-    if !settings.get_bool("General", "UnlockFPS") {
-        return None;
+#[derive(Clone, Copy, Default)]
+struct WindowsClientOverrides {
+    max_fps: Option<u32>,
+    master_volume: Option<f32>,
+    graphics_level: Option<u32>,
+    window_size: Option<(u32, u32)>,
+}
+
+#[cfg(target_os = "windows")]
+fn windows_client_overrides(
+    settings: &SettingsStore,
+    allow_fps_override: bool,
+) -> WindowsClientOverrides {
+    let max_fps = if allow_fps_override && settings.get_bool("General", "UnlockFPS") {
+        settings
+            .get_int("General", "MaxFPSValue")
+            .filter(|fps| *fps > 0)
+            .map(|fps| fps as u32)
+    } else {
+        None
+    };
+
+    let master_volume = if settings.get_bool("General", "OverrideClientVolume") {
+        settings
+            .get_float("General", "ClientVolume")
+            .map(|v| (v as f32).clamp(0.0, 1.0))
+    } else {
+        None
+    };
+
+    let graphics_level = if settings.get_bool("General", "OverrideClientGraphics") {
+        settings
+            .get_int("General", "ClientGraphicsLevel")
+            .filter(|lvl| *lvl > 0)
+            .map(|lvl| lvl.clamp(1, 10) as u32)
+    } else {
+        None
+    };
+
+    let window_size = if settings.get_bool("General", "OverrideClientWindowSize") {
+        match (
+            settings.get_int("General", "ClientWindowWidth"),
+            settings.get_int("General", "ClientWindowHeight"),
+        ) {
+            (Some(w), Some(h)) if w > 0 && h > 0 => Some((w as u32, h as u32)),
+            _ => None,
+        }
+    } else {
+        None
+    };
+
+    WindowsClientOverrides {
+        max_fps,
+        master_volume,
+        graphics_level,
+        window_size,
     }
-    settings
-        .get_int("General", "MaxFPSValue")
-        .filter(|fps| *fps > 0)
-        .map(|fps| fps as u32)
 }
 
 #[cfg(target_os = "windows")]
@@ -512,18 +561,23 @@ fn patch_client_settings_for_launch(settings: &SettingsStore) {
 
     let custom_settings = settings.get_string("General", "CustomClientSettings");
     let custom_settings = custom_settings.trim();
+    let mut custom_applied = false;
 
     // Legacy behavior: custom settings file overrides FPS unlock when valid.
     if !custom_settings.is_empty()
         && std::path::Path::new(custom_settings).exists()
         && windows::copy_custom_client_settings(custom_settings).is_ok()
     {
-        return;
+        custom_applied = true;
     }
 
-    if let Some(fps) = fps_unlock_target(settings) {
-        let _ = windows::apply_fps_unlock(fps);
-    }
+    let overrides = windows_client_overrides(settings, !custom_applied);
+    let _ = windows::apply_runtime_client_settings(
+        overrides.max_fps,
+        overrides.master_volume,
+        overrides.graphics_level,
+        overrides.window_size,
+    );
 }
 
 #[cfg(target_os = "macos")]

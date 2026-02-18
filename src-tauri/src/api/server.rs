@@ -34,20 +34,55 @@ fn patch_client_settings_for_launch(settings: &SettingsStore) {
 
     let custom_settings = settings.get_string("General", "CustomClientSettings");
     let custom_settings = custom_settings.trim();
+    let mut custom_applied = false;
 
     if !custom_settings.is_empty()
         && std::path::Path::new(custom_settings).exists()
         && windows::copy_custom_client_settings(custom_settings).is_ok()
     {
-        return;
+        custom_applied = true;
     }
 
-    if settings.get_bool("General", "UnlockFPS") {
-        let max_fps = settings.get_int("General", "MaxFPSValue").unwrap_or(120);
-        if max_fps > 0 {
-            let _ = windows::apply_fps_unlock(max_fps as u32);
+    let max_fps = if !custom_applied && settings.get_bool("General", "UnlockFPS") {
+        settings
+            .get_int("General", "MaxFPSValue")
+            .filter(|fps| *fps > 0)
+            .map(|fps| fps as u32)
+    } else {
+        None
+    };
+
+    let master_volume = if settings.get_bool("General", "OverrideClientVolume") {
+        settings
+            .get_float("General", "ClientVolume")
+            .map(|v| (v as f32).clamp(0.0, 1.0))
+    } else {
+        None
+    };
+
+    let graphics_level = if settings.get_bool("General", "OverrideClientGraphics") {
+        settings
+            .get_int("General", "ClientGraphicsLevel")
+            .filter(|lvl| *lvl > 0)
+            .map(|lvl| lvl.clamp(1, 10) as u32)
+    } else {
+        None
+    };
+
+    let window_size = if settings.get_bool("General", "OverrideClientWindowSize") {
+        match (
+            settings.get_int("General", "ClientWindowWidth"),
+            settings.get_int("General", "ClientWindowHeight"),
+        ) {
+            (Some(w), Some(h)) if w > 0 && h > 0 => Some((w as u32, h as u32)),
+            _ => None,
         }
-    }
+    } else {
+        None
+    };
+
+    let _ =
+        windows::apply_runtime_client_settings(max_fps, master_volume, graphics_level, window_size);
 }
 
 #[derive(Debug, Deserialize)]

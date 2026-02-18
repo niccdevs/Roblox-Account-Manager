@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Save } from "lucide-react";
 import { useStore } from "../../store";
 import { usePrompt, useConfirm } from "../../hooks/usePrompt";
 import { useJoinOnlineWarning } from "../../hooks/useJoinOnlineWarning";
@@ -18,9 +18,13 @@ export function MultiSelectSidebar() {
   const count = accounts.length;
   const [refreshing, setRefreshing] = useState(false);
   const [moveOpen, setMoveOpen] = useState(false);
+  const [accountsExpanded, setAccountsExpanded] = useState(false);
+  const [savingLaunchFields, setSavingLaunchFields] = useState(false);
 
   const previewAccounts = accounts.slice(0, 5);
   const remaining = count - previewAccounts.length;
+  const hasManySelected = count > 5;
+  const shownAccounts = accountsExpanded ? accounts : previewAccounts;
   const bottingEnabled = store.settings?.General?.BottingEnabled === "true";
   const showBottingButton = bottingEnabled || store.bottingStatus?.active === true;
   const errorLower = (store.error || "").toLowerCase();
@@ -82,6 +86,31 @@ export function MultiSelectSidebar() {
     );
   }
 
+  async function handleSaveLaunchFields() {
+    if (accounts.length === 0 || savingLaunchFields) return;
+    setSavingLaunchFields(true);
+    try {
+      await Promise.all(
+        accounts.map((account) =>
+          store.updateAccount({
+            ...account,
+            Fields: {
+              ...(account.Fields || {}),
+              SavedPlaceId: store.placeId,
+              SavedJobId: store.jobId,
+              SavedLaunchData: store.launchData,
+            },
+          })
+        )
+      );
+      store.addToast(tr("Saved launch fields to {{count}} account(s)", { count: accounts.length }));
+    } catch (e) {
+      store.addToast(tr("Failed to save launch fields: {{error}}", { error: String(e) }));
+    } finally {
+      setSavingLaunchFields(false);
+    }
+  }
+
   return (
     <div className="theme-surface theme-border w-72 border-l flex flex-col shrink-0 animate-slide-right">
       <div className="p-4 border-b theme-border">
@@ -102,8 +131,14 @@ export function MultiSelectSidebar() {
           </button>
         </div>
 
-        <div className="mt-3 flex flex-col gap-1">
-          {previewAccounts.map((a) => (
+        <div
+          className={`mt-3 flex flex-col gap-1 overflow-hidden transition-[max-height,opacity] duration-200 ease-out ${
+            accountsExpanded
+              ? "max-h-56 overflow-y-auto pr-1 opacity-100"
+              : "max-h-44 opacity-95"
+          }`}
+        >
+          {shownAccounts.map((a) => (
             <AccountChip
               key={a.UserID}
               account={a}
@@ -113,12 +148,33 @@ export function MultiSelectSidebar() {
               }}
             />
           ))}
-          {remaining > 0 && (
+          {!accountsExpanded && remaining > 0 && (
             <div className="theme-muted text-[11px] px-1 py-0.5">
               {t("+{{count}} more", { count: remaining })}
             </div>
           )}
         </div>
+        {hasManySelected && (
+          <button
+            onClick={() => setAccountsExpanded((v) => !v)}
+            className="mt-2 w-full theme-btn-ghost text-[11px] px-2 py-1 rounded flex items-center justify-center gap-1.5 transition-colors"
+          >
+            <ChevronDown
+              size={12}
+              strokeWidth={2}
+              className={`transition-transform duration-200 ${accountsExpanded ? "rotate-180" : "rotate-0"}`}
+            />
+            {accountsExpanded ? (
+              <>
+                <span>{t("Show less")}</span>
+              </>
+            ) : (
+              <>
+                <span>{t("Show all ({{count}})", { count })}</span>
+              </>
+            )}
+          </button>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4">
@@ -163,6 +219,14 @@ export function MultiSelectSidebar() {
                 placeholder={t("Launch Data")}
                 className="sidebar-input flex-1 text-xs"
               />
+              <button
+                onClick={handleSaveLaunchFields}
+                disabled={savingLaunchFields}
+                className="theme-muted p-1 rounded hover:text-[var(--panel-fg)] disabled:opacity-50 disabled:cursor-not-allowed"
+                title={t("Save to selected accounts")}
+              >
+                <Save size={14} strokeWidth={1.5} />
+              </button>
             </div>
           </div>
           <button
