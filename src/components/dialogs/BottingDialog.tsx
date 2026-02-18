@@ -109,6 +109,14 @@ function phaseTone(phase: string): string {
   return "text-emerald-300";
 }
 
+function isMultiRobloxCloseProcessError(message: string | null | undefined): boolean {
+  const lower = (message || "").toLowerCase();
+  return (
+    lower.includes("failed to enable multi roblox") ||
+    (lower.includes("multi roblox") && lower.includes("close all roblox process"))
+  );
+}
+
 export function BottingDialog({ open, onClose }: BottingDialogProps) {
   const t = useTr();
   const store = useStore();
@@ -131,9 +139,12 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
   const [playerUserIds, setPlayerUserIds] = useState<number[]>([]);
   const [busy, setBusy] = useState(false);
   const [rowBusy, setRowBusy] = useState<number | null>(null);
+  const [bottingStartError, setBottingStartError] = useState<string | null>(null);
+  const [closingRoblox, setClosingRoblox] = useState(false);
   const [nowMs, setNowMs] = useState(Date.now());
   const [playerMenuOpen, setPlayerMenuOpen] = useState(false);
   const playerMenuRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!visible) return;
@@ -247,6 +258,7 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
   }
 
   async function handleStart() {
+    setBottingStartError(null);
     const pid = parseInt(placeId.trim(), 10);
     if (!Number.isFinite(pid) || pid <= 0) {
       store.addToast(t("Place ID is required"));
@@ -254,7 +266,9 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
     }
     const multiRbxEnabled = store.settings?.General?.EnableMultiRbx === "true";
     if (!multiRbxEnabled) {
-      store.addToast(t("Botting Mode currently requires Multi Roblox to be enabled"));
+      const msg = t("Botting Mode currently requires Multi Roblox to be enabled");
+      setBottingStartError(msg);
+      store.addToast(msg);
       return;
     }
     if (selectedIds.length < 2) {
@@ -281,6 +295,7 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
         launchDelaySeconds,
       });
     } catch (e) {
+      setBottingStartError(String(e));
       store.addToast(
         t("Botting start failed: {{error}}", {
           error: String(e),
@@ -319,7 +334,16 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
     }
   }
 
-  if (!visible) return null;
+  async function handleCloseRobloxBannerAction() {
+    if (closingRoblox) return;
+    setClosingRoblox(true);
+    try {
+      await store.killAllRobloxProcesses();
+      setBottingStartError(null);
+    } finally {
+      setClosingRoblox(false);
+    }
+  }
 
   const statusMap = new Map((status?.accounts || []).map((a) => [a.userId, a]));
   const multiRbxEnabled = store.settings?.General?.EnableMultiRbx === "true";
@@ -332,10 +356,15 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
     row: statusMap.get(userId) || null,
   }));
   const canStart = selectedIds.length >= 2 && !!placeId.trim() && !busy && multiRbxEnabled;
-  const errorLower = (store.error || "").toLowerCase();
-  const showCloseRobloxAction =
-    errorLower.includes("failed to enable multi roblox") ||
-    (errorLower.includes("multi roblox") && errorLower.includes("close all roblox process"));
+  const dialogError = bottingStartError || store.error || null;
+  const rowConflictError =
+    (status?.accounts || [])
+      .map((a) => a.lastError)
+      .find((msg) => isMultiRobloxCloseProcessError(msg)) || null;
+  const closeRobloxAlertMessage = isMultiRobloxCloseProcessError(dialogError)
+    ? dialogError
+    : rowConflictError;
+  const showCloseRobloxAction = !!closeRobloxAlertMessage;
   const playerAccountLabel = playerUserIds.length === 0
     ? t("None")
     : playerUserIds.length === 1
@@ -343,6 +372,15 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
         accountById.get(playerUserIds[0])?.Username ||
         t("Unknown")
       : t("{{count}} selected", { count: playerUserIds.length });
+
+  useEffect(() => {
+    if (!visible || !showCloseRobloxAction) return;
+    const node = contentRef.current;
+    if (!node) return;
+    node.scrollTo({ top: 0, behavior: "smooth" });
+  }, [visible, showCloseRobloxAction, closeRobloxAlertMessage]);
+
+  if (!visible) return null;
 
   return (
     <div
@@ -383,19 +421,25 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
           </div>
         </div>
 
-        <div className="p-4 md:p-5 overflow-y-auto flex-1 space-y-3">
-          {store.error && showCloseRobloxAction && (
+        <div ref={contentRef} className="p-4 md:p-5 overflow-y-auto flex-1 space-y-3">
+          {showCloseRobloxAction && closeRobloxAlertMessage && (
             <div className="rounded-lg bg-red-500/10 border border-red-500/20 px-3 py-2 text-xs text-red-300 flex items-center justify-between animate-fade-in">
-              <span className="truncate pr-2">{store.error}</span>
+              <span className="truncate pr-2">{closeRobloxAlertMessage}</span>
               <div className="ml-2 flex items-center gap-2 shrink-0">
                 <button
-                  onClick={() => store.killAllRobloxProcesses()}
-                  className="px-2 py-1 rounded-md bg-red-500/20 border border-red-500/30 text-red-200 hover:bg-red-500/30 transition-colors animate-pulse"
+                  onClick={() => {
+                    void handleCloseRobloxBannerAction();
+                  }}
+                  disabled={closingRoblox}
+                  className="px-2 py-1 rounded-md bg-red-500/20 border border-red-500/30 text-red-200 hover:bg-red-500/30 active:bg-red-500/40 active:scale-[0.98] transition disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   {t("Close Roblox")}
                 </button>
                 <button
-                  onClick={() => store.setError(null)}
+                  onClick={() => {
+                    setBottingStartError(null);
+                    store.setError(null);
+                  }}
                   className="text-red-500/60 hover:text-red-300 transition-colors"
                   aria-label={t("Close")}
                 >
