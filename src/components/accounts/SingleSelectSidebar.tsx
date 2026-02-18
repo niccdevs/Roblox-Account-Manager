@@ -6,6 +6,7 @@ import { useJoinOnlineWarning } from "../../hooks/useJoinOnlineWarning";
 import { SidebarSection } from "./SidebarSection";
 import { ArgumentsForm } from "../dialogs/ArgumentsForm";
 import { Tooltip } from "../ui/Tooltip";
+import { Select } from "../ui/Select";
 import { loadRecentGames, type RecentGame } from "../server-list/types";
 import { tr, useTr } from "../../i18n/text";
 import { User, Shuffle, Save, Settings } from "lucide-react";
@@ -120,6 +121,9 @@ export function SingleSelectSidebar() {
   const hideAvatar = store.hideUsernames && !store.showAvatarsWhenHidden;
   const presenceType = store.presenceByUserId.get(account.UserID) ?? 0;
   const isJoining = store.joiningAccounts.has(account.UserID);
+  const recentGameSelectValue = recentGames.some((g) => String(g.placeId) === store.placeId)
+    ? store.placeId
+    : "";
   const presenceMeta =
     presenceType === 3
       ? { label: t("In Studio"), dot: "bg-violet-500", dotStyle: undefined as React.CSSProperties | undefined, text: "text-violet-400" }
@@ -216,22 +220,19 @@ export function SingleSelectSidebar() {
         <SidebarSection title={t("Launch")}>
           {recentGames.length > 0 && (
             <div className="mb-1.5">
-              <select
-                value=""
+              <Select
+                value={recentGameSelectValue}
+                options={[
+                  { value: "", label: "Recent games..." },
+                  ...recentGames.map((g) => ({ value: String(g.placeId), label: g.name })),
+                ]}
                 onChange={(e) => {
-                  const selected = recentGames.find((g) => String(g.placeId) === e.target.value);
+                  const selected = recentGames.find((g) => String(g.placeId) === e);
                   if (!selected) return;
                   store.setPlaceId(String(selected.placeId));
                 }}
-                className="sidebar-input w-full text-xs"
-              >
-                <option value="">{t("Recent games...")}</option>
-                {recentGames.map((g) => (
-                  <option key={g.placeId} value={g.placeId}>
-                    {g.name}
-                  </option>
-                ))}
-              </select>
+                className="w-full text-xs"
+              />
             </div>
           )}
           <div className="flex flex-col gap-1.5">
