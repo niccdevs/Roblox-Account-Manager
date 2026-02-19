@@ -56,10 +56,12 @@ Beware of the risks that you are taking if you accidentally send something to so
 If you ever want a friend to join a game using your account, make sure you have the PlaceId and JobId correctly entered, then right click an account, and click "Copy rbx-player link", DO NOT do this if someone asks you for it.
 
 # Download
-To install this, head over to the [Releases](https://github.com/niccsprojects/Roblox-Account-Manager/releases) section and download the rar file at the very top, once downloaded, extract the files into a folder on your desktop and run RBX Alt Manager.exe.
+Download Roblox Account Manager from [Releases](https://github.com/niccsprojects/Roblox-Account-Manager/releases).
 
-If the application isn't starting or not working, make sure to install the [Latest .NET Framework](https://dotnet.microsoft.com/download/dotnet-framework).
-Still having issues? Download and install [vcredist](https://aka.ms/vs/16/release/vc_redist.x86.exe)
+For v4, use the latest Windows release asset (installer or portable build), then run it.
+No .NET Framework or VC++ manual install steps are required for v4 in normal cases.
+
+If Windows SmartScreen or antivirus warns, only run builds from the official releases page and verify the publisher/release tag first.
 
 # Developer API
 To view the documentation, [click here](https://ic3w0lf22.gitbook.io/roblox-account-manager/).
@@ -69,7 +71,11 @@ Be careful executing random scripts when having dangerous settings enabled.
 # Frequently Asked Questions
 ## **Q:** Why is this program detected as a virus?
 
-**A:** Open source programs such as this program are commonly detected as viruses because actual malware may be using the same libaries as this one. For example, account manager may be detected as a RAT because of the Account Control feature, this feature uses [websockets](https://github.com/niccsprojects/Roblox-Account-Manager/blob/master/RBX%20Alt%20Manager/Nexus/WebsocketServer.cs) to connect to clients which is the same way actual malware may use to connect maliciously to someone elses computer. If you'd like, you can download [visual studio](https://visualstudio.microsoft.com/downloads/) yourself (it's free) and compile this program on your own, you may even get the same virus detections as the public release.
+**A:** Some antivirus engines may flag tools like this as suspicious (false positives), especially because RAM can automate browser/game launch flows, manage multiple processes, and expose optional local API/WebSocket controls.
+
+v4 is built on Rust + Tauri and the source is public, so behavior can be audited and reproduced by building from source.
+
+Only download from the official GitHub releases page, and avoid re-uploaded binaries from third-party sites.
 
 
 ## **Q:** How do I enable multi-roblox?
@@ -101,11 +107,6 @@ Be careful executing random scripts when having dangerous settings enabled.
 ## **Q:** Are there docs for the API?
 
 **A:** Yes, there are Docs: https://ic3w0lf22.gitbook.io/roblox-account-manager/
-
-
-## **Q:** My anti virus detects this program as a virus. Should I not use it?
-
-**A:** No. This program is in no way malicious, it's source code is fully available & trusted by a lot of people in the community. Some anti-virus programs may detect Account Manager as malicious because of the auto update function (a similar thing happens with Roblox Studio Mod Manager as well)
 
 
 ## **Q:** Can you use this on Mac?
