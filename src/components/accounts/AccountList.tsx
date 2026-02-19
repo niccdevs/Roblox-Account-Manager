@@ -5,11 +5,20 @@ import { GroupSection } from "./GroupSection";
 import { useTr } from "../../i18n/text";
 import { AddAccountDialog } from "../dialogs/AddAccountDialog";
 
+type DragSelectRect = {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+};
+
 export function AccountList() {
   const t = useTr();
   const store = useStore();
   const listRef = useRef<HTMLDivElement>(null);
+  const suppressClickRef = useRef(false);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [dragSelectRect, setDragSelectRect] = useState<DragSelectRect | null>(null);
 
   useEffect(() => {
     const el = listRef.current;
@@ -59,9 +68,20 @@ export function AccountList() {
   }
 
   function handleBackgroundClick(e: React.MouseEvent) {
+    if (suppressClickRef.current) {
+      suppressClickRef.current = false;
+      return;
+    }
     if (e.target === e.currentTarget) {
       store.deselectAll();
     }
+  }
+
+  function handleClickCapture(e: React.MouseEvent) {
+    if (!suppressClickRef.current) return;
+    suppressClickRef.current = false;
+    e.preventDefault();
+    e.stopPropagation();
   }
 
   function handleBackgroundContext(e: React.MouseEvent) {
@@ -88,6 +108,95 @@ export function AccountList() {
         await store.addAccountByCookie(cookie);
       }
     }
+  }
+
+  function handleMouseDown(e: React.MouseEvent) {
+    if (e.button !== 0) return;
+
+    const list = listRef.current;
+    if (!list) return;
+
+    const target = e.target as HTMLElement;
+    if (target.closest("[data-account-row='true']")) return;
+
+    e.preventDefault();
+    list.focus();
+
+    const initialScrollTop = list.scrollTop;
+    const initialScrollLeft = list.scrollLeft;
+    const listRect = list.getBoundingClientRect();
+    const startX = e.clientX - listRect.left + initialScrollLeft;
+    const startY = e.clientY - listRect.top + initialScrollTop;
+    const baseSelection = new Set(store.selectedIds);
+
+    let dragging = false;
+    const threshold = 4;
+
+    const updateSelection = (clientX: number, clientY: number) => {
+      const currentX = clientX - listRect.left + list.scrollLeft;
+      const currentY = clientY - listRect.top + list.scrollTop;
+      const left = Math.min(startX, currentX);
+      const top = Math.min(startY, currentY);
+      const right = Math.max(startX, currentX);
+      const bottom = Math.max(startY, currentY);
+      const width = right - left;
+      const height = bottom - top;
+
+      if (!dragging && (width > threshold || height > threshold)) {
+        dragging = true;
+      }
+      if (!dragging) return;
+
+      const additive = e.ctrlKey || e.metaKey;
+      const selectedInRect = new Set<number>();
+      const rows = list.querySelectorAll<HTMLElement>("[data-account-row='true']");
+      for (const row of rows) {
+        const userIdRaw = row.dataset.userId;
+        if (!userIdRaw) continue;
+        const userId = Number(userIdRaw);
+        if (!Number.isFinite(userId)) continue;
+
+        const rowRect = row.getBoundingClientRect();
+        const rowLeft = rowRect.left - listRect.left + list.scrollLeft;
+        const rowTop = rowRect.top - listRect.top + list.scrollTop;
+        const rowRight = rowLeft + rowRect.width;
+        const rowBottom = rowTop + rowRect.height;
+
+        const intersects =
+          rowRight >= left &&
+          rowLeft <= right &&
+          rowBottom >= top &&
+          rowTop <= bottom;
+
+        if (intersects) selectedInRect.add(userId);
+      }
+
+      const next = additive
+        ? new Set<number>([...baseSelection, ...selectedInRect])
+        : selectedInRect;
+      store.setSelectedIds(next);
+
+      setDragSelectRect({
+        left: left - list.scrollLeft,
+        top: top - list.scrollTop,
+        width,
+        height,
+      });
+      suppressClickRef.current = true;
+    };
+
+    const onMouseMove = (ev: MouseEvent) => {
+      updateSelection(ev.clientX, ev.clientY);
+    };
+
+    const onMouseUp = () => {
+      document.removeEventListener("mousemove", onMouseMove);
+      document.removeEventListener("mouseup", onMouseUp);
+      setDragSelectRect(null);
+    };
+
+    document.addEventListener("mousemove", onMouseMove);
+    document.addEventListener("mouseup", onMouseUp);
   }
 
   if (store.accounts.length === 0 && !store.searchQuery) {
@@ -131,12 +240,26 @@ export function AccountList() {
     <div
       ref={listRef}
       tabIndex={0}
-      className="flex-1 overflow-y-auto min-h-0 py-1 outline-none"
+      className="relative flex-1 overflow-y-auto min-h-0 py-1 outline-none"
+      onClickCapture={handleClickCapture}
       onClick={handleBackgroundClick}
       onContextMenu={handleBackgroundContext}
+      onMouseDown={handleMouseDown}
       onDragOver={handleDragOver}
       onDrop={handleExternalDrop}
     >
+      {dragSelectRect && (
+        <div
+          className="pointer-events-none absolute z-30 rounded-md border theme-accent-border theme-accent-bg"
+          style={{
+            left: dragSelectRect.left,
+            top: dragSelectRect.top,
+            width: dragSelectRect.width,
+            height: dragSelectRect.height,
+            boxShadow: "0 0 0 1px var(--accent-strong), 0 0 20px var(--accent-soft)",
+          }}
+        />
+      )}
       {store.groups.map((group) => (
         <GroupSection
           key={group.key}

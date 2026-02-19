@@ -89,6 +89,8 @@ export function AccountRow({ account }: { account: Account }) {
 
   return (
     <div
+      data-account-row="true"
+      data-user-id={account.UserID}
       className={`group/row theme-row-hover flex items-center gap-3 px-3 py-1.5 cursor-default select-none border-l-2 transition-colors duration-100 ${
         selected ? "theme-row-selected" : "border-l-transparent"
       }`}
