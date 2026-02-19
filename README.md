@@ -1,25 +1,15 @@
 Full credit to [ic3w0lf22](https://github.com/ic3w0lf22) for the original Roblox Account Manager. I am just continuing the project where I think optimizations or additions could be made.
 
-**[Download Latest v4 Beta Pre-release](https://github.com/niccsprojects/Roblox-Account-Manager/releases?q=beta)**
+**[Download Latest v4 Pre-release](https://github.com/niccsprojects/Roblox-Account-Manager/releases?q=beta)**
 
 ## State of Development
 #### v4 Beta
 
 [![Build](https://github.com/niccsprojects/Roblox-Account-Manager/actions/workflows/release-v4.yml/badge.svg)](https://github.com/niccsprojects/Roblox-Account-Manager/actions/workflows/release-v4.yml)
 
-## Downloads
-[![Total Downloads](https://img.shields.io/github/downloads/niccsprojects/Roblox-Account-Manager/total?label=Total%20Downloads&color=2ea043)](https://github.com/niccsprojects/Roblox-Account-Manager/releases)
-[![Latest v4 Beta Downloads](https://img.shields.io/github/downloads-pre/niccsprojects/Roblox-Account-Manager/latest/total?label=Latest%20v4%20Beta%20Downloads&color=3b82f6)](https://github.com/niccsprojects/Roblox-Account-Manager/releases?q=beta)
-[![Latest v4 Beta](https://img.shields.io/github/v/release/niccsprojects/Roblox-Account-Manager?include_prereleases&label=Latest%20v4%20Beta)](https://github.com/niccsprojects/Roblox-Account-Manager/releases?q=beta)
-[![Latest Release Downloads](https://img.shields.io/github/downloads/niccsprojects/Roblox-Account-Manager/latest/total?label=Latest%20Release%20Downloads&color=3b82f6)](https://github.com/niccsprojects/Roblox-Account-Manager/releases/latest)
-[![Latest Release](https://img.shields.io/github/v/release/niccsprojects/Roblox-Account-Manager?include_prereleases&label=Latest%20Release)](https://github.com/niccsprojects/Roblox-Account-Manager/releases/latest)
-[![Crowdin](https://img.shields.io/badge/Crowdin-2E3340.svg?style=for-the-badge&logo=Crowdin&logoColor=white)](https://crowdin.com/project/roblox-account-manager)
-
-Release download counts are based on GitHub release asset downloads across tags and are not unique installs.
-
-[Click here to view Roblox Account Manager features](https://github.com/niccsprojects/Roblox-Account-Manager/blob/master/README.md#features)
-
 # Roblox Account Manager
+![github-large](Images/Image5.png)
+
 Application that allows you to add multiple accounts into one application allowing you to easily play on alt accounts without having to change accounts
 
 Useful for games that require grinding off other players, or storage accounts that hold in game items or currency, or just to have multiple accounts that you can easily find and use.
@@ -30,34 +20,19 @@ Multiple Roblox Instances is built into the account manager but [must be manuall
 
 Report bugs to the issues section or direct message me via discord @niccdev. The discord (https://discord.gg/MsEH7smXY8) is ic3w0lf22's but is no longer actively maintained.
 
+# WARNING
+If someone asks you to generate an "rbx-player link", **DO NOT** do it, they can use these to join any game using your account, or even launch roblox studio with one of your games. They can do many things in game such as spend your robux or even do things that can get your account terminated. **USE THESE FEATURES AT YOUR OWN RISK**
+
 # RAM v4 (Beta)
 Roblox Account Manager v4 is in active beta on a new Rust + TypeScript stack using [Tauri](https://tauri.app/).
 
-This branch is under heavy development and feature parity with legacy is still in progress.
+This branch is under heavy development.
 
 If you need maximum stability right now, use the latest legacy release until v4 exits beta.
 
 ## Beta Warning
 - Expect bugs and incomplete behavior in some areas
 - Some flows may change between beta versions without full backwards-compatibility
-- Keep backups of your account data before testing new beta builds
-
-## Implemented in v4 beta (can still be unfinished or bugged)
-- New desktop architecture (Tauri + React + Rust backend)
-- Core account loading, storage, and encryption compatibility handling
-- Account list UI with grouping, sorting, and multi-select workflows
-- Settings dialog, theme editor, and utility dialogs
-- Server list experience (games, servers, favorites, recent tabs)
-- Roblox launch/process-management foundation and multi-instance settings
-- Local API/server and Nexus websocket foundations
-- Signed Windows build/release automation for v4 beta
-
-## Still in progress
-- Full legacy feature parity validation and edge-case behavior
-- Additional polish and reliability fixes across account utilities
-- More testing coverage and hardening for release flows
-- Cross-platform parity validation (especially macOS runtime behavior)
-- v4-specific documentation and migration notes
 
 ## Localization (Crowdin)
 v4 now supports localization with Crowdin and `react-i18next`.
@@ -65,22 +40,6 @@ v4 now supports localization with Crowdin and `react-i18next`.
 I would appreciate contributions to the project through crowdin translations into your mother languages.
 
 [![Crowdin](https://img.shields.io/badge/Crowdin-2E3340.svg?style=for-the-badge&logo=Crowdin&logoColor=white)](https://crowdin.com/project/roblox-account-manager)
-
-## v4 Theme System
-v4 uses a centralized theme pipeline. If you change theme behavior, keep frontend defaults, backend defaults, and CSS startup vars aligned.
-
-Source of truth files:
-- Frontend default theme + built-in presets: `src/theme.ts`
-- Backend persisted defaults for fresh installs: `src-tauri/src/data/settings.rs` (`impl Default for ThemeData`)
-- CSS startup fallback variables: `src/index.css` (`:root`)
-- User custom presets file: `RAMThemePresets.json` in the app runtime directory
-
-Current default:
-- The default theme is **Legacy v4 (Original)** to preserve the pre-refactor v4 look.
-- Catppuccin and other styles are presets, not defaults.
-
-# WARNING
-If someone asks you to generate an "rbx-player link", **DO NOT** do it, they can use these to join any game using your account, or even launch roblox studio with one of your games. They can do many things in game such as spend your robux or even do things that can get your account terminated. **USE THESE FEATURES AT YOUR OWN RISK**
 
 # Extra Features
 Extra features can be enabled by setting DevMode=false to DevMode=true in RAMSettings.ini
@@ -126,11 +85,6 @@ Be careful executing random scripts when having dangerous settings enabled.
 **A:** Download [RAMDecrypt](https://github.com/ic3w0lf22/RAMDecrypt) and follow the instructions provided, then you can save the fully decrypted file in google drive, on a flash drive, or where ever you'd like. This does **NOT** work on files that didn't originate from your PC.
 
 
-## **Q:** How do I prevent Windows Defender from deleting alt manager files?
-
-**A:** Add an exclusion for the Roblox Account Manager folder, here's a video on how to add an exclusion: https://youtu.be/1r93NtwZt4o
-
-
 ## **Q:** Can I join vip servers using alt manager?
 
 **A:** Yes you can, just make sure the place id is the same as the game you're trying to join, then paste the whole vip server link into the Job ID box and press Join Server
@@ -167,60 +121,41 @@ Make sure you click "Open Details" before screenshotting. Please make sure your 
 **A:** This is due to Roblox’s rate limiting
 
 
-## **Q:** Adding an account doesn't work
-
-**A:** Restart the program, this issue will be fixed next update
-
-
 ## **Q:** Can you get banned for using this?
 
 **A:** No, you cannot get banned for using this as this does not break Roblox T.O.S although some games may disallow you from having alt accounts so please do your research if you are unsure.
 
-## **Q:** My AccountData file gets corrupted often
-**A:** This is due to ProtectedData failing sometimes. You can disable encryption by creating a file called `NoEncryption.IUnderstandTheRisks.iautamor`. Do this at your own risk, nobody except yourself is responsible for your accounts!
-
 # Features
 | Feature | Description | How to |
 | :--- | :---: | ---: |
-| Account Encryption | All your account data is locally encrypted using your computer as the **password/key** meaning if someone else gets a hold of your account data, they will **NOT** be able to decrypt it unless you decrypted it yourself and shared it | **DO NOT SHARE YOUR `AccountData.json` FILE AT ALL |
-| Password Encryption | Use a password to encrypt your data | This is recommended as it allows you store your data safely in google drive/similar and won't get corrupted due to you switching computers |
-| [Multi Roblox](https://github.com/niccsprojects/Roblox-Account-Manager/blob/master/README.md#q-how-do-i-enable-multi-roblox) | [DISABLED BY DEFAULT, READ FAQ] RAM comes with a built-in multi Roblox allowing multiple Roblox clients to be open at once | **If this doesn't work for you, make sure no Roblox processes are running in the background by checking in task manager, then restart RAM** |
-| Load Region | See where a server is located and get an accurate ping reading | Right click a server in the `Server List`, then click `Load Region` **(Requires a valid account to be selected in the main window)** |
-| Server List | See a game's servers, including the servers' data such as player count and server ping | Click `Server List` on the right side of the main window |
-| [Join Small Servers](https://youtu.be/Red66cV6vVI) | Easily join small servers in games that use lobby starter places to teleport you to another game | Insert the actual game's PlaceId into the text box next to `Refresh` in the `Server List`, click `Refresh`, then right click a server and click `Join Game`, you will hear a beep if successful, once you hear that beep, you can join the main game |
-| Account Utilities | Easily change your account password, email, follow privacy, etc | Click `Account Utilities` in the main window **(Requires a valid account to be selected in the main window)** |
-| Account Sorting | Sort your accounts easily | Simply drag and drop an account on the list |
-| Account Grouping | Sort your accounts by groups, you can also drag and drop accounts into other groups | Right click an account, hover over `Groups`, then click `Move account to` |
-| Group Sorting | Sort groups from top to bottom by assigning numbers to them | When creating a group, you can put a number from 0-999 (ex. `1Main`, `007 Bank`, `67 Dead`, ...), sorted from smallest to largest, the numbers will be hidden afterwards |
-| Games List | Browse through thousands of games you normally wouldn't see on the front page | Click `Server List`, then `Games` |
-| Favorite Games | Add your favorite games to a list you can easily navigate to | Click `Server List`, then `Favorites` |
-| Recent Games | Saves your recently played games into the `PlaceId` text box | After joining a game, that game will be added to the recent games list, which you can then quickly load up by hovering over the clock icon above the `PlaceId` text box or by typing the game's name into the `PlaceId` text box in the main window |
-| Open Browser | Open a browser window using the selected account, allowing you to various settings | Click `Open Browser` in the main window while having an account selected |
-| Join VIP Servers |  | Simply place your entire VIP server link into the `PlaceId` text box and RAM will handle the rest |
-| Launch Data | Join games with launch data parameters, useful for private server join codes | Enter the launch data in the `Launch Data` field, or paste a full URL with launchData parameter into the `PlaceId` field and it will be extracted automatically |
-| Shuffle JobId | Selects a random JobId for every account everytime you press "Join Server" unless you have a JobId set | Click the shuffle icon to toggle JobId Shuffler |
-| Save PlaceId & JobId | Save specific `PlaceId`s and/or `JobId`s to specific accounts | Once you enter your desired PlaceId and/or VIP links, click the `Save` icon next to the `JobId` text box |
-| Player Finder | Find a player even if their follows are off as long as you know what game they are in | In the `Server List` window, put a player's username into the `Username` text box, then click search. **This may take a while to load and may be patched in the near future** |
-| Universe Viewer | View a game's universe | Open `Utilities`, then click `Universe` |
-| Outfit Viewer | View other player's outfits and even wear their outfits | Open `Utilities`, then click `Outfits` |
-| Sort Account by Usage Date | View the last time you used an account | Make sure to enable headers in the Theme Editor, right click the header and enable `Last Used`, then right click an account, hover `Groups`, and press `Toggle`. You can now click on `Last Used` in the header to sort the accounts. |
-| Close Roblox Beta | Detects if the Roblox Beta Home Menu is open and terminates the process if so | Open `Utilities`, then click `Watcher` to modify settings |
-| Prevent Duplicate Instances | Automatically shuts down old instances when you launch an account | Account Manager automatically assigns a number called `BrowserTrackerID` to each account allowing it to know if there is an active instance of that specific account running, then proceeds to close it preventing instances of the same account opening more than once |
-| Save Passwords | Upon logging into an account, RAM will automatically save that accounts password which can then be copied by right clicking the account, then selecting `Copy Password` | This can be disabled by clicking the settings button (gear cog in top-right corner), the unchecking `Save Passwords` |
-| Themes | Customize RAM to your liking (P.S. I know it's very ugly, not much I can do about it with WinForms) | Click `Edit Theme` in the main window |
-| Developer Mode | Enable hidden features not available to normal users for safety reasons | Click the settings button (gear cog in top-right corner), click `Developer`, then check the `Enable Developer Mode` box |
-| Local Web API | Easily use many RAM features by making a simple http request | [Documentation](https://ic3w0lf22.gitbook.io/roblox-account-manager/) |
-| Account Control | Control your in-game accounts using the `Account Control` window in RAM | Click `Account Control` in the main window - [Documentation](https://github.com/niccsprojects/Roblox-Account-Manager/blob/master/RBX%20Alt%20Manager/Nexus/NexusDocs.md) |
-| Import Cookies | Import accounts using their .ROBLOSECURITY cookies | You can drag and drop one or multiple cookies directly into the program, or you can enable developer mode and use the `Import` window |
-| FPS Unlocker | Unlocks the Roblox client's FPS using Roblox's ClientAppSettings.json | Settings can be found by clicking the settings cog, then miscellaneous |
-| Bulk User Importing | Easily import your accounts by their username & password combos, or by cookies | Click the arrow on the right side of the `Add Account` button, then select user:pass/cookies |
-| Automatic Connection Loss Detection | Closes instances that are not connected to a server for a certain amount of time | To enable this, go to `Utilities`->`Watcher`, and make sure `Enable Roblox Watcher` is checked as well as `Exit if No Connection to Server` |
-| Automatic Cookie Refresh | Your accounts never become invalidated sitting in the account manager over long periods of time | As long you actively use account manager, your accounts will regularly get new cookies preventing them from being logged out, this does sign you out of other sessions though |
-| Join Group | Easily join groups with multiple accounts | Click the arrow on the right side of the `Open Browser` button, then click `Join Group` |
-| Auto Relaunch | Automatically relaunch your accounts if they are not in game/have been AFK kicked | Watch a youtube tutorial on how to use this. If you do not have an executor that works with Nexus.lua: click `Account Control`, go to `Settings`, then enable `Use Presence API` |
-| Botting Mode (v4) | Keep selected accounts active by cycling rejoins on a timer with optional Player Account exemption | Open `Botting Mode`, select multiple accounts, set `PlaceId` (optional `JobId`/`JoinData`), then start the cycle |
-| Quick Log In | Easily log in to an account on a different computer using Roblox's Quick Log In feature | Right click an account, then select `Quick Log In` |
-| AI Captcha Assistance | Assists you in the "Pick the image" captchas using the Nopecha API (Requires a subscription key) | You can enable auto solve, but it is not recommended to use, your best option is to add a captcha solving extension to the browser along with a BrowserConfig to automatically set the key per new browser opened |
+| Add Accounts | Add accounts via quick username/cookie input, browser login, cookie import, or old AccountData import | Use `Add` in the toolbar |
+| Multi Roblox | Run multiple Roblox clients at once (manually enabled) | Settings -> `General` -> `Multi Roblox` |
+| Single + Multi Launch | Launch one or many selected accounts using Place/Job/Launch Data | Use the sidebar `Launch` section |
+| Saved Launch Fields | Save Place/Job/Launch Data per account or across selected accounts | Click the save icon in launch fields |
+| Recent Games Picker | Reuse recent places quickly, including a `None` option that resets to saved Place ID | Use the dropdown above `Place` in launch |
+| VIP / Private Server Join | Join private servers from `Job ID` using `vip:` or link code URLs | Paste code/link into `Job ID` and launch |
+| Shuffle Job ID | Randomize target server Job ID on launch | Toggle `Shuffle Job ID` in launch/settings |
+| Server List | Browse tabs for servers, games, favorites, and recent games | Sidebar -> `Server List` |
+| Load Region + Server Data | Inspect server metadata and load region details on demand | Right-click a server -> `Load Region` |
+| Favorites + Recent Games | Save favorite games and keep capped recent history | Use `Favorites` / `Recent` tabs |
+| Open Browser | Open a browser session for the selected account | Sidebar -> `Browser` |
+| Browser Login | Add account by signing in through a browser flow | `Add` -> `Browser Login` |
+| Quick Login | Enter Roblox 6-digit Quick Login codes from context menu | Right-click account -> `Quick Login` |
+| Join Group | Join Roblox groups with selected account credentials | Sidebar -> `Join Group` |
+| Account Utilities | Manage profile, security, social, outfits, universe places, and custom avatar JSON | Sidebar -> `Utilities` |
+| Watcher | Monitor/close clients by connection timeout, memory/window checks, beta detection, and window position rules | Settings -> `Watcher` |
+| Botting Mode | Keep selected accounts rejoining on timers with per-account controls and player-account exemptions | Multi-select -> `Open Botting Mode` |
+| Client Settings Overrides | Configure FPS unlock, max FPS, client volume, graphics level, and optional launch window size | Settings -> `Misc` |
+| Auto Cookie Refresh | Periodically refresh account cookies to reduce expiration issues | Settings -> `General` -> `Auto Cookie Refresh` |
+| Local Web API | Optional local HTTP API with endpoint permissions, password, and port controls | Settings -> `Developer` / `WebServer` |
+| Nexus Account Control | WebSocket-based account control panel with command routing and `Nexus.lua` export | Toolbar -> `Nexus` |
+| Developer Mode Tools | Enable advanced options like auth tickets, app links, and raw field editing | Settings -> `Developer` |
+| Account Organization | Grouping, drag-drop reorder/move, alphabetical group sort, and numeric prefix ordering | Use list drag + right-click menu |
+| Advanced Selection | Ctrl/Shift/range selection plus Windows-style drag marquee selection | Select directly in the account list |
+| Themes + Localization | Built-in theme editor and localized UI (English/German, Crowdin-backed) | Toolbar theme button + language setting |
+
+# Preview (Version 4.2 Beta)
+![github-large](Images/Image5.png)
 
 # Preview (Version 3.4)
 ![github-large](Images/Image4.png)
