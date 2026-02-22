@@ -6,6 +6,7 @@ import { useStore } from "../../store";
 import { useModalClose } from "../../hooks/useModalClose";
 import { SlidingTabBar } from "../ui/SlidingTabBar";
 import { Select } from "../ui/Select";
+import { NumericInput } from "../ui/NumericInput";
 import { tr, useTr } from "../../i18n/text";
 import { X, ChevronRight } from "lucide-react";
 
@@ -742,16 +743,18 @@ function ControlPanel({
               }
 
               if (el.element_type === "Numeric") {
+                const numericValue = Number.parseFloat(el.value);
+                const stepValue = Number.parseFloat(el.increment || "1");
                 return (
-                  <input
-                    key={el.name}
-                    type="number"
-                    value={el.value}
-                    onChange={(e) => onElementChange(el.name, e.target.value)}
-                    step={el.increment || "1"}
-                    className="px-2 py-1 bg-zinc-800/50 border border-zinc-700/50 rounded-md text-[11px] text-zinc-300 font-mono focus:outline-none focus:border-zinc-600 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                    style={{ width: el.size ? el.size[0] : 75 }}
-                  />
+                  <div key={el.name} style={{ width: el.size ? el.size[0] : 75 }}>
+                    <NumericInput
+                      value={Number.isFinite(numericValue) ? numericValue : 0}
+                      onChange={(next) => onElementChange(el.name, String(next))}
+                      step={Number.isFinite(stepValue) && stepValue > 0 ? stepValue : 1}
+                      integer={el.decimal_places !== null ? el.decimal_places <= 0 : undefined}
+                      className="w-full px-2 py-1 bg-zinc-800/50 border border-zinc-700/50 rounded-md text-[11px] text-zinc-300 font-mono focus:outline-none focus:border-zinc-600 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    />
+                  </div>
                 );
               }
 
@@ -979,18 +982,13 @@ function SettingNumber({
     <div className="flex items-center gap-2 py-1 px-1">
       <span className="text-[12px] text-zinc-400">{t(label)}</span>
       <div className="flex items-center gap-1 ml-auto">
-        <input
-          type="number"
+        <NumericInput
           value={value}
+          onChange={onChange}
           min={min}
           max={max}
-          onChange={(e) => {
-            let v = parseInt(e.target.value);
-            if (isNaN(v)) v = min ?? 0;
-            if (min !== undefined) v = Math.max(min, v);
-            if (max !== undefined) v = Math.min(max, v);
-            onChange(v);
-          }}
+          step={1}
+          integer
           className="w-16 px-2 py-0.5 bg-zinc-800/60 border border-zinc-700/50 rounded-md text-[12px] text-zinc-200 text-right font-mono focus:outline-none focus:border-zinc-600 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
         />
         {suffix && <span className="text-[10px] text-zinc-600">{t(suffix)}</span>}

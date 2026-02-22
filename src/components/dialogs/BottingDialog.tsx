@@ -4,75 +4,12 @@ import { useStore } from "../../store";
 import { useModalClose } from "../../hooks/useModalClose";
 import { useTr } from "../../i18n/text";
 import { Tooltip } from "../ui/Tooltip";
+import { NumericInput } from "../ui/NumericInput";
 import { X, ChevronDown } from "lucide-react";
 
 interface BottingDialogProps {
   open: boolean;
   onClose: () => void;
-}
-
-function clampNumber(value: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, value));
-}
-
-function ThemedStepperInput({
-  value,
-  min,
-  max,
-  onChange,
-  onBlur,
-}: {
-  value: number;
-  min: number;
-  max: number;
-  onChange: (value: number) => void;
-  onBlur: () => void;
-}) {
-  const commitRaw = (raw: string) => {
-    const parsed = Number.parseInt(raw, 10);
-    if (!Number.isFinite(parsed)) {
-      onChange(min);
-      return;
-    }
-    onChange(clampNumber(parsed, min, max));
-  };
-
-  return (
-    <div className="relative w-full">
-      <input
-        type="number"
-        min={min}
-        max={max}
-        value={value}
-        onChange={(e) => commitRaw(e.target.value)}
-        onBlur={onBlur}
-        className={[
-          "sidebar-input text-xs pr-10",
-          "[appearance:textfield]",
-          "[&::-webkit-outer-spin-button]:appearance-none",
-          "[&::-webkit-inner-spin-button]:appearance-none",
-        ].join(" ")}
-      />
-      <div className="absolute inset-y-1 right-1 flex w-7 flex-col overflow-hidden rounded-md border theme-border bg-[linear-gradient(180deg,rgba(255,255,255,0.12),rgba(255,255,255,0.03))]">
-        <button
-          type="button"
-          aria-label="Increment"
-          className="flex h-1/2 items-center justify-center border-b theme-border text-[9px] text-[var(--panel-muted)] hover:text-[var(--panel-fg)] hover:bg-[rgba(255,255,255,0.06)] transition"
-          onClick={() => onChange(clampNumber(value + 1, min, max))}
-        >
-          ^
-        </button>
-        <button
-          type="button"
-          aria-label="Decrement"
-          className="flex h-1/2 items-center justify-center text-[9px] text-[var(--panel-muted)] hover:text-[var(--panel-fg)] hover:bg-[rgba(255,255,255,0.06)] transition"
-          onClick={() => onChange(clampNumber(value - 1, min, max))}
-        >
-          v
-        </button>
-      </div>
-    </div>
-  );
 }
 
 function formatCountdown(targetMs: number | null, nowMs: number): string {
@@ -136,6 +73,7 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
   const [launchData, setLaunchData] = useState("");
   const [intervalMinutes, setIntervalMinutes] = useState(19);
   const [launchDelaySeconds, setLaunchDelaySeconds] = useState(20);
+  const [playerGraceMinutes, setPlayerGraceMinutes] = useState(15);
   const [playerUserIds, setPlayerUserIds] = useState<number[]>([]);
   const [busy, setBusy] = useState(false);
   const [rowBusy, setRowBusy] = useState<number | null>(null);
@@ -164,6 +102,10 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
       const draftData = general.BottingDraftLaunchData || store.launchData || "";
       const draftInterval = parseInt(general.BottingDefaultIntervalMinutes || "19", 10);
       const draftDelay = parseInt(general.BottingLaunchDelaySeconds || "20", 10);
+      const draftGrace = parseInt(
+        general.BottingPlayerGraceMinutes || String(status?.playerGraceMinutes ?? 15),
+        10
+      );
       const draftPlayerIdsRaw =
         general.BottingDraftPlayerAccountIds || general.BottingDraftPlayerAccountId || "";
       const draftPlayerIds = draftPlayerIdsRaw
@@ -176,19 +118,35 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
       setLaunchData(draftData);
       setIntervalMinutes(Number.isFinite(draftInterval) ? draftInterval : 19);
       setLaunchDelaySeconds(Number.isFinite(draftDelay) ? draftDelay : 20);
+      setPlayerGraceMinutes(Number.isFinite(draftGrace) ? draftGrace : 15);
       setPlayerUserIds(draftPlayerIds.filter((id) => selectedIds.includes(id)));
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [visible, store.settings, store.placeId, store.jobId, store.launchData, selectedIds]);
+  }, [
+    selectedIds,
+    status?.playerGraceMinutes,
+    store.jobId,
+    store.launchData,
+    store.placeId,
+    store.settings,
+    visible,
+  ]);
 
   useEffect(() => {
     if (!visible) return;
     const timer = window.setInterval(() => setNowMs(Date.now()), 1000);
     return () => window.clearInterval(timer);
   }, [visible]);
+
+  useEffect(() => {
+    if (!visible || !status?.active) return;
+    if (typeof status.playerGraceMinutes === "number" && status.playerGraceMinutes > 0) {
+      setPlayerGraceMinutes(status.playerGraceMinutes);
+    }
+  }, [status?.active, status?.playerGraceMinutes, visible]);
 
   useEffect(() => {
     if (!visible) return;
@@ -215,7 +173,8 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
     nextLaunchData: string,
     nextPlayers: number[],
     nextInterval: number,
-    nextDelay: number
+    nextDelay: number,
+    nextGraceMinutes: number
   ) {
     const updates = [
       invoke("update_setting", {
@@ -253,6 +212,11 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
         key: "BottingLaunchDelaySeconds",
         value: String(nextDelay),
       }),
+      invoke("update_setting", {
+        section: "General",
+        key: "BottingPlayerGraceMinutes",
+        value: String(nextGraceMinutes),
+      }),
     ];
     await Promise.all(updates.map((p) => p.catch(() => {})));
   }
@@ -283,7 +247,8 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
         launchData,
         playerUserIds,
         intervalMinutes,
-        launchDelaySeconds
+        launchDelaySeconds,
+        playerGraceMinutes
       );
       await store.startBottingMode({
         userIds: selectedIds,
@@ -293,6 +258,7 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
         playerUserIds,
         intervalMinutes,
         launchDelaySeconds,
+        playerGraceMinutes,
       });
     } catch (e) {
       setBottingStartError(String(e));
@@ -310,7 +276,15 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
       ? playerUserIds.filter((id) => id !== userId)
       : [...playerUserIds, userId];
     setPlayerUserIds(next);
-    await saveDraft(placeId.trim(), jobId.trim(), launchData, next, intervalMinutes, launchDelaySeconds);
+    await saveDraft(
+      placeId.trim(),
+      jobId.trim(),
+      launchData,
+      next,
+      intervalMinutes,
+      launchDelaySeconds,
+      playerGraceMinutes
+    );
     if (status?.active) {
       await store.setBottingPlayerAccounts(next);
     }
@@ -496,7 +470,15 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
                     type="button"
                     onClick={() => {
                       setPlayerUserIds([]);
-                      void saveDraft(placeId.trim(), jobId.trim(), launchData, [], intervalMinutes, launchDelaySeconds);
+                      void saveDraft(
+                        placeId.trim(),
+                        jobId.trim(),
+                        launchData,
+                        [],
+                        intervalMinutes,
+                        launchDelaySeconds,
+                        playerGraceMinutes
+                      );
                       if (status?.active) void store.setBottingPlayerAccounts([]);
                       setPlayerMenuOpen(false);
                     }}
@@ -545,7 +527,15 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
                 value={placeId}
                 onChange={(e) => setPlaceId(e.target.value)}
                 onBlur={() =>
-                  saveDraft(placeId.trim(), jobId.trim(), launchData, playerUserIds, intervalMinutes, launchDelaySeconds)
+                  saveDraft(
+                    placeId.trim(),
+                    jobId.trim(),
+                    launchData,
+                    playerUserIds,
+                    intervalMinutes,
+                    launchDelaySeconds,
+                    playerGraceMinutes
+                  )
                 }
                 placeholder={t("Place ID")}
                 className="sidebar-input text-xs font-mono"
@@ -554,7 +544,15 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
                 value={jobId}
                 onChange={(e) => setJobId(e.target.value)}
                 onBlur={() =>
-                  saveDraft(placeId.trim(), jobId.trim(), launchData, playerUserIds, intervalMinutes, launchDelaySeconds)
+                  saveDraft(
+                    placeId.trim(),
+                    jobId.trim(),
+                    launchData,
+                    playerUserIds,
+                    intervalMinutes,
+                    launchDelaySeconds,
+                    playerGraceMinutes
+                  )
                 }
                 placeholder={t("Job ID (optional)")}
                 className="sidebar-input text-xs font-mono"
@@ -563,7 +561,15 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
                 value={launchData}
                 onChange={(e) => setLaunchData(e.target.value)}
                 onBlur={() =>
-                  saveDraft(placeId.trim(), jobId.trim(), launchData, playerUserIds, intervalMinutes, launchDelaySeconds)
+                  saveDraft(
+                    placeId.trim(),
+                    jobId.trim(),
+                    launchData,
+                    playerUserIds,
+                    intervalMinutes,
+                    launchDelaySeconds,
+                    playerGraceMinutes
+                  )
                 }
                 placeholder={t("JoinData (optional)")}
                 className="sidebar-input text-xs"
@@ -585,34 +591,84 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
 
           <section className="theme-surface rounded-xl border theme-border p-3 animate-fade-in">
             <div className="text-[13px] font-medium text-[var(--panel-fg)] mb-2">{t("Timing")}</div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
               <div className="flex items-center gap-2">
                 <label className="text-[11px] theme-muted w-36 shrink-0">{t("Rejoin Interval (minutes)")}</label>
-                <ThemedStepperInput
+                <NumericInput
                   value={intervalMinutes}
                   min={10}
                   max={120}
+                  step={1}
+                  integer
+                  showStepper
                   onChange={setIntervalMinutes}
-                  onBlur={() =>
-                    saveDraft(placeId.trim(), jobId.trim(), launchData, playerUserIds, intervalMinutes, launchDelaySeconds)
+                  onCommit={(nextInterval) =>
+                    saveDraft(
+                      placeId.trim(),
+                      jobId.trim(),
+                      launchData,
+                      playerUserIds,
+                      nextInterval,
+                      launchDelaySeconds,
+                      playerGraceMinutes
+                    )
                   }
+                  className="sidebar-input text-xs pr-10"
                 />
               </div>
               <div className="flex items-center gap-2">
                 <label className="text-[11px] theme-muted w-36 shrink-0">{t("Launch Delay (seconds)")}</label>
-                <ThemedStepperInput
+                <NumericInput
                   value={launchDelaySeconds}
                   min={5}
                   max={120}
+                  step={1}
+                  integer
+                  showStepper
                   onChange={setLaunchDelaySeconds}
-                  onBlur={() =>
-                    saveDraft(placeId.trim(), jobId.trim(), launchData, playerUserIds, intervalMinutes, launchDelaySeconds)
+                  onCommit={(nextDelay) =>
+                    saveDraft(
+                      placeId.trim(),
+                      jobId.trim(),
+                      launchData,
+                      playerUserIds,
+                      intervalMinutes,
+                      nextDelay,
+                      playerGraceMinutes
+                    )
                   }
+                  className="sidebar-input text-xs pr-10"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="text-[11px] theme-muted w-36 shrink-0">{t("Player Grace (minutes)")}</label>
+                <NumericInput
+                  value={playerGraceMinutes}
+                  min={1}
+                  max={90}
+                  step={1}
+                  integer
+                  showStepper
+                  onChange={setPlayerGraceMinutes}
+                  onCommit={(nextGraceMinutes) =>
+                    saveDraft(
+                      placeId.trim(),
+                      jobId.trim(),
+                      launchData,
+                      playerUserIds,
+                      intervalMinutes,
+                      launchDelaySeconds,
+                      nextGraceMinutes
+                    )
+                  }
+                  className="sidebar-input text-xs pr-10"
                 />
               </div>
             </div>
             <div className="text-[10px] theme-muted mt-2">
-              {t("Player account demotion grace is 15 minutes before it enters normal restart cycle.")}
+              {t("Player account demotion grace is {{minutes}} minutes before it enters normal restart cycle.", {
+                minutes: playerGraceMinutes,
+              })}
             </div>
             {!multiRbxEnabled ? (
               <div className="text-[10px] text-amber-300 mt-1">
