@@ -3,6 +3,7 @@ import { StoreProvider, useStore } from "./store";
 import { PromptProvider } from "./hooks/usePrompt";
 import { PasswordScreen } from "./components/layout/PasswordScreen";
 import { TitleBar } from "./components/layout/TitleBar";
+import { ModalWindowControls } from "./components/layout/ModalWindowControls";
 import { UpdateBanner } from "./components/layout/UpdateBanner";
 import { Toolbar } from "./components/layout/Toolbar";
 import { AccountList } from "./components/accounts/AccountList";
@@ -28,6 +29,18 @@ function AppContent() {
   const showCloseRobloxAction =
     errorLower.includes("failed to enable multi roblox") ||
     (errorLower.includes("multi roblox") && errorLower.includes("close all roblox process"));
+  const anyModalOpen =
+    store.settingsOpen ||
+    store.serverListOpen ||
+    store.importDialogOpen ||
+    store.accountFieldsOpen ||
+    store.accountUtilsOpen ||
+    !!store.missingAssets ||
+    store.themeEditorOpen ||
+    store.bottingDialogOpen ||
+    store.nexusOpen ||
+    store.updateDialogOpen ||
+    !!store.modal;
 
   useEffect(() => {
     if (store.initialized && !store.needsPassword) {
@@ -49,7 +62,8 @@ function AppContent() {
 
   return (
     <div className="theme-app flex h-screen flex-col">
-      <TitleBar />
+      <ModalWindowControls visible={anyModalOpen} />
+      <TitleBar controlsHidden={anyModalOpen} />
       <UpdateBanner />
       <Toolbar />
 

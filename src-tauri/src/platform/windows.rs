@@ -5,14 +5,13 @@ use std::os::windows::process::CommandExt;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{LazyLock, Mutex};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use serde::Serialize;
 
 use windows_sys::Win32::Foundation::{CloseHandle, HANDLE, HWND, RECT};
 use windows_sys::Win32::System::Diagnostics::ToolHelp::{
-    CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W,
-    TH32CS_SNAPPROCESS,
+    CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W, TH32CS_SNAPPROCESS,
 };
 use windows_sys::Win32::System::Registry::{
     RegCloseKey, RegOpenKeyExW, RegQueryValueExW, HKEY_CLASSES_ROOT, KEY_READ, REG_SZ,
@@ -23,13 +22,14 @@ use windows_sys::Win32::System::Threading::{
 };
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     EnumWindows, GetForegroundWindow, GetWindowRect, GetWindowTextLengthW, GetWindowTextW,
-    GetWindowThreadProcessId, IsWindowVisible, MoveWindow,
+    GetWindowThreadProcessId, IsWindowVisible, MoveWindow, ShowWindow,
 };
 
 const WAIT_OBJECT_0: u32 = 0;
 const WAIT_ABANDONED_0: u32 = 0x80;
 const CREATE_NO_WINDOW: u32 = 0x08000000;
 const INVALID_HANDLE_VALUE: HANDLE = -1isize as HANDLE;
+const SW_MINIMIZE: i32 = 6;
 
 struct SendHandle(HANDLE);
 unsafe impl Send for SendHandle {}
@@ -263,11 +263,7 @@ pub fn build_launch_url(
         } else {
             format!("&gameId={}", job_id)
         };
-        let tp = if is_teleport {
-            "&isTeleport=true"
-        } else {
-            ""
-        };
+        let tp = if is_teleport { "&isTeleport=true" } else { "" };
         format!(
             "https://assetgame.roblox.com/game/PlaceLauncher.ashx?request={}&browserTrackerId={}&placeId={}{}&isPlayTogetherGame=false{}{}",
             req, browser_tracker_id, place_id, gid, tp, ld_param
@@ -336,11 +332,7 @@ pub fn launch_old_join(
         } else {
             format!("&gameId={}", job_id)
         };
-        let tp = if is_teleport {
-            "&isTeleport=true"
-        } else {
-            ""
-        };
+        let tp = if is_teleport { "&isTeleport=true" } else { "" };
         format!(
             "https://assetgame.roblox.com/game/PlaceLauncher.ashx?request={}&placeId={}{}&isPlayTogetherGame=false{}{}",
             req, place_id, gid, tp, ld_param
@@ -602,6 +594,21 @@ pub fn set_window_position(hwnd: HWND, x: i32, y: i32, w: i32, h: i32) -> bool {
     unsafe { MoveWindow(hwnd, x, y, w, h, 1) != 0 }
 }
 
+pub fn minimize_window(hwnd: HWND) -> bool {
+    unsafe { ShowWindow(hwnd, SW_MINIMIZE) != 0 }
+}
+
+fn wait_for_process_exit(pid: u32, timeout: Duration) -> bool {
+    let started = std::time::Instant::now();
+    while started.elapsed() < timeout {
+        if !get_roblox_pids().contains(&pid) {
+            return true;
+        }
+        std::thread::sleep(Duration::from_millis(150));
+    }
+    !get_roblox_pids().contains(&pid)
+}
+
 pub fn get_foreground_hwnd() -> HWND {
     unsafe { GetForegroundWindow() }
 }
@@ -740,6 +747,21 @@ impl ProcessTracker {
         } else {
             false
         }
+    }
+
+    pub fn kill_for_user_graceful(&self, user_id: i64, timeout_ms: u64) -> bool {
+        let Some(pid) = self.get_pid(user_id) else {
+            return true;
+        };
+
+        let kill_ok = kill_process(pid).is_ok();
+        let exited = if kill_ok {
+            wait_for_process_exit(pid, Duration::from_millis(timeout_ms.max(250)))
+        } else {
+            false
+        };
+        self.untrack(user_id);
+        exited
     }
 
     pub fn is_watcher_active(&self) -> bool {

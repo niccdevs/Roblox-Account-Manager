@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 
 export type UseSettingsReturn = ReturnType<typeof useSettings>;
@@ -8,6 +8,48 @@ export function useSettings() {
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const saveTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const flushInFlight = useRef(false);
+  const pending = useRef<Map<string, { section: string; key: string; value: string }>>(new Map());
+
+  const flushPending = useCallback(async () => {
+    if (flushInFlight.current) return;
+    flushInFlight.current = true;
+    let savedAny = false;
+    try {
+      while (pending.current.size > 0) {
+        const batch = [...pending.current.values()];
+        pending.current.clear();
+        await Promise.all(
+          batch.map(async ({ section, key, value }) => {
+            await invoke("update_setting", { section, key, value });
+          })
+        );
+        savedAny = true;
+      }
+    } catch {
+    } finally {
+      flushInFlight.current = false;
+      if (pending.current.size > 0) {
+        if (saveTimeout.current) clearTimeout(saveTimeout.current);
+        saveTimeout.current = setTimeout(() => {
+          void flushPending();
+        }, 120);
+        return;
+      }
+      setSaving(false);
+      if (savedAny) {
+        window.dispatchEvent(
+          new CustomEvent("ram-action-status", {
+            detail: {
+              message: "Settings saved",
+              tone: "success",
+              timeoutMs: 2200,
+            },
+          })
+        );
+      }
+    }
+  }, []);
 
   const load = useCallback(async () => {
     try {
@@ -46,25 +88,16 @@ export function useSettings() {
         ...prev,
         [section]: { ...prev[section], [key]: value },
       }));
+
+      pending.current.set(`${section}::${key}`, { section, key, value });
       setSaving(true);
+
       if (saveTimeout.current) clearTimeout(saveTimeout.current);
-      saveTimeout.current = setTimeout(async () => {
-        try {
-          await invoke("update_setting", { section, key, value });
-          window.dispatchEvent(
-            new CustomEvent("ram-action-status", {
-              detail: {
-                message: "Settings saved",
-                tone: "success",
-                timeoutMs: 2200,
-              },
-            })
-          );
-        } catch {}
-        setSaving(false);
-      }, 150);
+      saveTimeout.current = setTimeout(() => {
+        void flushPending();
+      }, 160);
     },
-    []
+    [flushPending]
   );
 
   const setBool = useCallback(
@@ -80,6 +113,15 @@ export function useSettings() {
     },
     [set]
   );
+
+  useEffect(() => {
+    return () => {
+      if (saveTimeout.current) clearTimeout(saveTimeout.current);
+      if (pending.current.size > 0) {
+        void flushPending();
+      }
+    };
+  }, [flushPending]);
 
   return { settings, loaded, saving, load, get, getBool, getNumber, set, setBool, setNumber };
 }

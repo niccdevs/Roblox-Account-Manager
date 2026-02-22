@@ -64,6 +64,7 @@ export interface BottingStatus {
   launchData: string;
   intervalMinutes: number;
   launchDelaySeconds: number;
+  playerGraceMinutes: number;
   playerUserIds: number[];
   userIds: number[];
   accounts: BottingAccountStatus[];
@@ -77,6 +78,7 @@ export interface BottingStartConfig {
   playerUserIds: number[];
   intervalMinutes: number;
   launchDelaySeconds: number;
+  playerGraceMinutes: number;
 }
 
 export interface StoreValue {
@@ -805,6 +807,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         playerUserIds: config.playerUserIds,
         intervalMinutes: config.intervalMinutes,
         launchDelaySeconds: config.launchDelaySeconds,
+        playerGraceMinutes: config.playerGraceMinutes,
       });
       setBottingStatus(status);
       addToast(tr("Botting Mode started ({{count}} accounts)", { count: config.userIds.length }));
@@ -1004,7 +1007,21 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }),
       listen("botting-stopped", () => {
         setBottingStatus((prev) =>
-          prev ? { ...prev, active: false } : { active: false, startedAtMs: null, placeId: 0, jobId: "", launchData: "", intervalMinutes: 19, launchDelaySeconds: 20, playerUserIds: [], userIds: [], accounts: [] }
+          prev
+            ? { ...prev, active: false }
+            : {
+                active: false,
+                startedAtMs: null,
+                placeId: 0,
+                jobId: "",
+                launchData: "",
+                intervalMinutes: 19,
+                launchDelaySeconds: 20,
+                playerGraceMinutes: 15,
+                playerUserIds: [],
+                userIds: [],
+                accounts: [],
+              }
         );
       }),
       listen<{ userId?: number; ok?: boolean; error?: string | null }>("botting-account-cycle", (e) => {

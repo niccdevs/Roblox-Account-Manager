@@ -717,9 +717,53 @@ struct BottingStatusPayload {
     launch_data: String,
     interval_minutes: i64,
     launch_delay_seconds: i64,
+    player_grace_minutes: i64,
     player_user_ids: Vec<i64>,
     user_ids: Vec<i64>,
     accounts: Vec<BottingAccountStatusPayload>,
+}
+
+#[cfg(target_os = "windows")]
+async fn minimize_new_roblox_windows(pids_before: Vec<u32>, timeout: std::time::Duration) {
+    let deadline = std::time::Instant::now() + timeout;
+    let mut minimized: HashSet<u32> = HashSet::new();
+    loop {
+        for pid in platform::windows::get_roblox_pids() {
+            if pids_before.contains(&pid) || minimized.contains(&pid) {
+                continue;
+            }
+            if let Some(hwnd) = platform::windows::find_main_window(pid) {
+                let _ = platform::windows::minimize_window(hwnd);
+                minimized.insert(pid);
+            }
+        }
+
+        if std::time::Instant::now() >= deadline {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn ensure_multi_roblox_enabled(auto_close_conflicts: bool) -> Result<(), String> {
+    let enabled = platform::windows::enable_multi_roblox()?;
+    if enabled {
+        return Ok(());
+    }
+
+    if auto_close_conflicts {
+        let killed = platform::windows::kill_all_roblox();
+        if killed > 0 {
+            std::thread::sleep(std::time::Duration::from_millis(700));
+        }
+        let enabled_after = platform::windows::enable_multi_roblox()?;
+        if enabled_after {
+            return Ok(());
+        }
+    }
+
+    Err("Failed to enable Multi Roblox. Close all Roblox processes and try again.".into())
 }
 
 #[cfg(target_os = "windows")]
@@ -893,6 +937,7 @@ fn botting_status_from_session(session: &BottingSession) -> BottingStatusPayload
         launch_data: config.launch_data,
         interval_minutes: config.interval_minutes as i64,
         launch_delay_seconds: config.launch_delay_seconds as i64,
+        player_grace_minutes: config.player_grace_minutes as i64,
         player_user_ids,
         user_ids: config.user_ids,
         accounts,
@@ -923,7 +968,15 @@ async fn launch_account_for_cycle(
 ) -> Result<(), String> {
     use platform::windows;
 
-    let (cookie, is_teleport, use_old_join, auto_close_last_process, multi_rbx) = {
+    let (
+        cookie,
+        is_teleport,
+        use_old_join,
+        auto_close_last_process,
+        multi_rbx,
+        auto_close_multi_conflicts,
+        start_minimized,
+    ) = {
         let state = app.state::<AccountStore>();
         let settings = app.state::<SettingsStore>();
         (
@@ -932,16 +985,13 @@ async fn launch_account_for_cycle(
             settings.get_bool("Developer", "UseOldJoin"),
             settings.get_bool("General", "AutoCloseLastProcess"),
             settings.get_bool("General", "EnableMultiRbx"),
+            settings.get_bool("General", "AutoCloseRobloxForMultiRbx"),
+            settings.get_bool("General", "StartRobloxMinimized"),
         )
     };
 
     if multi_rbx {
-        let enabled = windows::enable_multi_roblox()?;
-        if !enabled {
-            return Err(
-                "Failed to enable Multi Roblox. Close all Roblox processes and try again.".into(),
-            );
-        }
+        ensure_multi_roblox_enabled(auto_close_multi_conflicts)?;
     } else {
         let _ = windows::disable_multi_roblox();
     }
@@ -953,8 +1003,11 @@ async fn launch_account_for_cycle(
 
     let tracker = windows::tracker();
     if auto_close_last_process && tracker.get_pid(user_id).is_some() {
-        tracker.kill_for_user(user_id);
-        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+        let closed = tracker.kill_for_user_graceful(user_id, 4500);
+        if !closed {
+            return Err("Previous Roblox instance did not close before relaunch".into());
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(250)).await;
     }
 
     let browser_tracker_id = {
@@ -1021,6 +1074,13 @@ async fn launch_account_for_cycle(
         if detect_auth_failure_window(pid).await {
             let _ = tracker.kill_for_user(user_id);
             return Err("Roblox authentication failed (429) while joining".into());
+        }
+
+        if start_minimized {
+            let baseline = pids_before.clone();
+            tokio::spawn(async move {
+                minimize_new_roblox_windows(baseline, std::time::Duration::from_secs(14)).await;
+            });
         }
     }
 
@@ -1230,8 +1290,22 @@ async fn run_botting_session(
             if stop_flag.load(Ordering::Relaxed) {
                 break;
             }
-            let _ = tracker.kill_for_user(uid);
-            tokio::time::sleep(std::time::Duration::from_millis(900)).await;
+            let closed = tracker.kill_for_user_graceful(uid, 4500);
+            if !closed {
+                if let Ok(mut map) = accounts.lock() {
+                    if let Some(entry) = map.get_mut(&uid) {
+                        entry.retry_count = entry.retry_count.saturating_add(1);
+                        entry.phase = "retry-backoff";
+                        entry.last_error = Some(
+                            "Previous Roblox instance did not close before relaunch".to_string(),
+                        );
+                        entry.next_restart_at_ms = Some(now_ms().saturating_add(6000));
+                    }
+                }
+                emit_botting_status(&app);
+                continue;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(250)).await;
 
             let launch_result =
                 launch_account_for_cycle(&app, uid, cfg.place_id, &cfg.job_id, &cfg.launch_data)
@@ -1317,6 +1391,7 @@ async fn start_botting_mode(
     player_user_ids: Vec<i64>,
     interval_minutes: i64,
     launch_delay_seconds: i64,
+    player_grace_minutes: i64,
 ) -> Result<BottingStatusPayload, String> {
     if user_ids.len() < 2 {
         return Err("Select at least two accounts for Botting Mode".into());
@@ -1371,13 +1446,18 @@ async fn start_botting_mode(
         .get_int("General", "BottingRetryBaseSeconds")
         .unwrap_or(8)
         .clamp(5, 120) as u64;
-    let player_grace_minutes = settings
+    let default_player_grace_minutes = settings
         .get_int("General", "BottingPlayerGraceMinutes")
         .unwrap_or(15)
-        .clamp(1, 60) as u64;
+        .clamp(1, 90);
 
     let interval_minutes = interval_minutes.clamp(10, 120) as u64;
     let launch_delay_seconds = launch_delay_seconds.clamp(5, 120) as u64;
+    let player_grace_minutes = if player_grace_minutes <= 0 {
+        default_player_grace_minutes as u64
+    } else {
+        player_grace_minutes.clamp(1, 90) as u64
+    };
 
     let cfg = BottingConfig {
         user_ids: dedup.clone(),
@@ -1454,6 +1534,7 @@ async fn start_botting_mode(
     _player_user_ids: Vec<i64>,
     _interval_minutes: i64,
     _launch_delay_seconds: i64,
+    _player_grace_minutes: i64,
 ) -> Result<BottingStatusPayload, String> {
     Err("Botting Mode is only supported on Windows".into())
 }
@@ -1731,15 +1812,12 @@ async fn launch_roblox(
     let is_teleport = settings.get_bool("Developer", "IsTeleport");
     let use_old_join = settings.get_bool("Developer", "UseOldJoin");
     let auto_close_last_process = settings.get_bool("General", "AutoCloseLastProcess");
+    let auto_close_multi_conflicts = settings.get_bool("General", "AutoCloseRobloxForMultiRbx");
+    let start_minimized = settings.get_bool("General", "StartRobloxMinimized");
 
     let multi_rbx = settings.get_bool("General", "EnableMultiRbx");
     if multi_rbx {
-        let enabled = windows::enable_multi_roblox()?;
-        if !enabled {
-            return Err(
-                "Failed to enable Multi Roblox. Close all Roblox processes and try again.".into(),
-            );
-        }
+        ensure_multi_roblox_enabled(auto_close_multi_conflicts)?;
     } else {
         let _ = windows::disable_multi_roblox();
     }
@@ -1748,8 +1826,11 @@ async fn launch_roblox(
 
     let tracker = windows::tracker();
     if auto_close_last_process && tracker.get_pid(user_id).is_some() {
-        tracker.kill_for_user(user_id);
-        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+        let closed = tracker.kill_for_user_graceful(user_id, 4500);
+        if !closed {
+            return Err("Previous Roblox instance did not close before relaunch".into());
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(250)).await;
     }
 
     let mut actual_job = job_id.clone();
@@ -1852,6 +1933,13 @@ async fn launch_roblox(
                     }
                 });
             }
+        }
+
+        if start_minimized {
+            let baseline = pids_before.clone();
+            tokio::spawn(async move {
+                minimize_new_roblox_windows(baseline, std::time::Duration::from_secs(14)).await;
+            });
         }
     }
 
@@ -2015,6 +2103,8 @@ async fn launch_multiple(
     let is_teleport = settings.get_bool("Developer", "IsTeleport");
     let use_old_join = settings.get_bool("Developer", "UseOldJoin");
     let auto_close_last_process = settings.get_bool("General", "AutoCloseLastProcess");
+    let auto_close_multi_conflicts = settings.get_bool("General", "AutoCloseRobloxForMultiRbx");
+    let start_minimized = settings.get_bool("General", "StartRobloxMinimized");
     let tracker = windows::tracker();
     tracker.reset_launch_cancelled();
 
@@ -2050,13 +2140,7 @@ async fn launch_multiple(
         };
 
         if multi_rbx {
-            let enabled = windows::enable_multi_roblox()?;
-            if !enabled {
-                return Err(
-                    "Failed to enable Multi Roblox. Close all Roblox processes and try again."
-                        .into(),
-                );
-            }
+            ensure_multi_roblox_enabled(auto_close_multi_conflicts)?;
         } else {
             let _ = windows::disable_multi_roblox();
         }
@@ -2064,8 +2148,12 @@ async fn launch_multiple(
         patch_client_settings_for_launch(&settings);
 
         if auto_close_last_process && tracker.get_pid(uid).is_some() {
-            tracker.kill_for_user(uid);
-            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+            let closed = tracker.kill_for_user_graceful(uid, 4500);
+            if !closed {
+                tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+                continue;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(250)).await;
         }
 
         let browser_tracker_id = get_or_create_browser_tracker_id(&state, uid)?;
@@ -2115,6 +2203,12 @@ async fn launch_multiple(
         if let Some(pid) = wait_for_new_roblox_pid(&pids_before, std::time::Duration::from_secs(12)).await
         {
             tracker.track(uid, pid, browser_tracker_id);
+            if start_minimized {
+                let baseline = pids_before.clone();
+                tokio::spawn(async move {
+                    minimize_new_roblox_windows(baseline, std::time::Duration::from_secs(14)).await;
+                });
+            }
         }
 
         if i < user_ids.len() - 1 {

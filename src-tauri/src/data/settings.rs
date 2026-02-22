@@ -246,6 +246,7 @@ impl SettingsStore {
             ("ScaleFonts", "true", None),
             ("AutoCookieRefresh", "true", None),
             ("AutoCloseLastProcess", "false", None),
+            ("AutoCloseRobloxForMultiRbx", "false", None),
             ("ShowPresence", "true", None),
             ("PresenceUpdateRate", "5", None),
             ("WarnOnOnlineJoin", "true", None),
@@ -259,6 +260,7 @@ impl SettingsStore {
             ("OverrideClientWindowSize", "false", None),
             ("ClientWindowWidth", "1280", None),
             ("ClientWindowHeight", "720", None),
+            ("StartRobloxMinimized", "false", None),
             ("UseCefSharpBrowser", "false", None),
             ("StartOnPCStartup", "false", None),
             ("MinimizeToTray", "false", None),
@@ -341,8 +343,12 @@ impl SettingsStore {
                 account_control.set(key, value, None);
             }
         }
-        if !account_control.exists("LauncherDelay") && account_control.exists("LauncherDelayNumber") {
-            if let Some(val) = account_control.get("LauncherDelayNumber").map(|v| v.to_string()) {
+        if !account_control.exists("LauncherDelay") && account_control.exists("LauncherDelayNumber")
+        {
+            if let Some(val) = account_control
+                .get("LauncherDelayNumber")
+                .map(|v| v.to_string())
+            {
                 account_control.set("LauncherDelay", &val, None);
             }
         }
@@ -477,7 +483,9 @@ fn default_font_mono() -> ThemeFontSpec {
             "Consolas".to_string(),
             "monospace".to_string(),
         ],
-        google: Some(ThemeFontGoogleSpec { weights: vec![400, 500] }),
+        google: Some(ThemeFontGoogleSpec {
+            weights: vec![400, 500],
+        }),
         local: None,
     }
 }
@@ -779,10 +787,15 @@ impl ThemePresetStore {
     }
 
     fn save_all(&self, presets: &[ThemePresetData]) -> Result<(), String> {
-        let payload =
-            serde_json::to_string_pretty(presets).map_err(|e| format!("Failed to serialize presets: {}", e))?;
-        fs::write(&self.file_path, payload)
-            .map_err(|e| format!("Failed to write preset file {}: {}", self.file_path.display(), e))
+        let payload = serde_json::to_string_pretty(presets)
+            .map_err(|e| format!("Failed to serialize presets: {}", e))?;
+        fs::write(&self.file_path, payload).map_err(|e| {
+            format!(
+                "Failed to write preset file {}: {}",
+                self.file_path.display(),
+                e
+            )
+        })
     }
 
     fn sanitize_preset_name(name: &str) -> String {
@@ -919,7 +932,8 @@ impl ThemePresetStore {
             return self.import_bundle_file(path);
         }
 
-        let raw = fs::read_to_string(path).map_err(|e| format!("Failed to read preset file: {}", e))?;
+        let raw =
+            fs::read_to_string(path).map_err(|e| format!("Failed to read preset file: {}", e))?;
         let value: serde_json::Value =
             serde_json::from_str(&raw).map_err(|e| format!("Invalid preset JSON: {}", e))?;
 
@@ -953,8 +967,10 @@ impl ThemePresetStore {
     }
 
     fn import_bundle_file(&self, path: &str) -> Result<ThemePresetData, String> {
-        let file = fs::File::open(path).map_err(|e| format!("Failed to open theme bundle: {}", e))?;
-        let mut archive = ZipArchive::new(file).map_err(|e| format!("Invalid theme bundle zip: {}", e))?;
+        let file =
+            fs::File::open(path).map_err(|e| format!("Failed to open theme bundle: {}", e))?;
+        let mut archive =
+            ZipArchive::new(file).map_err(|e| format!("Invalid theme bundle zip: {}", e))?;
 
         let mut manifest_raw = String::new();
         {
@@ -966,8 +982,8 @@ impl ThemePresetStore {
                 .map_err(|e| format!("Failed to read theme.json: {}", e))?;
         }
 
-        let parsed: ThemeBundleExportFile =
-            serde_json::from_str(&manifest_raw).map_err(|e| format!("Invalid theme bundle manifest: {}", e))?;
+        let parsed: ThemeBundleExportFile = serde_json::from_str(&manifest_raw)
+            .map_err(|e| format!("Invalid theme bundle manifest: {}", e))?;
         if parsed.format != "ram-theme-bundle-v1" {
             return Err("Unsupported theme bundle format".to_string());
         }
@@ -1056,13 +1072,18 @@ impl ThemePresetStore {
                         let json = serde_json::to_string_pretty(&payload)
                             .map_err(|e| format!("Failed to serialize exported preset: {}", e))?;
                         file.write_all(json.as_bytes()).map_err(|e| {
-                            format!("Failed to write preset export {}: {}", out_path.display(), e)
+                            format!(
+                                "Failed to write preset export {}: {}",
+                                out_path.display(),
+                                e
+                            )
                         })?;
                         return Ok(out_path.to_string_lossy().into_owned());
                     }
 
                     let mut writer = ZipWriter::new(file);
-                    let opts = FileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+                    let opts =
+                        FileOptions::default().compression_method(zip::CompressionMethod::Deflated);
 
                     let payload = ThemeBundleExportFile {
                         format: "ram-theme-bundle-v1".to_string(),
@@ -1109,7 +1130,9 @@ impl ThemePresetStore {
                         }
                     }
 
-                    writer.finish().map_err(|e| format!("Failed to finalize zip: {}", e))?;
+                    writer
+                        .finish()
+                        .map_err(|e| format!("Failed to finalize zip: {}", e))?;
                     return Ok(out_path.to_string_lossy().into_owned());
                 }
                 Err(e) if e.kind() == ErrorKind::AlreadyExists => {
@@ -1239,7 +1262,9 @@ pub fn import_theme_font_asset(path: String) -> Result<ThemeFontAssetImportResul
         .unwrap_or("")
         .to_ascii_lowercase();
     if !is_allowed_font_ext(&ext) {
-        return Err("Unsupported font extension (supported: .ttf, .otf, .woff, .woff2)".to_string());
+        return Err(
+            "Unsupported font extension (supported: .ttf, .otf, .woff, .woff2)".to_string(),
+        );
     }
 
     let bytes = fs::read(&source).map_err(|e| format!("Failed to read font file: {}", e))?;
@@ -1282,7 +1307,9 @@ pub fn resolve_theme_font_asset(file: String) -> Result<String, String> {
 }
 
 #[tauri::command]
-pub fn get_theme_presets(state: tauri::State<'_, ThemePresetStore>) -> Result<Vec<ThemePresetData>, String> {
+pub fn get_theme_presets(
+    state: tauri::State<'_, ThemePresetStore>,
+) -> Result<Vec<ThemePresetData>, String> {
     state.get_all()
 }
 

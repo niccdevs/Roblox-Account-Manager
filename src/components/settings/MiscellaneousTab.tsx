@@ -78,6 +78,12 @@ export function MiscellaneousTab({ s }: { s: UseSettingsReturn }) {
         label="Override Window Size"
         description="Optional: start Roblox in windowed mode with this size"
       />
+      <Toggle
+        checked={s.getBool("General", "StartRobloxMinimized")}
+        onChange={(v) => s.setBool("General", "StartRobloxMinimized", v)}
+        label="Start Roblox Windows Minimized"
+        description="Launches Roblox and minimizes the window right after startup"
+      />
       <NumberField
         value={s.getNumber("General", "ClientWindowWidth", 1280)}
         onChange={(v) => s.setNumber("General", "ClientWindowWidth", v)}
@@ -118,6 +124,12 @@ export function MiscellaneousTab({ s }: { s: UseSettingsReturn }) {
         onChange={(v) => s.setBool("General", "AutoCloseLastProcess", v)}
         label="Auto Close Last Process"
         description="Close the previous Roblox instance when launching a new one for the same account"
+      />
+      <Toggle
+        checked={s.getBool("General", "AutoCloseRobloxForMultiRbx")}
+        onChange={(v) => s.setBool("General", "AutoCloseRobloxForMultiRbx", v)}
+        label="Auto Close Roblox for Multi Roblox"
+        description="If Multi Roblox cannot be enabled, close open Roblox windows automatically and continue"
       />
       <NumberField
         value={s.getNumber("General", "PresenceUpdateRate", 5)}
