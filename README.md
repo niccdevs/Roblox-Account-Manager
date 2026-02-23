@@ -9,7 +9,7 @@ Useful for games that require grinding off other players, or storage accounts th
 
 You are welcome to edit the code and create pull requests if it'll benefit this project.
 
-Multiple Roblox Instances is built into the account manager but [must be manually enabled](https://github.com/niccsprojects/Roblox-Account-Manager/blob/master/README.md#q-how-do-i-enable-multi-roblox).
+Multiple Roblox Instances and Botting Mode are built into the account manager but [must be manually enabled](https://github.com/niccsprojects/Roblox-Account-Manager/blob/master/README.md#q-how-do-i-enable-multi-roblox).
 
 Report bugs to the issues section or direct message me via discord @niccdev. The discord (https://discord.gg/MsEH7smXY8) is ic3w0lf22's but is no longer actively maintained.
 
