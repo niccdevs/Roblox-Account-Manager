@@ -15,6 +15,7 @@ function renderMarkdown(src: string): React.ReactNode[] {
   let key = 0;
   let inFence = false;
   let fenceChar = "`";
+  let fenceLength = 3;
   let fenceLang = "";
   let fenceLines: string[] = [];
 
@@ -74,18 +75,27 @@ function renderMarkdown(src: string): React.ReactNode[] {
     const fence = line.match(/^\s*(```+|~~~+)\s*([a-zA-Z0-9_-]+)?\s*$/);
 
     if (fence) {
-      const nextChar = fence[1].startsWith("~") ? "~" : "`";
+      const marker = fence[1];
+      const nextChar = marker.startsWith("~") ? "~" : "`";
       if (!inFence) {
         inFence = true;
         fenceChar = nextChar;
+        fenceLength = marker.length;
         fenceLang = (fence[2] || "").toLowerCase();
         fenceLines = [];
-      } else if (fenceChar === nextChar) {
+        continue;
+      }
+
+      if (fenceChar === nextChar && marker.length === fenceLength) {
         pushFence();
         inFence = false;
+        fenceLength = 3;
         fenceLang = "";
         fenceLines = [];
+        continue;
       }
+
+      fenceLines.push(line);
       continue;
     }
 
