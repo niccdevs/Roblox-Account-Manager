@@ -10,11 +10,6 @@ Full credit to [ic3w0lf22](https://github.com/ic3w0lf22) for the original Roblox
 
 Release download counts are based on GitHub release asset downloads across tags and are not unique installs.
 
-## State of Development
-#### v4 Beta
-
-[![Build](https://github.com/niccsprojects/Roblox-Account-Manager/actions/workflows/release-v4.yml/badge.svg)](https://github.com/niccsprojects/Roblox-Account-Manager/actions/workflows/release-v4.yml)
-
 # Roblox Account Manager
 ![github-large](Images/Image5.png)
 
