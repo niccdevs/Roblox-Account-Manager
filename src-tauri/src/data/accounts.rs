@@ -257,7 +257,7 @@ impl AccountStore {
             }
         }
         let mut password_hash = self.password_hash.lock().map_err(|e| e.to_string())?;
-        *password_hash = password.map(crypto::hash_password);
+        *password_hash = password.map(|p| crypto::hash_password(p.trim()));
         drop(password_hash);
         self.save()
     }
