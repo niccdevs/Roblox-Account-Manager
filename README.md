@@ -1,15 +1,5 @@
 Full credit to [ic3w0lf22](https://github.com/ic3w0lf22) for the original Roblox Account Manager. I am just continuing the project where I think optimizations or additions could be made.
 
-**[Download Latest v4 Pre-release](https://github.com/niccsprojects/Roblox-Account-Manager/releases?q=beta)**
-
-[![Total Downloads](https://img.shields.io/github/downloads/niccsprojects/Roblox-Account-Manager/total?label=Total%20Downloads&color=2ea043)](https://github.com/niccsprojects/Roblox-Account-Manager/releases)
-[![Latest v4 Beta Downloads](https://img.shields.io/github/downloads-pre/niccsprojects/Roblox-Account-Manager/latest/total?label=Latest%20v4%20Beta%20Downloads&color=3b82f6)](https://github.com/niccsprojects/Roblox-Account-Manager/releases?q=beta)
-[![Latest v4 Beta](https://img.shields.io/github/v/release/niccsprojects/Roblox-Account-Manager?include_prereleases&label=Latest%20v4%20Beta)](https://github.com/niccsprojects/Roblox-Account-Manager/releases?q=beta)
-[![Latest Release Downloads](https://img.shields.io/github/downloads/niccsprojects/Roblox-Account-Manager/latest/total?label=Latest%20Release%20Downloads&color=3b82f6)](https://github.com/niccsprojects/Roblox-Account-Manager/releases/latest)
-[![Latest Release](https://img.shields.io/github/v/release/niccsprojects/Roblox-Account-Manager?include_prereleases&label=Latest%20Release)](https://github.com/niccsprojects/Roblox-Account-Manager/releases/latest)
-
-Release download counts are based on GitHub release asset downloads across tags and are not unique installs.
-
 # Roblox Account Manager
 ![github-large](Images/Image5.png)
 
@@ -25,6 +15,15 @@ Report bugs to the issues section or direct message me via discord @niccdev. The
 
 # WARNING
 If someone asks you to generate an "rbx-player link", **DO NOT** do it, they can use these to join any game using your account, or even launch roblox studio with one of your games. They can do many things in game such as spend your robux or even do things that can get your account terminated. **USE THESE FEATURES AT YOUR OWN RISK**
+**[Download Latest v4 Pre-release](https://github.com/niccsprojects/Roblox-Account-Manager/releases?q=beta)**
+
+[![Total Downloads](https://img.shields.io/github/downloads/niccsprojects/Roblox-Account-Manager/total?label=Total%20Downloads&color=2ea043)](https://github.com/niccsprojects/Roblox-Account-Manager/releases)
+[![Latest v4 Beta Downloads](https://img.shields.io/github/downloads-pre/niccsprojects/Roblox-Account-Manager/latest/total?label=Latest%20v4%20Beta%20Downloads&color=3b82f6)](https://github.com/niccsprojects/Roblox-Account-Manager/releases?q=beta)
+[![Latest v4 Beta](https://img.shields.io/github/v/release/niccsprojects/Roblox-Account-Manager?include_prereleases&label=Latest%20v4%20Beta)](https://github.com/niccsprojects/Roblox-Account-Manager/releases?q=beta)
+[![Latest Release Downloads](https://img.shields.io/github/downloads/niccsprojects/Roblox-Account-Manager/latest/total?label=Latest%20Release%20Downloads&color=3b82f6)](https://github.com/niccsprojects/Roblox-Account-Manager/releases/latest)
+[![Latest Release](https://img.shields.io/github/v/release/niccsprojects/Roblox-Account-Manager?include_prereleases&label=Latest%20Release)](https://github.com/niccsprojects/Roblox-Account-Manager/releases/latest)
+
+Release download counts are based on GitHub release asset downloads across tags and are not unique installs.
 
 # RAM v4 (Beta)
 Roblox Account Manager v4 is in active beta on a new Rust + TypeScript stack using [Tauri](https://tauri.app/).
