@@ -13,26 +13,54 @@ function renderMarkdown(src: string): React.ReactNode[] {
   const lines = src.split(/\r?\n/);
   const nodes: React.ReactNode[] = [];
   let key = 0;
+  let inFence = false;
+  let fenceChar = "`";
+  let fenceLength = 3;
+  let fenceLang = "";
+  let fenceLines: string[] = [];
+
+  function pushFence() {
+    const code = fenceLines.join("\n");
+    if (!code.trim()) return;
+    nodes.push(
+      <div key={key++} className="my-1 rounded-lg border theme-border bg-black/25 overflow-hidden">
+        {fenceLang ? (
+          <div className="px-2.5 py-1 text-[10px] uppercase tracking-wide text-zinc-400/80 border-b theme-border bg-black/20">
+            {fenceLang}
+          </div>
+        ) : null}
+        <pre className="px-3 py-2 text-[11px] leading-relaxed overflow-x-auto">
+          <code className="font-mono whitespace-pre text-zinc-200">{code}</code>
+        </pre>
+      </div>
+    );
+  }
 
   function inlinePass(text: string): React.ReactNode[] {
     const parts: React.ReactNode[] = [];
     let cursor = 0;
-    const re = /\*\*(.+?)\*\*|\[([^\]]+)\]\((https?:\/\/[^)]+)\)|(https?:\/\/\S+)/g;
+    const re = /\*\*(.+?)\*\*|`([^`\n]+)`|\[([^\]]+)\]\((https?:\/\/[^)]+)\)|(https?:\/\/\S+)/g;
     let m: RegExpExecArray | null;
     while ((m = re.exec(text)) !== null) {
       if (m.index > cursor) parts.push(text.slice(cursor, m.index));
       if (m[1]) {
         parts.push(<strong key={key++} className="font-semibold text-[var(--panel-fg)]">{m[1]}</strong>);
-      } else if (m[2] && m[3]) {
+      } else if (m[2]) {
         parts.push(
-          <a key={key++} href={m[3]} target="_blank" rel="noreferrer" className="text-sky-400 hover:underline break-all">
+          <code key={key++} className="font-mono text-[11px] px-1 py-0.5 rounded bg-black/30 border border-white/10 text-zinc-200">
             {m[2]}
-          </a>
+          </code>
         );
-      } else if (m[4]) {
+      } else if (m[3] && m[4]) {
         parts.push(
           <a key={key++} href={m[4]} target="_blank" rel="noreferrer" className="text-sky-400 hover:underline break-all">
-            {m[4]}
+            {m[3]}
+          </a>
+        );
+      } else if (m[5]) {
+        parts.push(
+          <a key={key++} href={m[5]} target="_blank" rel="noreferrer" className="text-sky-400 hover:underline break-all">
+            {m[5]}
           </a>
         );
       }
@@ -44,6 +72,37 @@ function renderMarkdown(src: string): React.ReactNode[] {
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
+    const fence = line.match(/^\s*(```+|~~~+)\s*([a-zA-Z0-9_-]+)?\s*$/);
+
+    if (fence) {
+      const marker = fence[1];
+      const nextChar = marker.startsWith("~") ? "~" : "`";
+      if (!inFence) {
+        inFence = true;
+        fenceChar = nextChar;
+        fenceLength = marker.length;
+        fenceLang = (fence[2] || "").toLowerCase();
+        fenceLines = [];
+        continue;
+      }
+
+      if (fenceChar === nextChar && marker.length === fenceLength) {
+        pushFence();
+        inFence = false;
+        fenceLength = 3;
+        fenceLang = "";
+        fenceLines = [];
+        continue;
+      }
+
+      fenceLines.push(line);
+      continue;
+    }
+
+    if (inFence) {
+      fenceLines.push(line);
+      continue;
+    }
 
     if (htmlTag.test(line)) continue;
 
@@ -60,22 +119,48 @@ function renderMarkdown(src: string): React.ReactNode[] {
       continue;
     }
 
-    if (/^##\s+/.test(line)) {
+    const heading = line.match(/^(#{1,6})\s+(.+)$/);
+    if (heading) {
+      const level = heading[1].length;
+      const text = heading[2];
+      const sizeClass = level <= 2 ? "text-[11px]" : "text-[10.5px]";
       nodes.push(
-        <div key={key++} className="text-[11px] font-semibold text-[var(--panel-fg)] mt-2.5 mb-1 uppercase tracking-wide opacity-70">
-          {line.replace(/^##\s+/, "")}
+        <div key={key++} className={`${sizeClass} font-semibold text-[var(--panel-fg)] mt-2.5 mb-1 uppercase tracking-wide opacity-70`}>
+          {text}
         </div>
       );
       continue;
     }
 
-    if (/^-\s+/.test(line)) {
+    const unordered = line.match(/^(\s*)[-*+]\s+(.+)$/);
+    if (unordered) {
+      const indentLevel = Math.min(4, Math.floor(unordered[1].replace(/\t/g, "  ").length / 2));
+      const task = unordered[2].match(/^\[( |x|X)\]\s+(.+)$/);
+      const content = task ? task[2] : unordered[2];
+      const marker = task ? (task[1].toLowerCase() === "x" ? "✓" : "◦") : "•";
       nodes.push(
-        <div key={key++} className="flex gap-1.5 pl-1">
-          <span className="text-sky-400/60 shrink-0 mt-px">•</span>
-          <span>{inlinePass(line.replace(/^-\s+/, ""))}</span>
+        <div key={key++} className="flex gap-1.5" style={{ paddingLeft: `${4 + indentLevel * 12}px` }}>
+          <span className="text-sky-400/60 shrink-0 mt-px">{marker}</span>
+          <span>{inlinePass(content)}</span>
         </div>
       );
+      continue;
+    }
+
+    const ordered = line.match(/^(\s*)(\d+)[.)]\s+(.+)$/);
+    if (ordered) {
+      const indentLevel = Math.min(4, Math.floor(ordered[1].replace(/\t/g, "  ").length / 2));
+      nodes.push(
+        <div key={key++} className="flex gap-1.5" style={{ paddingLeft: `${4 + indentLevel * 12}px` }}>
+          <span className="text-sky-400/60 shrink-0 mt-px min-w-[1.6em] text-right">{ordered[2]}.</span>
+          <span>{inlinePass(ordered[3])}</span>
+        </div>
+      );
+      continue;
+    }
+
+    if (/^[-*_]{3,}\s*$/.test(line)) {
+      nodes.push(<div key={key++} className="h-px bg-[var(--border-color)]/70 my-2" />);
       continue;
     }
 
@@ -85,6 +170,10 @@ function renderMarkdown(src: string): React.ReactNode[] {
     }
 
     nodes.push(<div key={key++}>{inlinePass(line)}</div>);
+  }
+
+  if (inFence) {
+    pushFence();
   }
 
   return nodes;
