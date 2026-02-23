@@ -172,6 +172,14 @@ export interface StoreValue {
   needsPassword: boolean;
   unlocking: boolean;
   unlock: (password: string) => Promise<void>;
+  encryptionSetupOpen: boolean;
+  encryptionSetupMode: "firstRun" | "settings";
+  accountsEncrypted: boolean | null;
+  applyingEncryption: boolean;
+  encryptionSetupError: string | null;
+  openEncryptionSetupFromSettings: () => void;
+  closeEncryptionSetup: () => void;
+  applyEncryptionMethod: (method: "default" | "password", password?: string) => Promise<void>;
   initialized: boolean;
 
   settingsOpen: boolean;
@@ -261,6 +269,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [needsPassword, setNeedsPassword] = useState(false);
   const [unlocking, setUnlocking] = useState(false);
+  const [encryptionSetupOpen, setEncryptionSetupOpen] = useState(false);
+  const [encryptionSetupMode, setEncryptionSetupMode] = useState<"firstRun" | "settings">("firstRun");
+  const [accountsEncrypted, setAccountsEncrypted] = useState<boolean | null>(null);
+  const [applyingEncryption, setApplyingEncryption] = useState(false);
+  const [encryptionSetupError, setEncryptionSetupError] = useState<string | null>(null);
   const [initialized, setInitialized] = useState(false);
   const [dragState, setDragState] = useState<{ userId: number; sourceGroup: string } | null>(null);
   const [toasts, setToasts] = useState<string[]>([]);
@@ -880,6 +893,65 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     } catch {}
   }
 
+  const refreshEncryptionState = useCallback(async () => {
+    try {
+      const encrypted = await invoke<boolean>("is_accounts_encrypted");
+      setAccountsEncrypted(encrypted);
+    } catch {}
+  }, []);
+
+  const openEncryptionSetupFromSettings = useCallback(() => {
+    setEncryptionSetupError(null);
+    setEncryptionSetupMode("settings");
+    setEncryptionSetupOpen(true);
+    void refreshEncryptionState();
+  }, [refreshEncryptionState]);
+
+  const closeEncryptionSetup = useCallback(() => {
+    if (encryptionSetupMode === "firstRun") return;
+    setEncryptionSetupOpen(false);
+    setEncryptionSetupError(null);
+  }, [encryptionSetupMode]);
+
+  const applyEncryptionMethod = useCallback(async (method: "default" | "password", password?: string) => {
+    setApplyingEncryption(true);
+    setEncryptionSetupError(null);
+    setError(null);
+    try {
+      if (method === "password") {
+        await invoke("set_encryption_password", {
+          password: password ?? "",
+        });
+      } else {
+        await invoke("set_encryption_password", { password: null });
+      }
+
+      await Promise.all([
+        invoke("update_setting", {
+          section: "General",
+          key: "EncryptionOnboardingState",
+          value: "completed",
+        }),
+        invoke("update_setting", {
+          section: "General",
+          key: "EncryptionMethod",
+          value: method,
+        }),
+      ]);
+
+      await refreshEncryptionState();
+      await loadAccounts();
+      setEncryptionSetupOpen(false);
+      setEncryptionSetupMode("settings");
+      addToast(method === "password" ? tr("Password lock enabled") : tr("Default encryption enabled"));
+    } catch (e) {
+      setEncryptionSetupError(String(e));
+      throw e;
+    } finally {
+      setApplyingEncryption(false);
+    }
+  }, [addToast, loadAccounts, refreshEncryptionState]);
+
   async function unlock(password: string) {
     setUnlocking(true);
     setError(null);
@@ -887,6 +959,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       await invoke("unlock_accounts", { password });
       setNeedsPassword(false);
       await loadAccounts();
+      await refreshEncryptionState();
     } catch (e) {
       setError(String(e));
     } finally {
@@ -898,15 +971,27 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     (async () => {
       // Apply defaults immediately so the UI has a consistent baseline while we load persisted theme.
       applyThemePreview(DEFAULT_THEME);
+      let needs = false;
+      let loadedAccounts: Account[] = [];
+      let accountsLoaded = false;
       try {
-        const needs = await invoke<boolean>("needs_password");
+        needs = await invoke<boolean>("needs_password");
         setNeedsPassword(needs);
-        if (!needs) await loadAccounts();
+        if (!needs) {
+          loadedAccounts = await invoke<Account[]>("get_accounts");
+          setAccounts(loadedAccounts);
+          setError(null);
+          loadAvatars(loadedAccounts);
+          accountsLoaded = true;
+        }
       } catch (e) {
         setError(String(e));
       }
+
+      let loadedSettings: Record<string, Record<string, string>> | null = null;
       try {
         const s = await invoke<Record<string, Record<string, string>>>("get_all_settings");
+        loadedSettings = s;
         setSettings(s);
         void i18n.changeLanguage(normalizeLanguage(s?.General?.Language));
         if (s?.General?.HideUsernames === "true") setHideUsernamesState(true);
@@ -915,13 +1000,27 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         if (s?.General?.SavedJobId) _setJobId(s.General.SavedJobId);
         if (s?.General?.SavedLaunchData) _setLaunchData(s.General.SavedLaunchData);
       } catch {}
+
+      await refreshEncryptionState();
+
+      if (
+        !needs &&
+        accountsLoaded &&
+        loadedAccounts.length === 0 &&
+        loadedSettings?.General?.EncryptionOnboardingState === "pending"
+      ) {
+        setEncryptionSetupError(null);
+        setEncryptionSetupMode("firstRun");
+        setEncryptionSetupOpen(true);
+      }
+
       try {
         const t = await invoke<ThemeData>("get_theme");
         applyThemePreview(t);
       } catch {}
       setInitialized(true);
     })();
-  }, []);
+  }, [applyThemePreview, refreshEncryptionState]);
 
   useEffect(() => {
     void i18n.changeLanguage(normalizeLanguage(settings?.General?.Language));
@@ -1316,6 +1415,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     needsPassword,
     unlocking,
     unlock,
+    encryptionSetupOpen,
+    encryptionSetupMode,
+    accountsEncrypted,
+    applyingEncryption,
+    encryptionSetupError,
+    openEncryptionSetupFromSettings,
+    closeEncryptionSetup,
+    applyEncryptionMethod,
     initialized,
     settingsOpen,
     setSettingsOpen,
