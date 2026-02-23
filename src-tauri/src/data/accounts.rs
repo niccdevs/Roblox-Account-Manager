@@ -189,7 +189,7 @@ impl AccountStore {
     }
 
     pub fn load_with_password(&self, password: &str) -> Result<(), String> {
-        let hash = crypto::hash_password(password);
+        let hash = crypto::hash_password(password.trim());
         if !self.file_path.exists() {
             let mut password_hash = self.password_hash.lock().map_err(|e| e.to_string())?;
             *password_hash = Some(hash);
