@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { StoreProvider, useStore } from "./store";
 import { PromptProvider } from "./hooks/usePrompt";
 import { PasswordScreen } from "./components/layout/PasswordScreen";
+import { EncryptionSetupScreen } from "./components/layout/EncryptionSetupScreen";
 import { TitleBar } from "./components/layout/TitleBar";
 import { ModalWindowControls } from "./components/layout/ModalWindowControls";
 import { UpdateBanner } from "./components/layout/UpdateBanner";
@@ -58,6 +59,10 @@ function AppContent() {
 
   if (store.needsPassword) {
     return <PasswordScreen />;
+  }
+
+  if (store.encryptionSetupOpen) {
+    return <EncryptionSetupScreen />;
   }
 
   return (
@@ -117,6 +122,10 @@ function AppContent() {
         open={store.settingsOpen}
         onClose={() => store.setSettingsOpen(false)}
         onSettingsChanged={store.reloadSettings}
+        onRequestEncryptionSetup={() => {
+          store.setSettingsOpen(false);
+          store.openEncryptionSetupFromSettings();
+        }}
       />
 
       <ServerListDialog
