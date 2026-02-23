@@ -4,8 +4,16 @@ import { NumberField } from "../ui/NumberField";
 import { TextField } from "../ui/TextField";
 import { Divider } from "../ui/Divider";
 import { SectionLabel } from "../ui/SectionLabel";
+import { useTr } from "../../i18n/text";
 
-export function MiscellaneousTab({ s }: { s: UseSettingsReturn }) {
+export function MiscellaneousTab({
+  s,
+  onRequestEncryptionSetup,
+}: {
+  s: UseSettingsReturn;
+  onRequestEncryptionSetup?: () => void;
+}) {
+  const t = useTr();
   const customClientSettings = s.get("General", "CustomClientSettings", "").trim();
   const customClientSettingsEnabled = customClientSettings.length > 0;
   const clientVolume = s.getNumber("General", "ClientVolume", 0.5);
@@ -139,6 +147,24 @@ export function MiscellaneousTab({ s }: { s: UseSettingsReturn }) {
         max={9999}
         suffix="min"
       />
+
+      <Divider />
+      <SectionLabel>Security</SectionLabel>
+      <div className="flex items-center justify-between gap-3 py-2 px-1 rounded-lg border border-zinc-800/70 bg-zinc-900/35">
+        <div className="min-w-0">
+          <div className="text-[13px] text-zinc-200">{t("Change Encryption Method")}</div>
+          <div className="text-[11px] text-zinc-500 mt-0.5">
+            {t("Re-encrypts your current AccountData.json with the selected method.")}
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={onRequestEncryptionSetup}
+          className="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 border border-zinc-700/70 text-[12px] text-zinc-200 font-medium transition-colors"
+        >
+          {t("Open")}
+        </button>
+      </div>
     </div>
   );
 }

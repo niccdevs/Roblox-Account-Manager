@@ -13,10 +13,12 @@ export function TabContent({
   activeTab,
   s,
   loaded,
+  onRequestEncryptionSetup,
 }: {
   activeTab: TabId;
   s: UseSettingsReturn;
   loaded: boolean;
+  onRequestEncryptionSetup?: () => void;
 }) {
   const t = useTr();
   const prevTab = useRef(activeTab);
@@ -62,7 +64,9 @@ export function TabContent({
             {tab === "developer" && <DeveloperTab s={s} />}
             {tab === "webserver" && <WebServerTab s={s} />}
             {tab === "watcher" && <WatcherTab s={s} />}
-            {tab === "miscellaneous" && <MiscellaneousTab s={s} />}
+            {tab === "miscellaneous" && (
+              <MiscellaneousTab s={s} onRequestEncryptionSetup={onRequestEncryptionSetup} />
+            )}
           </div>
         );
       })}

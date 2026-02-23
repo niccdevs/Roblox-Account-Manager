@@ -10,6 +10,7 @@ interface SettingsDialogProps {
   open: boolean;
   onClose: () => void;
   onSettingsChanged?: () => void;
+  onRequestEncryptionSetup?: () => void;
 }
 
 export type TabId = "general" | "developer" | "webserver" | "watcher" | "miscellaneous";
@@ -23,7 +24,12 @@ export interface TabDef {
   hidden?: boolean;
 }
 
-export function SettingsDialog({ open, onClose, onSettingsChanged }: SettingsDialogProps) {
+export function SettingsDialog({
+  open,
+  onClose,
+  onSettingsChanged,
+  onRequestEncryptionSetup,
+}: SettingsDialogProps) {
   const t = useTr();
   const closeAndNotify = useCallback(() => {
     onClose();
@@ -120,7 +126,12 @@ export function SettingsDialog({ open, onClose, onSettingsChanged }: SettingsDia
         <div className="h-px bg-zinc-800/60 mx-5 mt-2.5" />
 
         <div ref={scrollRef} className="flex-1 overflow-y-auto px-5 py-3 min-h-0">
-          <TabContent activeTab={activeTab} s={s} loaded={s.loaded} />
+          <TabContent
+            activeTab={activeTab}
+            s={s}
+            loaded={s.loaded}
+            onRequestEncryptionSetup={onRequestEncryptionSetup}
+          />
         </div>
 
         <div className="h-px bg-zinc-800/60 mx-5" />

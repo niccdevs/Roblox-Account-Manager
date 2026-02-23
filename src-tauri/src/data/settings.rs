@@ -207,7 +207,8 @@ pub struct SettingsStore {
 
 impl SettingsStore {
     pub fn new(file_path: PathBuf) -> Self {
-        let ini = if file_path.exists() {
+        let file_existed = file_path.exists();
+        let ini = if file_existed {
             IniFile::load(&file_path)
         } else {
             IniFile::new()
@@ -218,11 +219,11 @@ impl SettingsStore {
             file_path,
         };
 
-        store.apply_defaults();
+        store.apply_defaults(file_existed);
         store
     }
 
-    fn apply_defaults(&self) {
+    fn apply_defaults(&self, settings_file_existed: bool) {
         let mut ini = self.ini.lock().unwrap();
 
         let defaults: &[(&str, &str, Option<&str>)] = &[
@@ -283,6 +284,20 @@ impl SettingsStore {
             if !general.exists(key) {
                 general.set(key, value, *comment);
             }
+        }
+        if !general.exists("EncryptionMethod") {
+            general.set("EncryptionMethod", "default", None);
+        }
+        if !general.exists("EncryptionOnboardingState") {
+            general.set(
+                "EncryptionOnboardingState",
+                if settings_file_existed {
+                    "completed"
+                } else {
+                    "pending"
+                },
+                None,
+            );
         }
 
         let developer = ini.section("Developer");

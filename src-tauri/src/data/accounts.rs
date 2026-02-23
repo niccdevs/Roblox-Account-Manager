@@ -189,14 +189,41 @@ impl AccountStore {
     }
 
     pub fn load_with_password(&self, password: &str) -> Result<(), String> {
-        let hash = crypto::hash_password(password);
-
-        {
+        let hash = crypto::hash_password(password.trim());
+        if !self.file_path.exists() {
             let mut password_hash = self.password_hash.lock().map_err(|e| e.to_string())?;
             *password_hash = Some(hash);
+            return Ok(());
         }
 
-        self.load()
+        let data =
+            fs::read(&self.file_path).map_err(|e| format!("Failed to read account file: {}", e))?;
+
+        if data.is_empty() {
+            let mut accounts = self.accounts.lock().map_err(|e| e.to_string())?;
+            *accounts = Vec::new();
+            drop(accounts);
+            let mut password_hash = self.password_hash.lock().map_err(|e| e.to_string())?;
+            *password_hash = Some(hash);
+            return Ok(());
+        }
+
+        let accounts = if crypto::is_encrypted(&data) {
+            let decrypted =
+                crypto::decrypt(&data, &hash).map_err(|e| format!("Failed to decrypt: {}", e))?;
+            serde_json::from_slice::<Vec<Account>>(&decrypted)
+                .map_err(|e| format!("Failed to parse account JSON: {}", e))?
+        } else {
+            Self::decode_plain_or_legacy_accounts(&data)?
+        };
+
+        let mut store = self.accounts.lock().map_err(|e| e.to_string())?;
+        *store = accounts;
+        drop(store);
+
+        let mut password_hash = self.password_hash.lock().map_err(|e| e.to_string())?;
+        *password_hash = Some(hash);
+        Ok(())
     }
 
     pub fn save(&self) -> Result<(), String> {
@@ -220,8 +247,17 @@ impl AccountStore {
     }
 
     pub fn set_password(&self, password: Option<&str>) -> Result<(), String> {
+        if let Some(value) = password {
+            let trimmed = value.trim();
+            if trimmed.is_empty() {
+                return Err("Password cannot be empty".to_string());
+            }
+            if trimmed.chars().count() < 8 {
+                return Err("Password must be at least 8 characters".to_string());
+            }
+        }
         let mut password_hash = self.password_hash.lock().map_err(|e| e.to_string())?;
-        *password_hash = password.map(crypto::hash_password);
+        *password_hash = password.map(|p| crypto::hash_password(p.trim()));
         drop(password_hash);
         self.save()
     }
@@ -342,8 +378,8 @@ impl AccountStore {
                 return Err(IMPORT_PASSWORD_REQUIRED.to_string());
             };
             let hash = crypto::hash_password(password);
-            let decrypted =
-                crypto::decrypt(data, &hash).map_err(|_| "Import password is incorrect".to_string())?;
+            let decrypted = crypto::decrypt(data, &hash)
+                .map_err(|_| "Import password is incorrect".to_string())?;
             return serde_json::from_slice::<Vec<Account>>(&decrypted)
                 .map_err(|e| format!("Failed to parse account JSON: {}", e));
         }
