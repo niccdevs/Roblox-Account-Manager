@@ -12,7 +12,6 @@ import {
   ShieldAlert,
   ShieldCheck,
   Square,
-  TerminalSquare,
   Trash2,
   Upload,
   X,
@@ -262,6 +261,38 @@ function safeMessage(value: unknown): string {
   } catch {
     return String(value);
   }
+}
+
+function sanitizeScriptSourceForSave(input: string): string {
+  let text = typeof input === "string" ? input : String(input || "");
+  if (text.charCodeAt(0) === 0xfeff) {
+    text = text.slice(1);
+  }
+
+  if (typeof text.normalize === "function") {
+    try {
+      text = text.normalize("NFKC");
+    } catch {
+    }
+  }
+
+  text = text
+    .replace(/\r\n?/g, "\n")
+    .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]/g, "")
+    .replace(/[\u200b-\u200f\u2060\ufeff]/g, "")
+    .replace(/[\u202a-\u202e]/g, "")
+    .replace(/[\ud800-\udfff]/g, "")
+    .replace(/[\u2018\u2019\u201a\u201b]/g, "'")
+    .replace(/[\u201c\u201d\u201e\u201f]/g, "\"")
+    .replace(/[\u00b4\u02cb\u2032\u2035\uff40]/g, "\u0060")
+    .replace(/[\u2013\u2014\u2212]/g, "-");
+
+  const fence = text.match(/^\s*```[a-zA-Z0-9_-]*\s*\n([\s\S]*?)\n\s*```\s*$/);
+  if (fence && fence[1]) {
+    text = fence[1];
+  }
+
+  return text;
 }
 
 function normalizeWebSocketUrl(input: string): string {
@@ -826,6 +857,42 @@ export function ScriptsDialog({ open, onClose }: ScriptsDialogProps) {
       if (!socket) {
         throw new Error(`WebSocket connection not found: ${connectionId}`);
       }
+
+      if (socket.readyState === WebSocket.CONNECTING) {
+        await new Promise<void>((resolve, reject) => {
+          const timeout = window.setTimeout(() => {
+            cleanup();
+            reject(new Error(`WebSocket ${connectionId} did not open in time`));
+          }, 5000);
+
+          const onOpen = () => {
+            cleanup();
+            resolve();
+          };
+
+          const onClose = () => {
+            cleanup();
+            reject(new Error(`WebSocket ${connectionId} closed before open`));
+          };
+
+          const onError = () => {
+            cleanup();
+            reject(new Error(`WebSocket ${connectionId} failed while connecting`));
+          };
+
+          const cleanup = () => {
+            window.clearTimeout(timeout);
+            socket.removeEventListener("open", onOpen);
+            socket.removeEventListener("close", onClose);
+            socket.removeEventListener("error", onError);
+          };
+
+          socket.addEventListener("open", onOpen, { once: true });
+          socket.addEventListener("close", onClose, { once: true });
+          socket.addEventListener("error", onError, { once: true });
+        });
+      }
+
       if (socket.readyState !== WebSocket.OPEN) {
         throw new Error(`WebSocket ${connectionId} is ${wsStateLabel(socket.readyState)}`);
       }
@@ -1326,6 +1393,7 @@ export function ScriptsDialog({ open, onClose }: ScriptsDialogProps) {
     setBusyId(draft.id);
     const next: ManagedScript = {
       ...draft,
+      source: sanitizeScriptSourceForSave(draft.source),
       updatedAtMs: Date.now(),
     };
 
@@ -1427,7 +1495,7 @@ export function ScriptsDialog({ open, onClose }: ScriptsDialogProps) {
     try {
       const text = await file.text();
       const name = file.name.replace(/\.[^.]+$/, "") || "Imported Script";
-      const script = createScript(name, "Imported from file", text);
+      const script = createScript(name, "Imported from file", sanitizeScriptSourceForSave(text));
       const saved = await persistScript(script);
       if (!saved) return;
       setSelectedId(saved.id);
@@ -1495,15 +1563,10 @@ await ram.settings.set("endpoint", "http://127.0.0.1:3847/ram/bridge");
         onClick={(event) => event.stopPropagation()}
       >
         <div className="px-5 py-3 border-b theme-border flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="h-8 w-8 rounded-lg bg-sky-500/15 border border-sky-500/30 text-sky-300 flex items-center justify-center shrink-0">
-              <TerminalSquare size={16} strokeWidth={1.8} />
-            </div>
-            <div className="min-w-0">
-              <div className="text-[15px] font-semibold text-zinc-100">{t("Scripts")}</div>
-              <div className="text-[11px] text-zinc-500 truncate">
-                {t("Trusted JavaScript automation with UI, modal, settings, and HTTP support")}
-              </div>
+          <div className="min-w-0">
+            <div className="text-[15px] font-semibold text-zinc-100">{t("Scripts")}</div>
+            <div className="text-[11px] text-zinc-500 truncate">
+              {t("Trusted JavaScript automation with UI, modal, settings, and HTTP support")}
             </div>
           </div>
           <div className="flex items-center gap-2">
