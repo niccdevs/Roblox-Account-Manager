@@ -153,6 +153,7 @@ Make sure you click "Open Details" before screenshotting. Please make sure your 
 | Auto Cookie Refresh | Periodically refresh account cookies to reduce expiration issues | Settings -> `General` -> `Auto Cookie Refresh` |
 | Local Web API | Optional local HTTP API with endpoint permissions, password, and port controls | Settings -> `Developer` / `WebServer` |
 | Nexus Account Control | WebSocket-based account control panel with command routing and `Nexus.lua` export | Toolbar -> `Nexus` |
+| Script Manager | Trusted JavaScript scripts with Rust command invoke, HTTP/WebSocket, modals, custom UI elements, and live logs | Toolbar -> `Scripts` |
 | Developer Mode Tools | Enable advanced options like auth tickets, app links, and raw field editing | Settings -> `Developer` |
 | Account Organization | Grouping, drag-drop reorder/move, alphabetical group sort, and numeric prefix ordering | Use list drag + right-click menu |
 | Advanced Selection | Ctrl/Shift/range selection plus Windows-style drag marquee selection | Select directly in the account list |

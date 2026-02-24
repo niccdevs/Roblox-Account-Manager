@@ -9,6 +9,7 @@ mod platform;
 use api::batch::ImageCache;
 use data::accounts::{get_account_data_path, AccountStore};
 use data::crypto;
+use data::scripts::{get_scripts_path, ScriptStore};
 use data::settings::{
     get_settings_path, get_theme_path, get_theme_presets_path, SettingsStore, ThemePresetStore,
     ThemeStore,
@@ -3031,6 +3032,7 @@ pub fn run() {
     let settings_store = SettingsStore::new(get_settings_path());
     let theme_store = ThemeStore::new(get_theme_path());
     let theme_preset_store = ThemePresetStore::new(get_theme_presets_path());
+    let script_store = ScriptStore::new(get_scripts_path());
     let image_cache = ImageCache::new();
 
     tauri::Builder::default()
@@ -3052,6 +3054,7 @@ pub fn run() {
         .manage(settings_store)
         .manage(theme_store)
         .manage(theme_preset_store)
+        .manage(script_store)
         .manage(image_cache)
         .setup(|app| {
             let show = MenuItemBuilder::with_id("show", "Show").build(app)?;
@@ -3141,6 +3144,9 @@ pub fn run() {
             data::accounts::set_encryption_password,
             data::accounts::reorder_accounts,
             data::accounts::import_old_account_data,
+            data::scripts::get_scripts,
+            data::scripts::save_script,
+            data::scripts::delete_script,
             data::settings::get_all_settings,
             data::settings::get_setting,
             data::settings::update_setting,

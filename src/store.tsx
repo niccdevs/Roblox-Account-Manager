@@ -207,6 +207,8 @@ export interface StoreValue {
 
   nexusOpen: boolean;
   setNexusOpen: (open: boolean) => void;
+  scriptsOpen: boolean;
+  setScriptsOpen: (open: boolean) => void;
 
   updateInfo: { version: string; currentVersion: string; date: string; body: string } | null;
   updateDialogOpen: boolean;
@@ -289,6 +291,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [bottingStatus, setBottingStatus] = useState<BottingStatus | null>(null);
   const [missingAssets, setMissingAssets] = useState<{ userId: number; username: string; assetIds: number[] } | null>(null);
   const [nexusOpen, setNexusOpen] = useState(false);
+  const [scriptsOpen, setScriptsOpen] = useState(false);
   const [updateInfo, setUpdateInfo] = useState<{ version: string; currentVersion: string; date: string; body: string } | null>(null);
   const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
   const [joiningAccounts, setJoiningAccounts] = useState<Set<number>>(new Set());
@@ -1446,6 +1449,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setMissingAssets,
     nexusOpen,
     setNexusOpen,
+    scriptsOpen,
+    setScriptsOpen,
     updateInfo,
     updateDialogOpen,
     setUpdateDialogOpen,
