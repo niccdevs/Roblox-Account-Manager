@@ -117,11 +117,9 @@ async function runUserScript(code, metadata) {
     "ram",
     "script",
     "metadata",
-    "window",
-    "globalThis",
-    "\"use strict\";\\n" + code
+    "\"use strict\";\\nconst window = void 0;\\nconst globalThis = void 0;\\n" + code
   );
-  await wrapped(ram, ram, metadata, undefined, undefined);
+  await wrapped(ram, ram, metadata);
 }
 
 self.addEventListener("unhandledrejection", (event) => {

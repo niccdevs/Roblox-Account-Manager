@@ -448,6 +448,20 @@ function createInitialRuntime(): ScriptRuntimeState {
   };
 }
 
+function getScriptSecuritySignature(script: ManagedScript): string {
+  const p = script.permissions;
+  return [
+    script.trusted ? "1" : "0",
+    p.allowInvoke ? "1" : "0",
+    p.allowHttp ? "1" : "0",
+    p.allowWebSocket ? "1" : "0",
+    p.allowWindow ? "1" : "0",
+    p.allowModal ? "1" : "0",
+    p.allowSettings ? "1" : "0",
+    p.allowUi ? "1" : "0",
+  ].join("");
+}
+
 export function ScriptsDialog({ open, onClose }: ScriptsDialogProps) {
   const store = useStore();
   const t = useTr();
@@ -475,6 +489,7 @@ export function ScriptsDialog({ open, onClose }: ScriptsDialogProps) {
   const workersRef = useRef<Map<string, WorkerRuntime>>(new Map());
   const selectedRef = useRef<string | null>(null);
   const autoStartDoneRef = useRef(false);
+  const scriptSecurityRef = useRef<Record<string, string>>({});
   const importRef = useRef<HTMLInputElement>(null);
   const snapshotRef = useRef<ScriptWindowSnapshot>({
     ts: 0,
@@ -1177,6 +1192,25 @@ export function ScriptsDialog({ open, onClose }: ScriptsDialogProps) {
         stopScript(id, false);
       }
     }
+  }, [loaded, scripts]);
+
+  useEffect(() => {
+    if (!loaded) return;
+
+    const nextSecurity: Record<string, string> = {};
+
+    for (const script of scripts) {
+      const signature = getScriptSecuritySignature(script);
+      const prevSignature = scriptSecurityRef.current[script.id];
+      nextSecurity[script.id] = signature;
+
+      if (prevSignature && prevSignature !== signature && workersRef.current.has(script.id)) {
+        appendLog(script.id, "warn", "host", "Script trust/permissions changed, stopping runtime");
+        stopScript(script.id, false);
+      }
+    }
+
+    scriptSecurityRef.current = nextSecurity;
   }, [loaded, scripts]);
 
   useEffect(() => {
