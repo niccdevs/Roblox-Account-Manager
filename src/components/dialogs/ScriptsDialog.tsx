@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import {
   AlertCircle,
   CheckCircle2,
+  ChevronDown,
   Copy,
   Download,
   Play,
@@ -40,6 +41,25 @@ type ScriptTabId = "editor" | "ui" | "logs" | "api";
 interface ScriptsDialogProps {
   open: boolean;
   onClose: () => void;
+}
+
+interface SavePickerWritable {
+  write: (data: string) => Promise<void>;
+  close: () => Promise<void>;
+}
+
+interface SavePickerHandle {
+  createWritable: () => Promise<SavePickerWritable>;
+}
+
+interface SavePickerApi {
+  showSaveFilePicker?: (options?: {
+    suggestedName?: string;
+    types?: Array<{
+      description?: string;
+      accept: Record<string, string[]>;
+    }>;
+  }) => Promise<SavePickerHandle>;
 }
 
 interface WorkerRuntime {
@@ -524,6 +544,7 @@ export function ScriptsDialog({ open, onClose }: ScriptsDialogProps) {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [apiSearch, setApiSearch] = useState("");
   const [showUnsafe, setShowUnsafe] = useState(false);
+  const [newMenuOpen, setNewMenuOpen] = useState(false);
   const [scriptContextMenu, setScriptContextMenu] = useState<ScriptContextMenuState | null>(null);
   const [scriptContextPos, setScriptContextPos] = useState<{ left: number; top: number } | null>(null);
 
@@ -533,7 +554,10 @@ export function ScriptsDialog({ open, onClose }: ScriptsDialogProps) {
   const autoStartDoneRef = useRef(false);
   const scriptSecurityRef = useRef<Record<string, string>>({});
   const importRef = useRef<HTMLInputElement>(null);
+  const newMenuRef = useRef<HTMLDivElement>(null);
   const scriptContextRef = useRef<HTMLDivElement>(null);
+  const logsContainerRef = useRef<HTMLDivElement>(null);
+  const latestLogIdRef = useRef<string | null>(null);
   const snapshotRef = useRef<ScriptWindowSnapshot>({
     ts: 0,
     placeId: "",
@@ -1328,6 +1352,35 @@ export function ScriptsDialog({ open, onClose }: ScriptsDialogProps) {
   }, [selectedScript, draftDirty]);
 
   useEffect(() => {
+    if (!visible) {
+      setNewMenuOpen(false);
+    }
+  }, [visible]);
+
+  useEffect(() => {
+    if (!newMenuOpen) return;
+
+    function handleMouseDown(event: MouseEvent) {
+      if (newMenuRef.current && !newMenuRef.current.contains(event.target as Node)) {
+        setNewMenuOpen(false);
+      }
+    }
+
+    function handleEsc(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setNewMenuOpen(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handleMouseDown);
+    document.addEventListener("keydown", handleEsc);
+    return () => {
+      document.removeEventListener("mousedown", handleMouseDown);
+      document.removeEventListener("keydown", handleEsc);
+    };
+  }, [newMenuOpen]);
+
+  useEffect(() => {
     if (!scriptContextMenu) return;
 
     function handleMouseDown(event: MouseEvent) {
@@ -1382,6 +1435,7 @@ export function ScriptsDialog({ open, onClose }: ScriptsDialogProps) {
   const selectedRuntime = selectedId ? runtimeByScript[selectedId] : null;
   const selectedLogs = selectedId ? logsByScript[selectedId] || [] : [];
   const selectedUi = selectedRuntime?.uiElements || [];
+  const [stickLogsToBottom, setStickLogsToBottom] = useState(true);
 
   const visibleLogs = useMemo(() => {
     const lower = logQuery.trim().toLowerCase();
@@ -1393,6 +1447,51 @@ export function ScriptsDialog({ open, onClose }: ScriptsDialogProps) {
       return log.message.toLowerCase().includes(lower);
     });
   }, [selectedLogs, logLevel, logQuery]);
+
+  function isNearLogBottom(element: HTMLDivElement): boolean {
+    const delta = element.scrollHeight - element.scrollTop - element.clientHeight;
+    return delta <= 28;
+  }
+
+  function scrollLogsToBottom(behavior: ScrollBehavior) {
+    const element = logsContainerRef.current;
+    if (!element) return;
+    element.scrollTo({
+      top: element.scrollHeight,
+      behavior,
+    });
+  }
+
+  function handleLogsScroll() {
+    const element = logsContainerRef.current;
+    if (!element) return;
+    setStickLogsToBottom(isNearLogBottom(element));
+  }
+
+  useEffect(() => {
+    if (tab !== "logs") return;
+    latestLogIdRef.current = null;
+    setStickLogsToBottom(true);
+    window.requestAnimationFrame(() => {
+      scrollLogsToBottom("auto");
+    });
+  }, [selectedId, tab]);
+
+  useEffect(() => {
+    if (tab !== "logs") return;
+    if (!stickLogsToBottom) return;
+    if (visibleLogs.length === 0) return;
+
+    const latestId = visibleLogs[visibleLogs.length - 1]?.id || null;
+    if (!latestId || latestLogIdRef.current === latestId) {
+      return;
+    }
+
+    latestLogIdRef.current = latestId;
+    window.requestAnimationFrame(() => {
+      scrollLogsToBottom("smooth");
+    });
+  }, [visibleLogs, tab, stickLogsToBottom]);
 
   const commandList = useMemo(() => {
     const commands = [
@@ -1570,15 +1669,58 @@ export function ScriptsDialog({ open, onClose }: ScriptsDialogProps) {
   }
 
   async function handleExportScript(script: ManagedScript) {
-    const blob = new Blob([script.source], { type: "text/javascript;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = `${script.name.replace(/[^a-zA-Z0-9-_]/g, "_") || "script"}.js`;
-    document.body.appendChild(anchor);
-    anchor.click();
-    anchor.remove();
-    URL.revokeObjectURL(url);
+    const fileName = `${script.name.replace(/[^a-zA-Z0-9-_]/g, "_") || "script"}.js`;
+    const savePickerApi = window as Window & SavePickerApi;
+
+    if (typeof savePickerApi.showSaveFilePicker === "function") {
+      try {
+        const handle = await savePickerApi.showSaveFilePicker({
+          suggestedName: fileName,
+          types: [
+            {
+              description: "JavaScript",
+              accept: {
+                "text/javascript": [".js"],
+              },
+            },
+          ],
+        });
+        const writable = await handle.createWritable();
+        await writable.write(script.source);
+        await writable.close();
+        store.addToast(t("Script exported"));
+        return;
+      } catch (error) {
+        const msg = String(error || "");
+        if (msg.toLowerCase().includes("abort")) {
+          return;
+        }
+      }
+    }
+
+    try {
+      const blob = new Blob([script.source], { type: "text/javascript;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = fileName;
+      anchor.rel = "noopener";
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      store.addToast(t("Script export started"));
+      return;
+    } catch {
+    }
+
+    try {
+      await navigator.clipboard.writeText(script.source);
+      store.addToast(t("Export fallback: source copied to clipboard"));
+      store.showModal(`${script.name} Export`, script.source);
+    } catch (error) {
+      store.setError(String(error));
+    }
   }
 
   async function handleDuplicateScript(script: ManagedScript) {
@@ -1707,27 +1849,6 @@ await ram.settings.set("endpoint", "http://127.0.0.1:3847/ram/bridge");
           </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={() => handleCreate("blank")}
-              className="px-2.5 py-1.5 rounded-lg bg-zinc-800 border border-zinc-700/60 text-[11px] text-zinc-300 hover:bg-zinc-700 transition-colors"
-            >
-              <span className="inline-flex items-center gap-1.5">
-                <Plus size={12} strokeWidth={2} />
-                {t("New")}
-              </span>
-            </button>
-            <button
-              onClick={() => handleCreate("monitor")}
-              className="px-2.5 py-1.5 rounded-lg bg-zinc-800 border border-zinc-700/60 text-[11px] text-zinc-300 hover:bg-zinc-700 transition-colors"
-            >
-              {t("Monitor Template")}
-            </button>
-            <button
-              onClick={() => handleCreate("discord")}
-              className="px-2.5 py-1.5 rounded-lg bg-zinc-800 border border-zinc-700/60 text-[11px] text-zinc-300 hover:bg-zinc-700 transition-colors"
-            >
-              {t("Discord Template")}
-            </button>
-            <button
               onClick={handleClose}
               className="p-1 rounded-md text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition-colors"
             >
@@ -1765,9 +1886,69 @@ await ram.settings.set("endpoint", "http://127.0.0.1:3847/ram/bridge");
             </div>
 
             <div className="px-3 py-2 border-b theme-border flex items-center gap-1.5">
+              <div ref={newMenuRef} className="relative">
+                <button
+                  onClick={() => setNewMenuOpen((prev) => !prev)}
+                  className={`px-2.5 py-1 rounded-md border text-[11px] transition-all duration-200 ${
+                    newMenuOpen
+                      ? "bg-sky-500/18 border-sky-500/35 text-sky-300 shadow-[0_0_0_1px_rgba(56,189,248,0.2)]"
+                      : "bg-zinc-800/40 border-zinc-700/60 text-zinc-300 hover:bg-zinc-700/50 hover:-translate-y-[1px]"
+                  }`}
+                >
+                  <span className="inline-flex items-center gap-1.5">
+                    <Plus size={11} strokeWidth={2} />
+                    {t("New")}
+                    <ChevronDown
+                      size={11}
+                      strokeWidth={2}
+                      className={`transition-transform duration-200 ${newMenuOpen ? "rotate-180" : ""}`}
+                    />
+                  </span>
+                </button>
+
+                {newMenuOpen && (
+                  <div className="theme-modal-scope theme-panel theme-border absolute left-0 top-full mt-1.5 w-[230px] rounded-xl border border-zinc-700/60 bg-zinc-900/96 shadow-2xl overflow-hidden origin-top-left animate-scale-in">
+                    <button
+                      onClick={() => {
+                        setNewMenuOpen(false);
+                        void handleCreate("blank");
+                      }}
+                      className="w-full text-left px-3 py-2 text-[12px] text-zinc-200 hover:bg-zinc-800/75 transition-all duration-200"
+                    >
+                      <span className="inline-flex items-center gap-2">
+                        <Plus size={12} strokeWidth={2} className="text-sky-300" />
+                        {t("New Script")}
+                      </span>
+                    </button>
+
+                    <div className="mx-2 my-1 border-t border-zinc-700/70" />
+
+                    <button
+                      onClick={() => {
+                        setNewMenuOpen(false);
+                        void handleCreate("monitor");
+                      }}
+                      className="w-full text-left px-3 py-2 text-[12px] text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800/70 transition-all duration-200"
+                    >
+                      {t("Window Monitor Template")}
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setNewMenuOpen(false);
+                        void handleCreate("discord");
+                      }}
+                      className="w-full text-left px-3 py-2 text-[12px] text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800/70 transition-all duration-200"
+                    >
+                      {t("Discord Bridge Template")}
+                    </button>
+                  </div>
+                )}
+              </div>
+
               <button
                 onClick={() => importRef.current?.click()}
-                className="px-2 py-1 rounded-md bg-zinc-800/40 border border-zinc-700/60 text-[11px] text-zinc-300 hover:bg-zinc-700/50 transition-colors"
+                className="px-2 py-1 rounded-md bg-zinc-800/40 border border-zinc-700/60 text-[11px] text-zinc-300 hover:bg-zinc-700/50 hover:-translate-y-[1px] transition-all duration-200"
               >
                 <span className="inline-flex items-center gap-1">
                   <Upload size={11} strokeWidth={2} />
@@ -1809,8 +1990,8 @@ await ram.settings.set("endpoint", "http://127.0.0.1:3847/ram/bridge");
                         y: event.clientY,
                       });
                     }}
-                    className={`w-full text-left px-3 py-2.5 border-b border-zinc-800/50 transition-colors ${
-                      selected ? "bg-zinc-800/70" : "hover:bg-zinc-800/35"
+                    className={`w-full text-left px-3 py-2.5 border-b border-zinc-800/50 transition-all duration-200 ${
+                      selected ? "bg-zinc-800/70" : "hover:bg-zinc-800/35 hover:translate-x-[1px]"
                     }`}
                   >
                     <div className="flex items-center gap-2">
@@ -1993,7 +2174,7 @@ await ram.settings.set("endpoint", "http://127.0.0.1:3847/ram/bridge");
                       onClick={() => setShowUnsafe((prev) => !prev)}
                       className="px-2 py-1 rounded-md border border-zinc-700 bg-zinc-800/45 text-[10px] text-zinc-400 hover:text-zinc-200 transition-colors"
                     >
-                      {showUnsafe ? t("Hide Unsafe") : t("Show Unsafe")}
+                      {showUnsafe ? t("Hide Unsafe Details") : t("Show Unsafe Details")}
                     </button>
                   </div>
                 </div>
@@ -2074,11 +2255,36 @@ await ram.settings.set("endpoint", "http://127.0.0.1:3847/ram/bridge");
                         />
                       </div>
 
-                      {showUnsafe && !draft.trusted && (
-                        <div className="rounded-lg border border-amber-500/35 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-200">
-                          {t("Untrusted scripts cannot use invoke/http/websocket/settings write even if permission toggles are enabled.")}
+                      <div
+                        className={`overflow-hidden transition-[max-height,opacity,transform] duration-300 ease-out ${
+                          showUnsafe
+                            ? "max-h-[260px] opacity-100 translate-y-0"
+                            : "max-h-0 opacity-0 -translate-y-1 pointer-events-none"
+                        }`}
+                      >
+                        <div className="rounded-lg border border-zinc-700/70 bg-zinc-900/45 px-3 py-2 text-[11px] space-y-1.5">
+                          <div className="text-zinc-300 font-medium tracking-wide">{t("Unsafe capability details")}</div>
+                          <div className="text-zinc-500">{t("Effective access is trust mode + permission toggle.")}</div>
+                          <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-zinc-400">
+                            <div>{t("Invoke commands")}</div>
+                            <div className={`${draft.trusted && draft.permissions.allowInvoke ? "text-emerald-300" : "text-amber-300"} transition-colors duration-200`}>
+                              {draft.permissions.allowInvoke ? (draft.trusted ? t("Allowed") : t("Blocked (untrusted)")) : t("Disabled")}
+                            </div>
+                            <div>{t("HTTP requests")}</div>
+                            <div className={`${draft.trusted && draft.permissions.allowHttp ? "text-emerald-300" : "text-amber-300"} transition-colors duration-200`}>
+                              {draft.permissions.allowHttp ? (draft.trusted ? t("Allowed") : t("Blocked (untrusted)")) : t("Disabled")}
+                            </div>
+                            <div>{t("WebSocket")}</div>
+                            <div className={`${draft.trusted && draft.permissions.allowWebSocket ? "text-emerald-300" : "text-amber-300"} transition-colors duration-200`}>
+                              {draft.permissions.allowWebSocket ? (draft.trusted ? t("Allowed") : t("Blocked (untrusted)")) : t("Disabled")}
+                            </div>
+                            <div>{t("Settings write")}</div>
+                            <div className={`${draft.trusted && draft.permissions.allowSettings ? "text-emerald-300" : "text-amber-300"} transition-colors duration-200`}>
+                              {draft.permissions.allowSettings ? (draft.trusted ? t("Allowed") : t("Blocked (untrusted)")) : t("Disabled")}
+                            </div>
+                          </div>
                         </div>
-                      )}
+                      </div>
 
                       <label className="flex items-center gap-2 text-[12px] text-zinc-300">
                         <input
@@ -2174,6 +2380,7 @@ await ram.settings.set("endpoint", "http://127.0.0.1:3847/ram/bridge");
                         <button
                           onClick={() => {
                             setLogsByScript((prev) => ({ ...prev, [selectedScript.id]: [] }));
+                            setStickLogsToBottom(true);
                           }}
                           className="px-2.5 py-1.5 rounded-lg border border-zinc-700 bg-zinc-800/45 text-[12px] text-zinc-300 hover:bg-zinc-700 transition-colors"
                         >
@@ -2181,36 +2388,54 @@ await ram.settings.set("endpoint", "http://127.0.0.1:3847/ram/bridge");
                         </button>
                       </div>
 
-                      <div className="rounded-xl border border-zinc-800 bg-zinc-950/40 h-[430px] overflow-y-auto p-2.5 space-y-1">
-                        {visibleLogs.length === 0 && (
-                          <div className="text-[12px] text-zinc-600 p-2">{t("No logs")}</div>
-                        )}
-                        {visibleLogs.map((entry) => (
-                          <div
-                            key={entry.id}
-                            className={`text-[11px] font-mono px-2 py-1 rounded border ${
-                              entry.level === "error"
-                                ? "border-red-500/25 bg-red-500/10 text-red-200"
-                                : entry.level === "warn"
-                                  ? "border-amber-500/25 bg-amber-500/10 text-amber-200"
-                                  : entry.level === "debug"
-                                    ? "border-zinc-700/50 bg-zinc-800/30 text-zinc-400"
-                                    : "border-zinc-700/50 bg-zinc-800/35 text-zinc-300"
-                            }`}
+                      <div className="relative">
+                        <div
+                          ref={logsContainerRef}
+                          onScroll={handleLogsScroll}
+                          className="rounded-xl border border-zinc-800 bg-zinc-950/40 h-[430px] overflow-y-auto p-2.5 space-y-1"
+                        >
+                          {visibleLogs.length === 0 && (
+                            <div className="text-[12px] text-zinc-600 p-2">{t("No logs")}</div>
+                          )}
+                          {visibleLogs.map((entry) => (
+                            <div
+                              key={entry.id}
+                              className={`text-[11px] font-mono px-2 py-1 rounded border ${
+                                entry.level === "error"
+                                  ? "border-red-500/25 bg-red-500/10 text-red-200"
+                                  : entry.level === "warn"
+                                    ? "border-amber-500/25 bg-amber-500/10 text-amber-200"
+                                    : entry.level === "debug"
+                                      ? "border-zinc-700/50 bg-zinc-800/30 text-zinc-400"
+                                      : "border-zinc-700/50 bg-zinc-800/35 text-zinc-300"
+                              }`}
+                            >
+                              <span className="text-zinc-500 mr-2">
+                                {new Date(entry.at).toLocaleTimeString([], {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                  second: "2-digit",
+                                  hour12: false,
+                                })}
+                              </span>
+                              <span className="mr-2">[{entry.level.toUpperCase()}]</span>
+                              <span className="mr-2">[{entry.source}]</span>
+                              <span className="break-all">{entry.message}</span>
+                            </div>
+                          ))}
+                        </div>
+
+                        {!stickLogsToBottom && visibleLogs.length > 0 && (
+                          <button
+                            onClick={() => {
+                              setStickLogsToBottom(true);
+                              scrollLogsToBottom("smooth");
+                            }}
+                            className="absolute right-3 bottom-3 px-2.5 py-1 rounded-md border border-sky-500/35 bg-sky-500/18 text-[11px] text-sky-300 hover:bg-sky-500/28 transition-all duration-200"
                           >
-                            <span className="text-zinc-500 mr-2">
-                              {new Date(entry.at).toLocaleTimeString([], {
-                                hour: "2-digit",
-                                minute: "2-digit",
-                                second: "2-digit",
-                                hour12: false,
-                              })}
-                            </span>
-                            <span className="mr-2">[{entry.level.toUpperCase()}]</span>
-                            <span className="mr-2">[{entry.source}]</span>
-                            <span className="break-all">{entry.message}</span>
-                          </div>
-                        ))}
+                            {t("Jump to latest")}
+                          </button>
+                        )}
                       </div>
                     </div>
                   )}
