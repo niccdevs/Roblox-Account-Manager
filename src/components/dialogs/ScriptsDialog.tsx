@@ -162,6 +162,7 @@ async function postStatus() {
   const response = await ram.http.request({
     url: endpoint + "/status",
     method: "POST",
+    allowPrivateNetwork: true,
     headers: {
       "content-type": "application/json",
       ...(authToken ? { authorization: "Bearer " + authToken } : {}),
@@ -338,6 +339,104 @@ function normalizeWebSocketUrl(input: string): string {
   if (parsed.protocol !== "ws:" && parsed.protocol !== "wss:") {
     throw new Error("WebSocket URL must start with ws:// or wss://");
   }
+  return parsed.toString();
+}
+
+function parseIPv4Address(hostname: string): [number, number, number, number] | null {
+  const parts = hostname.split(".");
+  if (parts.length !== 4) return null;
+
+  const values: number[] = [];
+  for (const part of parts) {
+    if (!/^\d{1,3}$/.test(part)) {
+      return null;
+    }
+    const value = Number(part);
+    if (!Number.isInteger(value) || value < 0 || value > 255) {
+      return null;
+    }
+    values.push(value);
+  }
+
+  return [values[0], values[1], values[2], values[3]];
+}
+
+function isPrivateOrLoopbackHost(hostname: string): boolean {
+  const host = hostname.trim().toLowerCase().replace(/\.$/, "");
+  if (!host) return true;
+
+  if (host === "localhost" || host.endsWith(".localhost")) {
+    return true;
+  }
+
+  const mappedLoopback = host.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
+  if (mappedLoopback) {
+    const mapped = parseIPv4Address(mappedLoopback[1]);
+    if (mapped) {
+      const [a, b] = mapped;
+      return (
+        a === 10 ||
+        a === 127 ||
+        a === 0 ||
+        (a === 169 && b === 254) ||
+        (a === 172 && b >= 16 && b <= 31) ||
+        (a === 192 && b === 168)
+      );
+    }
+  }
+
+  const ipv4 = parseIPv4Address(host);
+  if (ipv4) {
+    const [a, b] = ipv4;
+    return (
+      a === 10 ||
+      a === 127 ||
+      a === 0 ||
+      (a === 169 && b === 254) ||
+      (a === 172 && b >= 16 && b <= 31) ||
+      (a === 192 && b === 168)
+    );
+  }
+
+  if (host === "::1" || host === "::") {
+    return true;
+  }
+
+  if (host.includes(":")) {
+    if (host.startsWith("fc") || host.startsWith("fd")) {
+      return true;
+    }
+    if (/^fe[89ab]/.test(host)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function normalizeScriptHttpUrl(input: string, allowPrivateNetwork: boolean): string {
+  const value = input.trim();
+  if (!value) {
+    throw new Error("Missing request URL");
+  }
+
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error("Invalid request URL");
+  }
+
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new Error("Request URL must start with http:// or https://");
+  }
+
+  if (!allowPrivateNetwork && isPrivateOrLoopbackHost(parsed.hostname)) {
+    throw new Error(
+      "Private-network and localhost HTTP targets are blocked by default. Set allowPrivateNetwork: true to override."
+    );
+  }
+
   return parsed.toString();
 }
 
@@ -737,10 +836,8 @@ export function ScriptsDialog({ open, onClose }: ScriptsDialogProps) {
     if (action === "http.request") {
       ensurePermission(script, "allowHttp", "http", true);
 
-      const url = String(data.url || "").trim();
-      if (!url) {
-        throw new Error("Missing request URL");
-      }
+      const allowPrivateNetwork = data.allowPrivateNetwork === true;
+      const url = normalizeScriptHttpUrl(String(data.url || ""), allowPrivateNetwork);
 
       const method = String(data.method || "GET").toUpperCase();
       const timeoutMs = Math.max(500, Number(data.timeoutMs || 10000));
@@ -1254,9 +1351,18 @@ export function ScriptsDialog({ open, onClose }: ScriptsDialogProps) {
     try {
       const saved = await invoke<ManagedScript>("save_script", { script });
       const normalized = normalizeScript(saved);
+      const existing = scriptsRef.current.find((item) => item.id === normalized.id) || null;
+      const prevSignature = existing ? getScriptSecuritySignature(existing) : null;
+      const nextSignature = getScriptSecuritySignature(normalized);
+
+      if (prevSignature && prevSignature !== nextSignature && workersRef.current.has(normalized.id)) {
+        appendLog(normalized.id, "warn", "host", "Script trust/permissions changed, stopping runtime");
+        stopScript(normalized.id, false);
+      }
+
       setScripts((prev) => {
-        const exists = prev.some((item) => item.id === normalized.id);
-        if (!exists) {
+        const scriptExists = prev.some((item) => item.id === normalized.id);
+        if (!scriptExists) {
           return [...prev, normalized].sort((a, b) => a.name.localeCompare(b.name));
         }
         return prev
@@ -2265,6 +2371,9 @@ await ram.settings.set("endpoint", "http://127.0.0.1:3847/ram/bridge");
                         <div className="rounded-lg border border-zinc-700/70 bg-zinc-900/45 px-3 py-2 text-[11px] space-y-1.5">
                           <div className="text-zinc-300 font-medium tracking-wide">{t("Unsafe capability details")}</div>
                           <div className="text-zinc-500">{t("Effective access is trust mode + permission toggle.")}</div>
+                          <div className="text-zinc-500">
+                            {t("Sandbox mode blocks direct global fetch/WebSocket/importScripts and constructor-chain escapes for untrusted scripts.")}
+                          </div>
                           <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-zinc-400">
                             <div>{t("Invoke commands")}</div>
                             <div className={`${draft.trusted && draft.permissions.allowInvoke ? "text-emerald-300" : "text-amber-300"} transition-colors duration-200`}>
@@ -2514,6 +2623,9 @@ await ram.settings.set("endpoint", "http://127.0.0.1:3847/ram/bridge");
                         <div className="mb-1 text-zinc-300 font-medium">{t("Trust Mode")}</div>
                         <div>
                           {t("Untrusted scripts keep read-only behavior. Trusted scripts can invoke commands, use HTTP/WebSocket, and write script-scoped settings.")}
+                        </div>
+                        <div>
+                          {t("HTTP requests block localhost/private-network targets by default. Use allowPrivateNetwork: true in ram.http.request(...) only when intentionally needed.")}
                         </div>
                       </div>
                     </div>

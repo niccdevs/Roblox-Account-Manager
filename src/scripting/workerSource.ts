@@ -1,8 +1,112 @@
 const WORKER_SOURCE = String.raw`
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
+const GeneratorFunction = Object.getPrototypeOf(function* () {}).constructor;
+const AsyncGeneratorFunction = Object.getPrototypeOf(async function* () {}).constructor;
 const pendingRequests = new Map();
 const eventHandlers = new Map();
 let hostRequestCounter = 0;
+let intrinsicsHardened = false;
+const HOST_REQUEST_TIMEOUT_MS = 20000;
+const MAX_LOG_MESSAGE_LENGTH = 4000;
+
+const safePostMessage = postMessage.bind(self);
+const nativeSetTimeout = setTimeout.bind(self);
+const nativeClearTimeout = clearTimeout.bind(self);
+const nativeSetInterval = setInterval.bind(self);
+const nativeClearInterval = clearInterval.bind(self);
+const nativeQueueMicrotask =
+  typeof queueMicrotask === "function" ? queueMicrotask.bind(self) : null;
+
+const SANDBOX_ALLOWED_GLOBALS = [
+  "Array",
+  "ArrayBuffer",
+  "Atomics",
+  "BigInt",
+  "BigInt64Array",
+  "BigUint64Array",
+  "Boolean",
+  "DataView",
+  "Date",
+  "decodeURI",
+  "decodeURIComponent",
+  "encodeURI",
+  "encodeURIComponent",
+  "Error",
+  "EvalError",
+  "Float32Array",
+  "Float64Array",
+  "Int8Array",
+  "Int16Array",
+  "Int32Array",
+  "Intl",
+  "isFinite",
+  "isNaN",
+  "JSON",
+  "Map",
+  "Math",
+  "Number",
+  "Object",
+  "parseFloat",
+  "parseInt",
+  "Promise",
+  "Proxy",
+  "RangeError",
+  "ReferenceError",
+  "Reflect",
+  "RegExp",
+  "Set",
+  "String",
+  "Symbol",
+  "SyntaxError",
+  "TextDecoder",
+  "TextEncoder",
+  "TypeError",
+  "URIError",
+  "URL",
+  "URLSearchParams",
+  "Uint8Array",
+  "Uint8ClampedArray",
+  "Uint16Array",
+  "Uint32Array",
+  "WeakMap",
+  "WeakSet",
+  "atob",
+  "btoa",
+  "crypto",
+  "structuredClone",
+];
+
+const SANDBOX_BLOCKED_NAMES = new Set([
+  "globalThis",
+  "self",
+  "window",
+  "document",
+  "navigator",
+  "location",
+  "origin",
+  "postMessage",
+  "close",
+  "onmessage",
+  "onerror",
+  "onunhandledrejection",
+  "fetch",
+  "WebSocket",
+  "XMLHttpRequest",
+  "Worker",
+  "SharedWorker",
+  "BroadcastChannel",
+  "EventSource",
+  "importScripts",
+  "indexedDB",
+  "caches",
+  "localStorage",
+  "sessionStorage",
+  "Function",
+  "AsyncFunction",
+  "GeneratorFunction",
+  "AsyncGeneratorFunction",
+  "eval",
+]);
 
 function toMessage(value) {
   if (value instanceof Error) {
@@ -23,9 +127,27 @@ function createHostError(message) {
 
 function callHost(action, payload) {
   return new Promise((resolve, reject) => {
-    const requestId = "req-" + (++hostRequestCounter);
-    pendingRequests.set(requestId, { resolve, reject });
-    postMessage({
+    const requestId = "req-" + ++hostRequestCounter;
+    const timeout = nativeSetTimeout(() => {
+      if (!pendingRequests.has(requestId)) {
+        return;
+      }
+      pendingRequests.delete(requestId);
+      reject(createHostError("Host request timed out: " + action));
+    }, HOST_REQUEST_TIMEOUT_MS);
+
+    pendingRequests.set(requestId, {
+      resolve: (value) => {
+        nativeClearTimeout(timeout);
+        resolve(value);
+      },
+      reject: (error) => {
+        nativeClearTimeout(timeout);
+        reject(error);
+      },
+    });
+
+    safePostMessage({
       type: "host-request",
       requestId,
       action,
@@ -49,8 +171,255 @@ function addHandler(event, handler) {
 }
 
 function emitLocalLog(level, values) {
-  const message = values.map(toMessage).join(" ");
-  postMessage({ type: "host-log", level, message });
+  const joined = values.map(toMessage).join(" ");
+  const message =
+    joined.length > MAX_LOG_MESSAGE_LENGTH
+      ? joined.slice(0, MAX_LOG_MESSAGE_LENGTH) + "... [truncated]"
+      : joined;
+  safePostMessage({ type: "host-log", level, message });
+}
+
+function hardenPrototype(proto) {
+  if (!proto || (typeof proto !== "object" && typeof proto !== "function")) {
+    return;
+  }
+
+  try {
+    if (Object.prototype.hasOwnProperty.call(proto, "constructor")) {
+      try {
+        proto.constructor = undefined;
+      } catch {
+      }
+      try {
+        Object.defineProperty(proto, "constructor", {
+          value: undefined,
+          configurable: false,
+          enumerable: false,
+          writable: false,
+        });
+      } catch {
+      }
+    }
+  } catch {
+  }
+
+  try {
+    Object.freeze(proto);
+  } catch {
+  }
+}
+
+function hardenConstructor(ctor) {
+  if (typeof ctor !== "function") {
+    return;
+  }
+  hardenPrototype(ctor.prototype);
+  try {
+    Object.freeze(ctor);
+  } catch {
+  }
+}
+
+function hardenIntrinsics() {
+  if (intrinsicsHardened) {
+    return;
+  }
+  intrinsicsHardened = true;
+
+  const constructorNames = [
+    "Object",
+    "Array",
+    "String",
+    "Number",
+    "Boolean",
+    "Date",
+    "RegExp",
+    "Error",
+    "EvalError",
+    "RangeError",
+    "ReferenceError",
+    "SyntaxError",
+    "TypeError",
+    "URIError",
+    "Map",
+    "Set",
+    "WeakMap",
+    "WeakSet",
+    "Promise",
+    "Proxy",
+    "ArrayBuffer",
+    "DataView",
+    "Int8Array",
+    "Int16Array",
+    "Int32Array",
+    "Uint8Array",
+    "Uint8ClampedArray",
+    "Uint16Array",
+    "Uint32Array",
+    "Float32Array",
+    "Float64Array",
+    "BigInt64Array",
+    "BigUint64Array",
+    "TextEncoder",
+    "TextDecoder",
+    "URL",
+    "URLSearchParams",
+    "Function",
+  ];
+
+  for (const name of constructorNames) {
+    let value;
+    try {
+      value = self[name];
+    } catch {
+      value = undefined;
+    }
+    hardenConstructor(value);
+  }
+
+  hardenConstructor(AsyncFunction);
+  hardenConstructor(GeneratorFunction);
+  hardenConstructor(AsyncGeneratorFunction);
+  hardenPrototype(Function && Function.prototype);
+  hardenPrototype(AsyncFunction && AsyncFunction.prototype);
+  hardenPrototype(GeneratorFunction && GeneratorFunction.prototype);
+  hardenPrototype(AsyncGeneratorFunction && AsyncGeneratorFunction.prototype);
+}
+
+function deepFreeze(value, seen = new WeakSet()) {
+  if (!value || (typeof value !== "object" && typeof value !== "function")) {
+    return value;
+  }
+  if (seen.has(value)) {
+    return value;
+  }
+
+  seen.add(value);
+
+  const keys = [
+    ...Object.getOwnPropertyNames(value),
+    ...Object.getOwnPropertySymbols(value),
+  ];
+
+  for (const key of keys) {
+    try {
+      deepFreeze(value[key], seen);
+    } catch {
+    }
+  }
+
+  try {
+    Object.freeze(value);
+  } catch {
+  }
+  return value;
+}
+
+function createSafeTimerApi() {
+  const safeTimers = {
+    setTimeout: (handler, ms = 0, ...args) => {
+      if (typeof handler !== "function") {
+        throw new Error("setTimeout requires a function callback");
+      }
+      const safeMs = Number.isFinite(ms) ? Math.max(0, Number(ms)) : 0;
+      return nativeSetTimeout(handler, safeMs, ...args);
+    },
+    clearTimeout: (id) => nativeClearTimeout(id),
+    setInterval: (handler, ms = 0, ...args) => {
+      if (typeof handler !== "function") {
+        throw new Error("setInterval requires a function callback");
+      }
+      const safeMs = Number.isFinite(ms) ? Math.max(0, Number(ms)) : 0;
+      return nativeSetInterval(handler, safeMs, ...args);
+    },
+    clearInterval: (id) => nativeClearInterval(id),
+  };
+  return deepFreeze(safeTimers);
+}
+
+function createSafeConsole() {
+  return deepFreeze({
+    log: (...args) => emitLocalLog("info", args),
+    info: (...args) => emitLocalLog("info", args),
+    debug: (...args) => emitLocalLog("debug", args),
+    warn: (...args) => emitLocalLog("warn", args),
+    error: (...args) => emitLocalLog("error", args),
+  });
+}
+
+function createExecutionGlobals(ram, metadata) {
+  const globals = Object.create(null);
+  const safeTimers = createSafeTimerApi();
+
+  globals.ram = ram;
+  globals.script = ram;
+  globals.metadata = deepFreeze(
+    metadata && typeof metadata === "object" && !Array.isArray(metadata)
+      ? { ...metadata }
+      : {}
+  );
+  globals.console = createSafeConsole();
+  globals.setTimeout = safeTimers.setTimeout;
+  globals.clearTimeout = safeTimers.clearTimeout;
+  globals.setInterval = safeTimers.setInterval;
+  globals.clearInterval = safeTimers.clearInterval;
+  if (nativeQueueMicrotask) {
+    globals.queueMicrotask = nativeQueueMicrotask;
+  }
+
+  for (const name of SANDBOX_ALLOWED_GLOBALS) {
+    if (Object.prototype.hasOwnProperty.call(globals, name)) {
+      continue;
+    }
+    let value;
+    try {
+      value = self[name];
+    } catch {
+      value = undefined;
+    }
+    if (value !== undefined) {
+      globals[name] = value;
+    }
+  }
+
+  globals.undefined = undefined;
+  globals.NaN = NaN;
+  globals.Infinity = Infinity;
+
+  for (const name of SANDBOX_BLOCKED_NAMES) {
+    globals[name] = undefined;
+  }
+
+  return deepFreeze(globals);
+}
+
+function createSandboxProxy(globals) {
+  return new Proxy(globals, {
+    has() {
+      return true;
+    },
+    get(target, key) {
+      if (key === Symbol.unscopables) {
+        return undefined;
+      }
+      if (Object.prototype.hasOwnProperty.call(target, key)) {
+        return target[key];
+      }
+      return undefined;
+    },
+    set() {
+      return false;
+    },
+    defineProperty() {
+      return false;
+    },
+    deleteProperty() {
+      return false;
+    },
+    getPrototypeOf() {
+      return null;
+    },
+  });
 }
 
 function createRamApi() {
@@ -67,7 +436,7 @@ function createRamApi() {
     },
     sleep: (ms) => {
       const safe = Number.isFinite(ms) ? Math.max(0, Number(ms)) : 0;
-      return new Promise((resolve) => setTimeout(resolve, safe));
+      return new Promise((resolve) => nativeSetTimeout(resolve, safe));
     },
     on: (event, handler) => addHandler(event, handler),
     invoke: (command, args = {}) => callHost("invoke", { command, args }),
@@ -78,13 +447,15 @@ function createRamApi() {
     },
     http: {
       request: (input) => callHost("http.request", input),
-      get: (url, options = {}) => callHost("http.request", { ...options, method: "GET", url }),
+      get: (url, options = {}) =>
+        callHost("http.request", { ...options, method: "GET", url }),
       post: (url, body = null, options = {}) =>
         callHost("http.request", { ...options, method: "POST", url, body }),
     },
     ws: {
       connect: (input) => callHost("ws.connect", input),
-      send: (connectionId, data) => callHost("ws.send", { connectionId, data }),
+      send: (connectionId, data) =>
+        callHost("ws.send", { connectionId, data }),
       close: (connectionId, options = {}) =>
         callHost("ws.close", { connectionId, ...options }),
       list: () => callHost("ws.list", {}),
@@ -97,7 +468,8 @@ function createRamApi() {
       json: (input) => callHost("modal.json", input),
     },
     settings: {
-      get: (key, defaultValue = null) => callHost("settings.get", { key, defaultValue }),
+      get: (key, defaultValue = null) =>
+        callHost("settings.get", { key, defaultValue }),
       set: (key, value) => callHost("settings.set", { key, value }),
       all: () => callHost("settings.all", {}),
     },
@@ -137,7 +509,7 @@ function normalizeUserCode(code) {
     .replace(/\u2028|\u2029/g, "\n")
     .replace(/\u00a0/g, " ")
     .replace(/[\u2018\u2019\u201a\u201b]/g, "'")
-    .replace(/[\u201c\u201d\u201e\u201f]/g, "\"")
+    .replace(/[\u201c\u201d\u201e\u201f]/g, '"')
     .replace(/[\u00b4\u02cb\u2032\u2035\uff40]/g, "\u0060")
     .replace(/[\u2013\u2014\u2212]/g, "-");
 }
@@ -166,30 +538,48 @@ function describeSuspiciousChar(source) {
     const after = source.slice(i + 1, Math.min(source.length, i + 13));
     const line = source.slice(0, i).split("\n").length;
     const col = i - source.lastIndexOf("\n", i - 1);
-    return " [suspicious U+" + code.toString(16).padStart(4, "0") + " at line " + line + ", col " + col + "] " + before + "<?>" + after;
+    return (
+      " [suspicious U+" +
+      code.toString(16).padStart(4, "0") +
+      " at line " +
+      line +
+      ", col " +
+      col +
+      "] " +
+      before +
+      "<?>" +
+      after
+    );
   }
   return "";
 }
 
-function createEvalRunner(prelude, source) {
-  const serialized = JSON.stringify(source)
-    .replace(/\u2028/g, "\\u2028")
-    .replace(/\u2029/g, "\\u2029");
+function assertNoDynamicImport(source) {
+  const importCallPattern =
+    /\bimport(?:\s|\/\*[\s\S]*?\*\/|\/\/[^\n]*(?:\n|$))*\(/;
+  const importScriptsPattern =
+    /\bimportScripts(?:\s|\/\*[\s\S]*?\*\/|\/\/[^\n]*(?:\n|$))*\(/;
 
-  const runnerBody =
-    prelude +
-    "const __code = " +
-    serialized +
-    ";\n" +
-    "const __runner = '(async function(){' + String.fromCharCode(10) + __code + String.fromCharCode(10) + '})()';\n" +
-    "return eval(__runner);";
+  if (importCallPattern.test(source)) {
+    throw new Error(
+      "Dynamic import() is blocked in scripts. Use ram.http.* or ram.ws.* for external integrations."
+    );
+  }
+  if (importScriptsPattern.test(source)) {
+    throw new Error("importScripts() is blocked in scripts.");
+  }
+}
 
-  return new AsyncFunction(
-    "ram",
-    "script",
-    "metadata",
-    runnerBody
-  );
+function createSandboxRunner(source) {
+  const body = [
+    "with (__scope) {",
+    "return (async () => {",
+    '"use strict";',
+    source,
+    "})();",
+    "}",
+  ].join("\n");
+  return new AsyncFunction("__scope", body);
 }
 
 function extractSyntaxContext(error, source, preludeLines) {
@@ -211,81 +601,68 @@ function extractSyntaxContext(error, source, preludeLines) {
 }
 
 async function runUserScript(code, metadata) {
-  const ram = createRamApi();
+  hardenIntrinsics();
+
+  const ram = deepFreeze(createRamApi());
   const normalizedCode = normalizeUserCode(code);
-  const prelude = [
-    '"use strict";',
-    'const window = void 0;',
-    'const globalThis = void 0;',
-    "",
-  ].join("\n");
-  let wrapped = null;
+
   try {
-    wrapped = new AsyncFunction(
-      "ram",
-      "script",
-      "metadata",
-      prelude + normalizedCode
-    );
+    assertNoDynamicImport(normalizedCode);
+  } catch (error) {
+    throw new Error("Script compile failed: " + toMessage(error));
+  }
+
+  let wrapped = null;
+  let compileSource = normalizedCode;
+
+  try {
+    wrapped = createSandboxRunner(compileSource);
   } catch (error) {
     const fallbackCode = stripToAsciiForCompile(normalizedCode);
     if (fallbackCode !== normalizedCode) {
       try {
-        wrapped = new AsyncFunction(
-          "ram",
-          "script",
-          "metadata",
-          prelude + fallbackCode
-        );
+        assertNoDynamicImport(fallbackCode);
+        wrapped = createSandboxRunner(fallbackCode);
+        compileSource = fallbackCode;
         emitLocalLog("warn", [
           "Script contained non-ASCII characters; runtime sanitized them for compilation. Save script to remove hidden characters.",
         ]);
       } catch (fallbackError) {
-        try {
-          wrapped = createEvalRunner(prelude, fallbackCode);
-          emitLocalLog("warn", [
-            "Script required fallback runtime parser. Please re-save script to normalize source.",
-          ]);
-        } catch (evalError) {
-          const context = extractSyntaxContext(fallbackError, fallbackCode, 3);
-          const suspicious = describeSuspiciousChar(normalizedCode);
-          throw new Error(
-            "Script compile failed: " +
-              toMessage(evalError) +
-              " (check for invalid quotes/backticks or hidden characters)" +
-              context +
-              suspicious
-          );
-        }
-      }
-    } else {
-      try {
-        wrapped = createEvalRunner(prelude, normalizedCode);
-        emitLocalLog("warn", [
-          "Script required fallback runtime parser. Please re-save script to normalize source.",
-        ]);
-      } catch (evalError) {
-        const context = extractSyntaxContext(error, normalizedCode, 3);
+        const context = extractSyntaxContext(fallbackError, fallbackCode, 3);
         const suspicious = describeSuspiciousChar(normalizedCode);
         throw new Error(
           "Script compile failed: " +
-            toMessage(evalError) +
+            toMessage(fallbackError) +
             " (check for invalid quotes/backticks or hidden characters)" +
             context +
             suspicious
         );
       }
+    } else {
+      const context = extractSyntaxContext(error, normalizedCode, 3);
+      const suspicious = describeSuspiciousChar(normalizedCode);
+      throw new Error(
+        "Script compile failed: " +
+          toMessage(error) +
+          " (check for invalid quotes/backticks or hidden characters)" +
+          context +
+          suspicious
+      );
     }
   }
+
+  const globals = createExecutionGlobals(ram, metadata);
+  const sandbox = createSandboxProxy(globals);
+
   try {
-    await wrapped(ram, ram, metadata);
+    await wrapped(sandbox);
   } catch (error) {
     throw new Error("Script runtime failed: " + toMessage(error));
   }
 }
 
 self.addEventListener("unhandledrejection", (event) => {
-  postMessage({
+  safePostMessage({
     type: "script-error",
     error: toMessage(event.reason),
   });
@@ -324,9 +701,9 @@ self.onmessage = async (event) => {
   if (message.type === "start") {
     try {
       await runUserScript(message.code || "", message.metadata || {});
-      postMessage({ type: "script-finished" });
+      safePostMessage({ type: "script-finished" });
     } catch (err) {
-      postMessage({ type: "script-error", error: toMessage(err) });
+      safePostMessage({ type: "script-error", error: toMessage(err) });
     }
     return;
   }
