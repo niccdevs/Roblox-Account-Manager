@@ -53,18 +53,23 @@ fn patch_client_settings_for_launch(settings: &SettingsStore) {
     };
 
     let master_volume = if settings.get_bool("General", "OverrideClientVolume") {
-        settings
-            .get_float("General", "ClientVolume")
-            .map(|v| (v as f32).clamp(0.0, 1.0))
+        Some(
+            settings
+                .get_float("General", "ClientVolume")
+                .unwrap_or(0.5)
+                .clamp(0.0, 1.0) as f32,
+        )
     } else {
         None
     };
 
     let graphics_level = if settings.get_bool("General", "OverrideClientGraphics") {
-        settings
-            .get_int("General", "ClientGraphicsLevel")
-            .filter(|lvl| *lvl > 0)
-            .map(|lvl| lvl.clamp(1, 10) as u32)
+        let level = settings.get_int("General", "ClientGraphicsLevel").unwrap_or(10);
+        if level > 0 {
+            Some(level.clamp(1, 10) as u32)
+        } else {
+            None
+        }
     } else {
         None
     };
@@ -81,8 +86,7 @@ fn patch_client_settings_for_launch(settings: &SettingsStore) {
         None
     };
 
-    let _ =
-        windows::apply_runtime_client_settings(max_fps, master_volume, graphics_level, window_size);
+    let _ = windows::apply_runtime_client_settings(max_fps, master_volume, graphics_level, window_size);
 }
 
 #[derive(Debug, Deserialize)]

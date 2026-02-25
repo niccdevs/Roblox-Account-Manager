@@ -505,44 +505,159 @@ struct WindowsClientOverrides {
     window_size: Option<(u32, u32)>,
 }
 
+#[derive(Clone, Copy)]
+enum LaunchClientProfile {
+    Normal,
+    BottingPlayer,
+    BottingBot,
+}
+
+fn profile_key(
+    profile: LaunchClientProfile,
+    normal: &'static str,
+    player: &'static str,
+    bot: &'static str,
+) -> &'static str {
+    match profile {
+        LaunchClientProfile::Normal => normal,
+        LaunchClientProfile::BottingPlayer => player,
+        LaunchClientProfile::BottingBot => bot,
+    }
+}
+
+fn custom_client_settings_path(settings: &SettingsStore, profile: LaunchClientProfile) -> String {
+    let key = profile_key(
+        profile,
+        "CustomClientSettings",
+        "BottingPlayerCustomClientSettings",
+        "BottingBotCustomClientSettings",
+    );
+    settings.get_string("General", key)
+}
+
+fn start_minimized_for_profile(settings: &SettingsStore, profile: LaunchClientProfile) -> bool {
+    let key = profile_key(
+        profile,
+        "StartRobloxMinimized",
+        "BottingPlayerStartRobloxMinimized",
+        "BottingBotStartRobloxMinimized",
+    );
+    settings.get_bool("General", key)
+}
+
+fn botting_uses_shared_client_profile(settings: &SettingsStore) -> bool {
+    settings
+        .get("General", "BottingUseSharedClientProfile")
+        .ok()
+        .flatten()
+        .map(|v| v == "true")
+        .unwrap_or(true)
+}
+
 #[cfg(target_os = "windows")]
 fn windows_client_overrides(
     settings: &SettingsStore,
     allow_fps_override: bool,
+    profile: LaunchClientProfile,
 ) -> WindowsClientOverrides {
-    let max_fps = if allow_fps_override && settings.get_bool("General", "UnlockFPS") {
-        settings
-            .get_int("General", "MaxFPSValue")
-            .filter(|fps| *fps > 0)
-            .map(|fps| fps as u32)
+    let unlock_fps_key = profile_key(
+        profile,
+        "UnlockFPS",
+        "BottingPlayerUnlockFPS",
+        "BottingBotUnlockFPS",
+    );
+    let max_fps_key = profile_key(
+        profile,
+        "MaxFPSValue",
+        "BottingPlayerMaxFPSValue",
+        "BottingBotMaxFPSValue",
+    );
+
+    let max_fps = if allow_fps_override && settings.get_bool("General", unlock_fps_key) {
+        let fps = settings.get_int("General", max_fps_key).unwrap_or(120);
+        if fps > 0 {
+            Some(fps as u32)
+        } else {
+            None
+        }
     } else {
         None
     };
 
-    let master_volume = if settings.get_bool("General", "OverrideClientVolume") {
-        settings
-            .get_float("General", "ClientVolume")
-            .map(|v| (v as f32).clamp(0.0, 1.0))
+    let override_volume_key = profile_key(
+        profile,
+        "OverrideClientVolume",
+        "BottingPlayerOverrideClientVolume",
+        "BottingBotOverrideClientVolume",
+    );
+    let client_volume_key = profile_key(
+        profile,
+        "ClientVolume",
+        "BottingPlayerClientVolume",
+        "BottingBotClientVolume",
+    );
+
+    let master_volume = if settings.get_bool("General", override_volume_key) {
+        Some(
+            settings
+                .get_float("General", client_volume_key)
+                .unwrap_or(0.5)
+                .clamp(0.0, 1.0) as f32,
+        )
     } else {
         None
     };
 
-    let graphics_level = if settings.get_bool("General", "OverrideClientGraphics") {
-        settings
-            .get_int("General", "ClientGraphicsLevel")
-            .filter(|lvl| *lvl > 0)
-            .map(|lvl| lvl.clamp(1, 10) as u32)
+    let override_graphics_key = profile_key(
+        profile,
+        "OverrideClientGraphics",
+        "BottingPlayerOverrideClientGraphics",
+        "BottingBotOverrideClientGraphics",
+    );
+    let graphics_level_key = profile_key(
+        profile,
+        "ClientGraphicsLevel",
+        "BottingPlayerClientGraphicsLevel",
+        "BottingBotClientGraphicsLevel",
+    );
+
+    let graphics_level = if settings.get_bool("General", override_graphics_key) {
+        let lvl = settings.get_int("General", graphics_level_key).unwrap_or(10);
+        if lvl > 0 {
+            Some(lvl.clamp(1, 10) as u32)
+        } else {
+            None
+        }
     } else {
         None
     };
 
-    let window_size = if settings.get_bool("General", "OverrideClientWindowSize") {
-        match (
-            settings.get_int("General", "ClientWindowWidth"),
-            settings.get_int("General", "ClientWindowHeight"),
-        ) {
-            (Some(w), Some(h)) if w > 0 && h > 0 => Some((w as u32, h as u32)),
-            _ => None,
+    let override_window_key = profile_key(
+        profile,
+        "OverrideClientWindowSize",
+        "BottingPlayerOverrideClientWindowSize",
+        "BottingBotOverrideClientWindowSize",
+    );
+    let window_width_key = profile_key(
+        profile,
+        "ClientWindowWidth",
+        "BottingPlayerClientWindowWidth",
+        "BottingBotClientWindowWidth",
+    );
+    let window_height_key = profile_key(
+        profile,
+        "ClientWindowHeight",
+        "BottingPlayerClientWindowHeight",
+        "BottingBotClientWindowHeight",
+    );
+
+    let window_size = if settings.get_bool("General", override_window_key) {
+        let w = settings.get_int("General", window_width_key).unwrap_or(1280);
+        let h = settings.get_int("General", window_height_key).unwrap_or(720);
+        if w > 0 && h > 0 {
+            Some((w as u32, h as u32))
+        } else {
+            None
         }
     } else {
         None
@@ -557,10 +672,10 @@ fn windows_client_overrides(
 }
 
 #[cfg(target_os = "windows")]
-fn patch_client_settings_for_launch(settings: &SettingsStore) {
+fn patch_client_settings_for_launch(settings: &SettingsStore, profile: LaunchClientProfile) {
     use platform::windows;
 
-    let custom_settings = settings.get_string("General", "CustomClientSettings");
+    let custom_settings = custom_client_settings_path(settings, profile);
     let custom_settings = custom_settings.trim();
     let mut custom_applied = false;
 
@@ -572,7 +687,7 @@ fn patch_client_settings_for_launch(settings: &SettingsStore) {
         custom_applied = true;
     }
 
-    let overrides = windows_client_overrides(settings, !custom_applied);
+    let overrides = windows_client_overrides(settings, !custom_applied, profile);
     let _ = windows::apply_runtime_client_settings(
         overrides.max_fps,
         overrides.master_volume,
@@ -582,21 +697,34 @@ fn patch_client_settings_for_launch(settings: &SettingsStore) {
 }
 
 #[cfg(target_os = "macos")]
-fn fps_unlock_target(settings: &SettingsStore) -> Option<u32> {
-    if !settings.get_bool("General", "UnlockFPS") {
+fn fps_unlock_target(settings: &SettingsStore, profile: LaunchClientProfile) -> Option<u32> {
+    let unlock_fps_key = profile_key(
+        profile,
+        "UnlockFPS",
+        "BottingPlayerUnlockFPS",
+        "BottingBotUnlockFPS",
+    );
+    let max_fps_key = profile_key(
+        profile,
+        "MaxFPSValue",
+        "BottingPlayerMaxFPSValue",
+        "BottingBotMaxFPSValue",
+    );
+
+    if !settings.get_bool("General", unlock_fps_key) {
         return None;
     }
     settings
-        .get_int("General", "MaxFPSValue")
+        .get_int("General", max_fps_key)
         .filter(|fps| *fps > 0)
         .map(|fps| fps as u32)
 }
 
 #[cfg(target_os = "macos")]
-fn patch_client_settings_for_launch(settings: &SettingsStore) {
+fn patch_client_settings_for_launch(settings: &SettingsStore, profile: LaunchClientProfile) {
     use platform::macos;
 
-    let custom_settings = settings.get_string("General", "CustomClientSettings");
+    let custom_settings = custom_client_settings_path(settings, profile);
     let custom_settings = custom_settings.trim();
 
     // Keep the same override precedence as Windows.
@@ -607,7 +735,7 @@ fn patch_client_settings_for_launch(settings: &SettingsStore) {
         return;
     }
 
-    if let Some(fps) = fps_unlock_target(settings) {
+    if let Some(fps) = fps_unlock_target(settings, profile) {
         let _ = macos::apply_fps_unlock(fps);
     }
 }
@@ -966,8 +1094,20 @@ async fn launch_account_for_cycle(
     place_id: i64,
     job_id: &str,
     launch_data: &str,
+    is_player: bool,
 ) -> Result<(), String> {
     use platform::windows;
+
+    let launch_profile = {
+        let settings = app.state::<SettingsStore>();
+        if botting_uses_shared_client_profile(&settings) {
+            LaunchClientProfile::Normal
+        } else if is_player {
+            LaunchClientProfile::BottingPlayer
+        } else {
+            LaunchClientProfile::BottingBot
+        }
+    };
 
     let (
         cookie,
@@ -987,7 +1127,7 @@ async fn launch_account_for_cycle(
             settings.get_bool("General", "AutoCloseLastProcess"),
             settings.get_bool("General", "EnableMultiRbx"),
             settings.get_bool("General", "AutoCloseRobloxForMultiRbx"),
-            settings.get_bool("General", "StartRobloxMinimized"),
+            start_minimized_for_profile(&settings, launch_profile),
         )
     };
 
@@ -999,7 +1139,7 @@ async fn launch_account_for_cycle(
 
     {
         let settings = app.state::<SettingsStore>();
-        patch_client_settings_for_launch(&settings);
+        patch_client_settings_for_launch(&settings, launch_profile);
     }
 
     let tracker = windows::tracker();
@@ -1156,9 +1296,16 @@ async fn run_botting_session(
             break;
         }
 
-        let launch_result =
-            launch_account_for_cycle(&app, *uid, cfg.place_id, &cfg.job_id, &cfg.launch_data)
-                .await;
+        let is_player = cfg.player_user_ids.contains(uid);
+        let launch_result = launch_account_for_cycle(
+            &app,
+            *uid,
+            cfg.place_id,
+            &cfg.job_id,
+            &cfg.launch_data,
+            is_player,
+        )
+        .await;
         let now = now_ms();
         let launch_ok = launch_result.is_ok();
         let launch_error = launch_result.err();
@@ -1308,9 +1455,16 @@ async fn run_botting_session(
             }
             tokio::time::sleep(std::time::Duration::from_millis(250)).await;
 
-            let launch_result =
-                launch_account_for_cycle(&app, uid, cfg.place_id, &cfg.job_id, &cfg.launch_data)
-                    .await;
+            let is_player = cfg.player_user_ids.contains(&uid);
+            let launch_result = launch_account_for_cycle(
+                &app,
+                uid,
+                cfg.place_id,
+                &cfg.job_id,
+                &cfg.launch_data,
+                is_player,
+            )
+            .await;
             let now_after = now_ms();
             let launch_ok = launch_result.is_ok();
             let launch_error = launch_result.err();
@@ -1823,7 +1977,7 @@ async fn launch_roblox(
         let _ = windows::disable_multi_roblox();
     }
 
-    patch_client_settings_for_launch(&settings);
+    patch_client_settings_for_launch(&settings, LaunchClientProfile::Normal);
 
     let tracker = windows::tracker();
     if auto_close_last_process && tracker.get_pid(user_id).is_some() {
@@ -1983,7 +2137,7 @@ async fn launch_roblox(
             let _ = macos::disable_multi_roblox();
         }
 
-        patch_client_settings_for_launch(&settings);
+        patch_client_settings_for_launch(&settings, LaunchClientProfile::Normal);
 
         let tracker = macos::tracker();
         if auto_close_last_process && tracker.get_pid(user_id).is_some() {
@@ -2146,7 +2300,7 @@ async fn launch_multiple(
             let _ = windows::disable_multi_roblox();
         }
 
-        patch_client_settings_for_launch(&settings);
+        patch_client_settings_for_launch(&settings, LaunchClientProfile::Normal);
 
         if auto_close_last_process && tracker.get_pid(uid).is_some() {
             let closed = tracker.kill_for_user_graceful(uid, 4500);
@@ -2300,7 +2454,7 @@ async fn launch_multiple(
                 let _ = macos::disable_multi_roblox();
             }
 
-            patch_client_settings_for_launch(&settings);
+            patch_client_settings_for_launch(&settings, LaunchClientProfile::Normal);
 
             if auto_close_last_process && tracker.get_pid(uid).is_some() {
                 tracker.kill_for_user(uid);
