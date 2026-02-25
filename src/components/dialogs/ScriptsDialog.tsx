@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import {
   AlertCircle,
@@ -21,6 +21,9 @@ import { useModalClose } from "../../hooks/useModalClose";
 import { useConfirm, usePrompt } from "../../hooks/usePrompt";
 import { useTr } from "../../i18n/text";
 import { createScriptWorker } from "../../scripting/workerSource";
+import { Select } from "../ui/Select";
+import { MenuItemView } from "../menus/MenuItemView";
+import type { MenuItem } from "../menus/MenuItemView";
 import type {
   ManagedScript,
   ScriptLogEntry,
@@ -49,6 +52,12 @@ interface WorkerRuntime {
     }
   >;
   sockets: Map<string, WebSocket>;
+}
+
+interface ScriptContextMenuState {
+  scriptId: string;
+  x: number;
+  y: number;
 }
 
 const DEFAULT_SCRIPT_SOURCE = `
@@ -515,6 +524,8 @@ export function ScriptsDialog({ open, onClose }: ScriptsDialogProps) {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [apiSearch, setApiSearch] = useState("");
   const [showUnsafe, setShowUnsafe] = useState(false);
+  const [scriptContextMenu, setScriptContextMenu] = useState<ScriptContextMenuState | null>(null);
+  const [scriptContextPos, setScriptContextPos] = useState<{ left: number; top: number } | null>(null);
 
   const scriptsRef = useRef<ManagedScript[]>([]);
   const workersRef = useRef<Map<string, WorkerRuntime>>(new Map());
@@ -522,6 +533,7 @@ export function ScriptsDialog({ open, onClose }: ScriptsDialogProps) {
   const autoStartDoneRef = useRef(false);
   const scriptSecurityRef = useRef<Record<string, string>>({});
   const importRef = useRef<HTMLInputElement>(null);
+  const scriptContextRef = useRef<HTMLDivElement>(null);
   const snapshotRef = useRef<ScriptWindowSnapshot>({
     ts: 0,
     placeId: "",
@@ -543,6 +555,21 @@ export function ScriptsDialog({ open, onClose }: ScriptsDialogProps) {
     if (!selectedId) return null;
     return scripts.find((script) => script.id === selectedId) || null;
   }, [scripts, selectedId]);
+
+  const contextScript = useMemo(() => {
+    if (!scriptContextMenu) return null;
+    return scripts.find((script) => script.id === scriptContextMenu.scriptId) || null;
+  }, [scripts, scriptContextMenu]);
+
+  const contextScriptRuntime = useMemo(() => {
+    if (!contextScript) return createInitialRuntime();
+    return runtimeByScript[contextScript.id] || createInitialRuntime();
+  }, [contextScript, runtimeByScript]);
+
+  function closeScriptContextMenu() {
+    setScriptContextMenu(null);
+    setScriptContextPos(null);
+  }
 
   const scriptWindowSnapshot = useMemo<ScriptWindowSnapshot>(() => {
     return {
@@ -1300,6 +1327,42 @@ export function ScriptsDialog({ open, onClose }: ScriptsDialogProps) {
     }
   }, [selectedScript, draftDirty]);
 
+  useEffect(() => {
+    if (!scriptContextMenu) return;
+
+    function handleMouseDown(event: MouseEvent) {
+      if (scriptContextRef.current && !scriptContextRef.current.contains(event.target as Node)) {
+        closeScriptContextMenu();
+      }
+    }
+
+    function handleEsc(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        closeScriptContextMenu();
+      }
+    }
+
+    document.addEventListener("mousedown", handleMouseDown);
+    document.addEventListener("keydown", handleEsc);
+    return () => {
+      document.removeEventListener("mousedown", handleMouseDown);
+      document.removeEventListener("keydown", handleEsc);
+    };
+  }, [scriptContextMenu]);
+
+  useLayoutEffect(() => {
+    if (!scriptContextMenu) return;
+    const el = scriptContextRef.current;
+    if (!el) return;
+
+    const pad = 8;
+    const width = el.offsetWidth || 220;
+    const height = el.offsetHeight || 260;
+    const left = Math.max(pad, Math.min(scriptContextMenu.x, window.innerWidth - width - pad));
+    const top = Math.max(pad, Math.min(scriptContextMenu.y, window.innerHeight - height - pad));
+    setScriptContextPos({ left, top });
+  }, [scriptContextMenu, contextScriptRuntime.status]);
+
   const filteredScripts = useMemo(() => {
     const lower = query.trim().toLowerCase();
     const all = scripts.filter((script) => {
@@ -1518,6 +1581,25 @@ export function ScriptsDialog({ open, onClose }: ScriptsDialogProps) {
     URL.revokeObjectURL(url);
   }
 
+  async function handleDuplicateScript(script: ManagedScript) {
+    const duplicated: ManagedScript = {
+      ...script,
+      id: buildId("script"),
+      name: `${script.name} Copy`,
+      trusted: false,
+      enabled: false,
+      autoStart: false,
+      createdAtMs: Date.now(),
+      updatedAtMs: Date.now(),
+    };
+    const saved = await persistScript(duplicated);
+    if (!saved) return;
+    setSelectedId(saved.id);
+    setDraft({ ...saved });
+    setDraftDirty(false);
+    appendLog(saved.id, "info", "host", "Script duplicated");
+  }
+
   async function handleCopyApiSnippet() {
     const snippet = `
 await ram.invoke("get_accounts", {});
@@ -1546,6 +1628,60 @@ await ram.settings.set("endpoint", "http://127.0.0.1:3847/ram/bridge");
       </span>
     );
   }
+
+  const scriptContextItems: MenuItem[] = contextScript
+    ? [
+        {
+          label: contextScriptRuntime.status === "running" ? "Stop" : "Run",
+          action: () => {
+            if (contextScriptRuntime.status === "running") {
+              stopScript(contextScript.id, true);
+            } else {
+              void handleRunScript(contextScript.id);
+            }
+          },
+        },
+        {
+          label: "Restart",
+          action: () => {
+            handleRestartScript(contextScript.id);
+          },
+        },
+        { separator: true, label: "" },
+        {
+          label: contextScript.enabled ? "Disable" : "Enable",
+          action: () => {
+            void handleToggleEnabled(contextScript, !contextScript.enabled);
+          },
+        },
+        {
+          label: contextScript.trusted ? "Untrust Script" : "Trust Script",
+          action: () => {
+            void handleTrustToggle(contextScript, !contextScript.trusted);
+          },
+        },
+        { separator: true, label: "" },
+        {
+          label: "Duplicate",
+          action: () => {
+            void handleDuplicateScript(contextScript);
+          },
+        },
+        {
+          label: "Export",
+          action: () => {
+            void handleExportScript(contextScript);
+          },
+        },
+        {
+          label: "Delete",
+          className: "text-red-400",
+          action: () => {
+            void handleDeleteScript(contextScript.id);
+          },
+        },
+      ]
+    : [];
 
   if (!visible) return null;
 
@@ -1663,6 +1799,16 @@ await ram.settings.set("endpoint", "http://127.0.0.1:3847/ram/bridge");
                   <button
                     key={script.id}
                     onClick={() => setSelectedId(script.id)}
+                    onContextMenu={(event) => {
+                      event.preventDefault();
+                      setSelectedId(script.id);
+                      setScriptContextPos(null);
+                      setScriptContextMenu({
+                        scriptId: script.id,
+                        x: event.clientX,
+                        y: event.clientY,
+                      });
+                    }}
                     className={`w-full text-left px-3 py-2.5 border-b border-zinc-800/50 transition-colors ${
                       selected ? "bg-zinc-800/70" : "hover:bg-zinc-800/35"
                     }`}
@@ -2013,19 +2159,18 @@ await ram.settings.set("endpoint", "http://127.0.0.1:3847/ram/bridge");
                             placeholder={t("Search logs")}
                           />
                         </div>
-                        <select
+                        <Select
                           value={logLevel}
-                          onChange={(event) =>
-                            setLogLevel(event.target.value as ScriptLogLevel | "all")
-                          }
-                          className="px-2.5 py-1.5 rounded-lg bg-zinc-800/50 border border-zinc-700/60 text-[12px] text-zinc-200 focus:outline-none focus:border-zinc-500"
-                        >
-                          <option value="all">{t("All")}</option>
-                          <option value="debug">DEBUG</option>
-                          <option value="info">INFO</option>
-                          <option value="warn">WARN</option>
-                          <option value="error">ERROR</option>
-                        </select>
+                          onChange={(value) => setLogLevel(value as ScriptLogLevel | "all")}
+                          options={[
+                            { value: "all", label: "All" },
+                            { value: "debug", label: "Debug" },
+                            { value: "info", label: "Info" },
+                            { value: "warn", label: "Warn" },
+                            { value: "error", label: "Error" },
+                          ]}
+                          className="w-[130px]"
+                        />
                         <button
                           onClick={() => {
                             setLogsByScript((prev) => ({ ...prev, [selectedScript.id]: [] }));
@@ -2197,6 +2342,25 @@ await ram.settings.set("endpoint", "http://127.0.0.1:3847/ram/bridge");
               </>
             )}
           </section>
+
+          {scriptContextMenu && contextScript && (
+            <div
+              ref={scriptContextRef}
+              className="theme-modal-scope theme-panel theme-border fixed z-[120] min-w-[220px] bg-zinc-900/95 backdrop-blur-xl border border-zinc-700/50 rounded-xl shadow-2xl py-1.5 animate-scale-in"
+              style={{
+                left: scriptContextPos?.left ?? scriptContextMenu.x,
+                top: scriptContextPos?.top ?? scriptContextMenu.y,
+              }}
+            >
+              {scriptContextItems.map((item, index) => (
+                <MenuItemView
+                  key={`${contextScript.id}-${index}`}
+                  item={item}
+                  close={closeScriptContextMenu}
+                />
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

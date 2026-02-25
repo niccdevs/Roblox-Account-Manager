@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useStore } from "../../store";
 import { useTr } from "../../i18n/text";
+import { ModalWindowControls } from "./ModalWindowControls";
 
 export function PasswordScreen() {
   const t = useTr();
@@ -9,6 +10,7 @@ export function PasswordScreen() {
 
   return (
     <div className="flex h-screen flex-col items-center justify-center bg-zinc-950">
+      <ModalWindowControls visible />
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
           <h1 className="text-xl font-semibold text-zinc-100 animate-fade-in-up" style={{ animationDelay: "0.05s" }}>
