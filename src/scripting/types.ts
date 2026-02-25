@@ -121,3 +121,19 @@ export interface ScriptWindowSnapshot {
   botting: unknown;
   settings: Record<string, Record<string, string>> | null;
 }
+
+export interface ScriptHttpRequestInput {
+  url: string;
+  method?: string;
+  headers?: Record<string, string>;
+  body?: unknown;
+  timeoutMs?: number;
+  allowPrivateNetwork?: boolean;
+}
+
+export interface ScriptWebSocketConnectInput {
+  url: string;
+  connectionId?: string;
+  protocols?: string[] | string;
+  allowPrivateNetwork?: boolean;
+}

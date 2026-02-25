@@ -6,8 +6,14 @@ const pendingRequests = new Map();
 const eventHandlers = new Map();
 let hostRequestCounter = 0;
 let intrinsicsHardened = false;
+let globalsLockedDown = false;
 const HOST_REQUEST_TIMEOUT_MS = 20000;
 const MAX_LOG_MESSAGE_LENGTH = 4000;
+const MAX_PENDING_HOST_REQUESTS = 64;
+const MAX_EVENT_HANDLERS_PER_EVENT = 32;
+const MAX_TOTAL_EVENT_HANDLERS = 96;
+const MAX_SCRIPT_SOURCE_BYTES = 262144;
+const ALLOWED_SCRIPT_EVENTS = new Set(["window:update", "ws", "ui"]);
 
 const safePostMessage = postMessage.bind(self);
 const nativeSetTimeout = setTimeout.bind(self);
@@ -65,15 +71,74 @@ function createHostError(message) {
   return err;
 }
 
+function utf8ByteLength(value) {
+  return new TextEncoder().encode(value).length;
+}
+
+function lockDownDangerousGlobals() {
+  if (globalsLockedDown) {
+    return;
+  }
+
+  const blockedGlobalNames = [
+    "eval",
+    "Function",
+    "AsyncFunction",
+    "GeneratorFunction",
+    "AsyncGeneratorFunction",
+    "fetch",
+    "WebSocket",
+    "XMLHttpRequest",
+    "Worker",
+    "SharedWorker",
+    "BroadcastChannel",
+    "EventSource",
+    "importScripts",
+  ];
+
+  for (const name of blockedGlobalNames) {
+    try {
+      Object.defineProperty(self, name, {
+        value: undefined,
+        writable: false,
+        configurable: false,
+        enumerable: false,
+      });
+    } catch {
+      try {
+        self[name] = undefined;
+      } catch {
+      }
+    }
+  }
+
+  globalsLockedDown = true;
+}
+
 function callHost(action, payload) {
   return new Promise((resolve, reject) => {
+    const normalizedAction = typeof action === "string" ? action.trim() : "";
+    if (!normalizedAction) {
+      reject(createHostError("Host request action is required"));
+      return;
+    }
+
+    if (pendingRequests.size >= MAX_PENDING_HOST_REQUESTS) {
+      reject(
+        createHostError(
+          "Too many pending host requests (max " + MAX_PENDING_HOST_REQUESTS + ")"
+        )
+      );
+      return;
+    }
+
     const requestId = "req-" + ++hostRequestCounter;
     const timeout = nativeSetTimeout(() => {
       if (!pendingRequests.has(requestId)) {
         return;
       }
       pendingRequests.delete(requestId);
-      reject(createHostError("Host request timed out: " + action));
+      reject(createHostError("Host request timed out: " + normalizedAction));
     }, HOST_REQUEST_TIMEOUT_MS);
 
     pendingRequests.set(requestId, {
@@ -90,7 +155,7 @@ function callHost(action, payload) {
     safePostMessage({
       type: "host-request",
       requestId,
-      action,
+      action: normalizedAction,
       payload,
     });
   });
@@ -100,13 +165,32 @@ function addHandler(event, handler) {
   if (typeof handler !== "function") {
     return () => {};
   }
+  if (typeof event !== "string" || !ALLOWED_SCRIPT_EVENTS.has(event)) {
+    throw new Error("Unsupported event subscription: " + String(event));
+  }
+
   if (!eventHandlers.has(event)) {
     eventHandlers.set(event, new Set());
   }
   const set = eventHandlers.get(event);
+  if (set.size >= MAX_EVENT_HANDLERS_PER_EVENT) {
+    throw new Error("Too many handlers for event: " + event);
+  }
+
+  let totalHandlers = 0;
+  for (const handlers of eventHandlers.values()) {
+    totalHandlers += handlers.size;
+  }
+  if (totalHandlers >= MAX_TOTAL_EVENT_HANDLERS) {
+    throw new Error("Too many total event handlers registered");
+  }
+
   set.add(handler);
   return () => {
     set.delete(handler);
+    if (set.size === 0) {
+      eventHandlers.delete(event);
+    }
   };
 }
 
@@ -449,6 +533,8 @@ function assertNoDynamicImport(source) {
     /\bimportScripts(?:\s|\/\*[\s\S]*?\*\/|\/\/[^\n]*(?:\n|$))*\(/;
   const evalPattern =
     /\beval(?:\s|\/\*[\s\S]*?\*\/|\/\/[^\n]*(?:\n|$))*\(/;
+  const optionalEvalPattern = /\beval\s*\?\.\s*\(/;
+  const indirectEvalPattern = /\(\s*0\s*,\s*eval\s*\)\s*\(/;
 
   const functionCtorPattern =
     /\b(?:Function|AsyncFunction|GeneratorFunction|AsyncGeneratorFunction)(?:\s|\/\*[\s\S]*?\*\/|\/\/[^\n]*(?:\n|$))*\(/;
@@ -463,6 +549,9 @@ function assertNoDynamicImport(source) {
   }
   if (evalPattern.test(source)) {
     throw new Error("eval() is blocked in scripts.");
+  }
+  if (optionalEvalPattern.test(source) || indirectEvalPattern.test(source)) {
+    throw new Error("Indirect eval() is blocked in scripts.");
   }
   if (functionCtorPattern.test(source)) {
     throw new Error("Function constructor APIs are blocked in scripts.");
@@ -522,12 +611,26 @@ async function runUserScript(code, metadata) {
     throw new Error("Script sandbox initialization failed: " + toMessage(error));
   }
 
+  try {
+    lockDownDangerousGlobals();
+  } catch (error) {
+    throw new Error("Script sandbox initialization failed: " + toMessage(error));
+  }
+
   const ram = deepFreeze(createRamApi());
   const safeMetadata = createSafeMetadata(metadata);
   const safeConsole = createSafeConsole();
   const safeTimers = createSafeTimerApi();
   const safeQueueMicrotask = createSafeQueueMicrotask();
   const normalizedCode = normalizeUserCode(code);
+
+  if (utf8ByteLength(normalizedCode) > MAX_SCRIPT_SOURCE_BYTES) {
+    throw new Error(
+      "Script compile failed: source exceeds " +
+        MAX_SCRIPT_SOURCE_BYTES +
+        " bytes and was rejected"
+    );
+  }
 
   try {
     assertNoDynamicImport(normalizedCode);
@@ -638,6 +741,14 @@ self.onmessage = async (event) => {
   }
 
   if (message.type === "stop") {
+    for (const pending of pendingRequests.values()) {
+      try {
+        pending.reject(createHostError("Script stopped"));
+      } catch {
+      }
+    }
+    pendingRequests.clear();
+    eventHandlers.clear();
     close();
   }
 };

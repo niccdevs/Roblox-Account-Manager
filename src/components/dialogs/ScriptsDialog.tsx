@@ -21,6 +21,17 @@ import { useStore } from "../../store";
 import { useModalClose } from "../../hooks/useModalClose";
 import { useConfirm, usePrompt } from "../../hooks/usePrompt";
 import { useTr } from "../../i18n/text";
+import {
+  SCRIPT_SECURITY_LIMITS,
+  assertScriptPermission,
+  buildScriptSettingsSection,
+  getScriptSecuritySignature,
+  normalizeScriptHttpUrl,
+  normalizeWebSocketUrl,
+  sanitizeScriptSourceForSave,
+  truncateForLog,
+  utf8ByteLength,
+} from "../../scripting/security";
 import { createScriptWorker } from "../../scripting/workerSource";
 import { Select } from "../ui/Select";
 import { MenuItemView } from "../menus/MenuItemView";
@@ -64,11 +75,13 @@ interface SavePickerApi {
 
 interface WorkerRuntime {
   worker: Worker;
+  runtimeId: string;
   pending: Map<
     string,
     {
-      resolve: (value: unknown) => void;
-      reject: (error: Error) => void;
+      action: string;
+      startedAtMs: number;
+      abortControllers: Set<AbortController>;
     }
   >;
   sockets: Map<string, WebSocket>;
@@ -79,6 +92,18 @@ interface ScriptContextMenuState {
   x: number;
   y: number;
 }
+
+const ALLOWED_HTTP_METHODS = new Set([
+  "GET",
+  "POST",
+  "PUT",
+  "PATCH",
+  "DELETE",
+  "HEAD",
+  "OPTIONS",
+]);
+
+const WS_CLOSE_REASON_MAX_CHARS = 123;
 
 const DEFAULT_SCRIPT_SOURCE = `
 ram.info("Script loaded");
@@ -114,7 +139,7 @@ ram.info("Discord bridge started", endpoint);
 
 if (wsEndpoint) {
   try {
-    const ws = await ram.ws.connect({ url: wsEndpoint });
+    const ws = await ram.ws.connect({ url: wsEndpoint, allowPrivateNetwork: true });
     wsConnectionId = ws.connectionId;
     ram.info("Connected to websocket bridge", wsConnectionId);
   } catch (error) {
@@ -236,13 +261,43 @@ function defaultPermissions(): ScriptPermissions {
   };
 }
 
+function trimToLength(value: string, maxChars: number): string {
+  const trimmed = value.trim();
+  if (trimmed.length <= maxChars) {
+    return trimmed;
+  }
+  return trimmed.slice(0, maxChars);
+}
+
+function coerceScriptSource(source: unknown): string {
+  return typeof source === "string" ? source : String(source || "");
+}
+
+function ensureScriptSourceSize(source: string): void {
+  const bytes = utf8ByteLength(source);
+  if (bytes > SCRIPT_SECURITY_LIMITS.maxScriptSourceBytes) {
+    throw new Error(
+      `Script source exceeds ${SCRIPT_SECURITY_LIMITS.maxScriptSourceBytes} bytes and was blocked`
+    );
+  }
+}
+
 function normalizeScript(input: ManagedScript): ManagedScript {
+  const id = trimToLength(String(input.id || ""), SCRIPT_SECURITY_LIMITS.maxScriptIdChars);
+  const normalizedName = trimToLength(
+    String(input.name || "Unnamed Script"),
+    SCRIPT_SECURITY_LIMITS.maxScriptNameChars
+  );
+  const source = coerceScriptSource(input.source);
   return {
-    id: String(input.id || ""),
-    name: String(input.name || "Unnamed Script"),
-    description: String(input.description || ""),
+    id,
+    name: normalizedName || "Unnamed Script",
+    description: trimToLength(
+      String(input.description || ""),
+      SCRIPT_SECURITY_LIMITS.maxScriptDescriptionChars
+    ),
     language: String(input.language || "javascript"),
-    source: String(input.source || ""),
+    source,
     enabled: Boolean(input.enabled),
     trusted: Boolean(input.trusted),
     autoStart: Boolean(input.autoStart),
@@ -257,10 +312,15 @@ function normalizeScript(input: ManagedScript): ManagedScript {
 
 function createScript(name: string, description: string, source: string): ManagedScript {
   const ts = nowMs();
+  const normalizedName = trimToLength(name, SCRIPT_SECURITY_LIMITS.maxScriptNameChars) || "New Script";
+  const normalizedDescription = trimToLength(
+    description,
+    SCRIPT_SECURITY_LIMITS.maxScriptDescriptionChars
+  );
   return {
     id: buildId("script"),
-    name,
-    description,
+    name: normalizedName,
+    description: normalizedDescription,
     language: "javascript",
     source,
     enabled: true,
@@ -293,153 +353,6 @@ function safeMessage(value: unknown): string {
   }
 }
 
-function sanitizeScriptSourceForSave(input: string): string {
-  let text = typeof input === "string" ? input : String(input || "");
-  if (text.charCodeAt(0) === 0xfeff) {
-    text = text.slice(1);
-  }
-
-  if (typeof text.normalize === "function") {
-    try {
-      text = text.normalize("NFKC");
-    } catch {
-    }
-  }
-
-  text = text
-    .replace(/\r\n?/g, "\n")
-    .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]/g, "")
-    .replace(/[\u200b-\u200f\u2060\ufeff]/g, "")
-    .replace(/[\u202a-\u202e]/g, "")
-    .replace(/[\ud800-\udfff]/g, "")
-    .replace(/[\u2018\u2019\u201a\u201b]/g, "'")
-    .replace(/[\u201c\u201d\u201e\u201f]/g, "\"")
-    .replace(/[\u00b4\u02cb\u2032\u2035\uff40]/g, "\u0060")
-    .replace(/[\u2013\u2014\u2212]/g, "-");
-
-  const fence = text.match(/^\s*```[a-zA-Z0-9_-]*\s*\n([\s\S]*?)\n\s*```\s*$/);
-  if (fence && fence[1]) {
-    text = fence[1];
-  }
-
-  return text;
-}
-
-function normalizeWebSocketUrl(input: string): string {
-  const value = input.trim();
-  if (!value) {
-    throw new Error("WebSocket URL is required");
-  }
-  let parsed: URL;
-  try {
-    parsed = new URL(value);
-  } catch {
-    throw new Error("Invalid WebSocket URL");
-  }
-  if (parsed.protocol !== "ws:" && parsed.protocol !== "wss:") {
-    throw new Error("WebSocket URL must start with ws:// or wss://");
-  }
-  return parsed.toString();
-}
-
-function parseIPv4Address(hostname: string): [number, number, number, number] | null {
-  const parts = hostname.split(".");
-  if (parts.length !== 4) return null;
-
-  const values: number[] = [];
-  for (const part of parts) {
-    if (!/^\d{1,3}$/.test(part)) {
-      return null;
-    }
-    const value = Number(part);
-    if (!Number.isInteger(value) || value < 0 || value > 255) {
-      return null;
-    }
-    values.push(value);
-  }
-
-  return [values[0], values[1], values[2], values[3]];
-}
-
-function isPrivateOrLoopbackHost(hostname: string): boolean {
-  const host = hostname.trim().toLowerCase().replace(/\.$/, "");
-  if (!host) return true;
-
-  if (host === "localhost" || host.endsWith(".localhost")) {
-    return true;
-  }
-
-  const mappedLoopback = host.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
-  if (mappedLoopback) {
-    const mapped = parseIPv4Address(mappedLoopback[1]);
-    if (mapped) {
-      const [a, b] = mapped;
-      return (
-        a === 10 ||
-        a === 127 ||
-        a === 0 ||
-        (a === 169 && b === 254) ||
-        (a === 172 && b >= 16 && b <= 31) ||
-        (a === 192 && b === 168)
-      );
-    }
-  }
-
-  const ipv4 = parseIPv4Address(host);
-  if (ipv4) {
-    const [a, b] = ipv4;
-    return (
-      a === 10 ||
-      a === 127 ||
-      a === 0 ||
-      (a === 169 && b === 254) ||
-      (a === 172 && b >= 16 && b <= 31) ||
-      (a === 192 && b === 168)
-    );
-  }
-
-  if (host === "::1" || host === "::") {
-    return true;
-  }
-
-  if (host.includes(":")) {
-    if (host.startsWith("fc") || host.startsWith("fd")) {
-      return true;
-    }
-    if (/^fe[89ab]/.test(host)) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
-function normalizeScriptHttpUrl(input: string, allowPrivateNetwork: boolean): string {
-  const value = input.trim();
-  if (!value) {
-    throw new Error("Missing request URL");
-  }
-
-  let parsed: URL;
-  try {
-    parsed = new URL(value);
-  } catch {
-    throw new Error("Invalid request URL");
-  }
-
-  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-    throw new Error("Request URL must start with http:// or https://");
-  }
-
-  if (!allowPrivateNetwork && isPrivateOrLoopbackHost(parsed.hostname)) {
-    throw new Error(
-      "Private-network and localhost HTTP targets are blocked by default. Set allowPrivateNetwork: true to override."
-    );
-  }
-
-  return parsed.toString();
-}
-
 function wsStateLabel(state: number): string {
   if (state === WebSocket.CONNECTING) return "CONNECTING";
   if (state === WebSocket.OPEN) return "OPEN";
@@ -448,45 +361,101 @@ function wsStateLabel(state: number): string {
   return String(state);
 }
 
-async function wsMessageToPayload(data: unknown): Promise<{ text: string | null; json: unknown | null }> {
+function normalizeLimitedString(value: unknown, maxChars: number): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const text = value.trim();
+  if (!text) {
+    return undefined;
+  }
+  return text.length > maxChars ? text.slice(0, maxChars) : text;
+}
+
+function normalizeUiId(value: unknown): string | null {
+  const text = typeof value === "string" ? value.trim() : "";
+  if (!/^[A-Za-z0-9._:-]{1,64}$/.test(text)) {
+    return null;
+  }
+  return text;
+}
+
+function clampFiniteNumber(value: unknown, min: number, max: number): number | undefined {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return undefined;
+  }
+  return Math.min(max, Math.max(min, value));
+}
+
+function truncateTextByBytes(input: string, maxBytes: number): { text: string; truncated: boolean } {
+  const bytes = new TextEncoder().encode(input);
+  if (bytes.length <= maxBytes) {
+    return { text: input, truncated: false };
+  }
+  const sliced = bytes.slice(0, maxBytes);
+  const decoded = new TextDecoder().decode(sliced);
+  return { text: decoded, truncated: true };
+}
+
+async function wsMessageToPayload(
+  data: unknown
+): Promise<{ text: string | null; json: unknown | null; truncated: boolean }> {
+  const maxBytes = SCRIPT_SECURITY_LIMITS.maxWebSocketMessageBytes;
+
   if (typeof data === "string") {
-    if (data.trim().length === 0) {
-      return { text: data, json: null };
+    const normalized = truncateTextByBytes(data, maxBytes);
+    if (normalized.text.trim().length === 0) {
+      return { text: normalized.text, json: null, truncated: normalized.truncated };
+    }
+    if (normalized.truncated) {
+      return { text: normalized.text, json: null, truncated: true };
     }
     try {
-      return { text: data, json: JSON.parse(data) };
+      return { text: normalized.text, json: JSON.parse(normalized.text), truncated: false };
     } catch {
-      return { text: data, json: null };
+      return { text: normalized.text, json: null, truncated: false };
     }
   }
 
   if (data instanceof Blob) {
-    const text = await data.text();
+    const blob = data.size > maxBytes ? data.slice(0, maxBytes) : data;
+    const text = await blob.text();
+    const truncated = data.size > maxBytes;
     if (text.trim().length === 0) {
-      return { text, json: null };
+      return { text, json: null, truncated };
+    }
+    if (truncated) {
+      return { text, json: null, truncated: true };
     }
     try {
-      return { text, json: JSON.parse(text) };
+      return { text, json: JSON.parse(text), truncated: false };
     } catch {
-      return { text, json: null };
+      return { text, json: null, truncated: false };
     }
   }
 
   if (data instanceof ArrayBuffer) {
-    const text = new TextDecoder().decode(new Uint8Array(data));
+    const bytes = new Uint8Array(data);
+    const limited = bytes.length > maxBytes ? bytes.slice(0, maxBytes) : bytes;
+    const text = new TextDecoder().decode(limited);
+    const truncated = bytes.length > maxBytes;
     if (text.trim().length === 0) {
-      return { text, json: null };
+      return { text, json: null, truncated };
+    }
+    if (truncated) {
+      return { text, json: null, truncated: true };
     }
     try {
-      return { text, json: JSON.parse(text) };
+      return { text, json: JSON.parse(text), truncated: false };
     } catch {
-      return { text, json: null };
+      return { text, json: null, truncated: false };
     }
   }
 
   return {
     text: null,
     json: null,
+    truncated: false,
   };
 }
 
@@ -496,14 +465,21 @@ function normalizeUiElements(input: unknown): ScriptUiElement[] {
   }
 
   const elements: ScriptUiElement[] = [];
+  const seenIds = new Set<string>();
+  const maxElements = SCRIPT_SECURITY_LIMITS.maxUiElements;
 
   for (const entry of input) {
+    if (elements.length >= maxElements) {
+      break;
+    }
+
     const row = asRecord(entry);
-    const id = String(row.id || "").trim();
+    const id = normalizeUiId(row.id);
     const type = String(row.type || "").trim().toLowerCase();
-    if (!id || !type) {
+    if (!id || !type || seenIds.has(id)) {
       continue;
     }
+    seenIds.add(id);
 
     const normalized: ScriptUiElement = {
       id,
@@ -518,21 +494,22 @@ function normalizeUiElements(input: unknown): ScriptUiElement[] {
         type === "divider"
           ? type
           : "text",
-      label: typeof row.label === "string" ? row.label : undefined,
-      text: typeof row.text === "string" ? row.text : undefined,
+      label: normalizeLimitedString(row.label, SCRIPT_SECURITY_LIMITS.maxUiTextChars),
+      text: normalizeLimitedString(row.text, SCRIPT_SECURITY_LIMITS.maxUiTextChars),
       value:
-        typeof row.value === "string" ||
-        typeof row.value === "number" ||
-        typeof row.value === "boolean"
-          ? row.value
-          : undefined,
-      placeholder:
-        typeof row.placeholder === "string" ? row.placeholder : undefined,
-      min: typeof row.min === "number" ? row.min : undefined,
-      max: typeof row.max === "number" ? row.max : undefined,
-      step: typeof row.step === "number" ? row.step : undefined,
-      rows: typeof row.rows === "number" ? row.rows : undefined,
-      width: typeof row.width === "number" ? row.width : undefined,
+        typeof row.value === "string"
+          ? normalizeLimitedString(row.value, SCRIPT_SECURITY_LIMITS.maxUiTextChars)
+          : typeof row.value === "number" && Number.isFinite(row.value)
+            ? row.value
+            : typeof row.value === "boolean"
+              ? row.value
+              : undefined,
+      placeholder: normalizeLimitedString(row.placeholder, SCRIPT_SECURITY_LIMITS.maxUiTextChars),
+      min: clampFiniteNumber(row.min, -1_000_000_000, 1_000_000_000),
+      max: clampFiniteNumber(row.max, -1_000_000_000, 1_000_000_000),
+      step: clampFiniteNumber(row.step, 0.000001, 1_000_000),
+      rows: clampFiniteNumber(row.rows, 1, 24),
+      width: clampFiniteNumber(row.width, 80, 1400),
       disabled: Boolean(row.disabled),
       tone:
         row.tone === "success" ||
@@ -543,10 +520,17 @@ function normalizeUiElements(input: unknown): ScriptUiElement[] {
           : "default",
       options: Array.isArray(row.options)
         ? row.options
+            .slice(0, SCRIPT_SECURITY_LIMITS.maxUiOptionsPerElement)
             .map((option) => {
               const valueRow = asRecord(option);
-              const label = String(valueRow.label || valueRow.value || "").trim();
-              const value = String(valueRow.value || valueRow.label || "").trim();
+              const label = normalizeLimitedString(
+                valueRow.label ?? valueRow.value,
+                SCRIPT_SECURITY_LIMITS.maxUiTextChars
+              );
+              const value = normalizeLimitedString(
+                valueRow.value ?? valueRow.label,
+                SCRIPT_SECURITY_LIMITS.maxUiTextChars
+              );
               if (!label || !value) {
                 return null;
               }
@@ -569,17 +553,39 @@ function applyUiPatch(elements: ScriptUiElement[], id: string, patch: unknown): 
       return item;
     }
     const next = { ...item };
-    if (typeof delta.label === "string") next.label = delta.label;
-    if (typeof delta.text === "string") next.text = delta.text;
-    if (typeof delta.value === "string" || typeof delta.value === "number" || typeof delta.value === "boolean") {
-      next.value = delta.value;
+    const label = normalizeLimitedString(delta.label, SCRIPT_SECURITY_LIMITS.maxUiTextChars);
+    const text = normalizeLimitedString(delta.text, SCRIPT_SECURITY_LIMITS.maxUiTextChars);
+    const placeholder = normalizeLimitedString(
+      delta.placeholder,
+      SCRIPT_SECURITY_LIMITS.maxUiTextChars
+    );
+
+    if (label !== undefined) next.label = label;
+    if (text !== undefined) next.text = text;
+    if (
+      typeof delta.value === "string" ||
+      typeof delta.value === "number" ||
+      typeof delta.value === "boolean"
+    ) {
+      next.value =
+        typeof delta.value === "string"
+          ? normalizeLimitedString(delta.value, SCRIPT_SECURITY_LIMITS.maxUiTextChars)
+          : delta.value;
     }
-    if (typeof delta.placeholder === "string") next.placeholder = delta.placeholder;
-    if (typeof delta.min === "number") next.min = delta.min;
-    if (typeof delta.max === "number") next.max = delta.max;
-    if (typeof delta.step === "number") next.step = delta.step;
-    if (typeof delta.rows === "number") next.rows = delta.rows;
-    if (typeof delta.width === "number") next.width = delta.width;
+    if (placeholder !== undefined) next.placeholder = placeholder;
+
+    const min = clampFiniteNumber(delta.min, -1_000_000_000, 1_000_000_000);
+    const max = clampFiniteNumber(delta.max, -1_000_000_000, 1_000_000_000);
+    const step = clampFiniteNumber(delta.step, 0.000001, 1_000_000);
+    const rows = clampFiniteNumber(delta.rows, 1, 24);
+    const width = clampFiniteNumber(delta.width, 80, 1400);
+
+    if (min !== undefined) next.min = min;
+    if (max !== undefined) next.max = max;
+    if (step !== undefined) next.step = step;
+    if (rows !== undefined) next.rows = rows;
+    if (width !== undefined) next.width = width;
+
     if (typeof delta.disabled === "boolean") next.disabled = delta.disabled;
     if (
       delta.tone === "default" ||
@@ -605,20 +611,6 @@ function createInitialRuntime(): ScriptRuntimeState {
     lastError: null,
     uiElements: [],
   };
-}
-
-function getScriptSecuritySignature(script: ManagedScript): string {
-  const p = script.permissions;
-  return [
-    script.trusted ? "1" : "0",
-    p.allowInvoke ? "1" : "0",
-    p.allowHttp ? "1" : "0",
-    p.allowWebSocket ? "1" : "0",
-    p.allowWindow ? "1" : "0",
-    p.allowModal ? "1" : "0",
-    p.allowSettings ? "1" : "0",
-    p.allowUi ? "1" : "0",
-  ].join("");
 }
 
 export function ScriptsDialog({ open, onClose }: ScriptsDialogProps) {
@@ -730,12 +722,13 @@ export function ScriptsDialog({ open, onClose }: ScriptsDialogProps) {
   ]);
 
   function appendLog(scriptId: string, level: ScriptLogLevel, source: "script" | "host", message: string) {
+    const normalizedMessage = truncateForLog(message);
     const entry: ScriptLogEntry = {
       id: buildId("log"),
       at: Date.now(),
       level,
       source,
-      message,
+      message: normalizedMessage,
     };
     setLogsByScript((prev) => {
       const next = [...(prev[scriptId] || []), entry];
@@ -779,7 +772,12 @@ export function ScriptsDialog({ open, onClose }: ScriptsDialogProps) {
     if (!runtime) return;
 
     for (const pending of runtime.pending.values()) {
-      pending.reject(new Error("Script stopped"));
+      for (const controller of pending.abortControllers) {
+        try {
+          controller.abort();
+        } catch {
+        }
+      }
     }
     runtime.pending.clear();
 
@@ -805,54 +803,192 @@ export function ScriptsDialog({ open, onClose }: ScriptsDialogProps) {
     });
   }
 
-  function ensurePermission(script: ManagedScript, permission: keyof ScriptPermissions, action: string, trustRequired: boolean) {
-    if (!script.permissions[permission]) {
-      throw new Error(`Permission denied for ${action}`);
-    }
-    if (trustRequired && !script.trusted) {
-      throw new Error(`Action ${action} requires trusted mode`);
-    }
-  }
-
-  async function handleWorkerRequest(scriptId: string, action: string, payload: unknown): Promise<unknown> {
+  function findScript(scriptId: string): ManagedScript {
     const script = scriptsRef.current.find((item) => item.id === scriptId);
     if (!script) {
       throw new Error("Script does not exist");
     }
+    return script;
+  }
 
+  function requireActiveRequest(scriptId: string, runtimeId: string, requestId: string): WorkerRuntime {
+    const runtime = workersRef.current.get(scriptId);
+    if (!runtime || runtime.runtimeId !== runtimeId) {
+      throw new Error("Script runtime is not active");
+    }
+    if (!runtime.pending.has(requestId)) {
+      throw new Error("Script request was cancelled");
+    }
+    return runtime;
+  }
+
+  function requirePermissionForRequest(
+    scriptId: string,
+    runtimeId: string,
+    requestId: string,
+    permission: keyof ScriptPermissions,
+    action: string,
+    trustRequired: boolean
+  ): ManagedScript {
+    requireActiveRequest(scriptId, runtimeId, requestId);
+    const script = findScript(scriptId);
+    assertScriptPermission(script, permission, action, trustRequired);
+    return script;
+  }
+
+  function attachAbortController(scriptId: string, runtimeId: string, requestId: string, controller: AbortController) {
+    const runtime = requireActiveRequest(scriptId, runtimeId, requestId);
+    const pending = runtime.pending.get(requestId);
+    if (!pending) {
+      throw new Error("Script request was cancelled");
+    }
+    pending.abortControllers.add(controller);
+  }
+
+  function detachAbortController(scriptId: string, runtimeId: string, requestId: string, controller: AbortController) {
+    const runtime = workersRef.current.get(scriptId);
+    if (!runtime || runtime.runtimeId !== runtimeId) {
+      return;
+    }
+    runtime.pending.get(requestId)?.abortControllers.delete(controller);
+  }
+
+  function normalizeSettingsKey(input: unknown): string {
+    const key = typeof input === "string" ? input.trim() : "";
+    if (!key) {
+      throw new Error("Missing settings key");
+    }
+    if (!/^[A-Za-z0-9._-]+$/.test(key)) {
+      throw new Error("Settings key contains unsupported characters");
+    }
+    if (key.length > SCRIPT_SECURITY_LIMITS.maxSettingsKeyChars) {
+      throw new Error("Settings key is too long");
+    }
+    return key;
+  }
+
+  async function readResponseTextLimited(response: Response, maxBytes: number): Promise<string> {
+    const declaredLength = Number(response.headers.get("content-length") || "");
+    if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
+      throw new Error(`HTTP response exceeds ${maxBytes} bytes`);
+    }
+
+    if (!response.body) {
+      return "";
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let total = 0;
+    let text = "";
+
+    while (true) {
+      const chunk = await reader.read();
+      if (chunk.done) {
+        break;
+      }
+      if (!chunk.value) {
+        continue;
+      }
+      total += chunk.value.byteLength;
+      if (total > maxBytes) {
+        try {
+          await reader.cancel();
+        } catch {
+        }
+        throw new Error(`HTTP response exceeds ${maxBytes} bytes`);
+      }
+      text += decoder.decode(chunk.value, { stream: true });
+    }
+
+    text += decoder.decode();
+    return text;
+  }
+
+  async function handleWorkerRequest(
+    scriptId: string,
+    runtimeId: string,
+    requestId: string,
+    action: string,
+    payload: unknown
+  ): Promise<unknown> {
     const data = asRecord(payload);
 
     if (action === "invoke") {
-      ensurePermission(script, "allowInvoke", "invoke", true);
+      requirePermissionForRequest(scriptId, runtimeId, requestId, "allowInvoke", "invoke", true);
       const command = String(data.command || "").trim();
       if (!command) {
         throw new Error("Missing invoke command");
       }
-      const argsRaw = data.args;
-      const args = asRecord(argsRaw);
-      return invoke(command, args);
+      const args = asRecord(data.args);
+      requireActiveRequest(scriptId, runtimeId, requestId);
+      const result = await invoke(command, args);
+      requireActiveRequest(scriptId, runtimeId, requestId);
+      return result;
     }
 
     if (action === "http.request") {
-      ensurePermission(script, "allowHttp", "http", true);
-
+      requirePermissionForRequest(scriptId, runtimeId, requestId, "allowHttp", "http.request", true);
       const allowPrivateNetwork = data.allowPrivateNetwork === true;
       const url = normalizeScriptHttpUrl(String(data.url || ""), allowPrivateNetwork);
 
       const method = String(data.method || "GET").toUpperCase();
-      const timeoutMs = Math.max(500, Number(data.timeoutMs || 10000));
+      if (!ALLOWED_HTTP_METHODS.has(method)) {
+        throw new Error(`HTTP method is not allowed: ${method}`);
+      }
+
+      const timeoutRaw = Number(data.timeoutMs ?? 10_000);
+      const timeoutMs = Number.isFinite(timeoutRaw)
+        ? Math.min(
+            SCRIPT_SECURITY_LIMITS.maxHttpTimeoutMs,
+            Math.max(500, Math.floor(timeoutRaw))
+          )
+        : 10_000;
+
       const headersRaw = asRecord(data.headers);
+      const headerEntries = Object.entries(headersRaw);
+      if (headerEntries.length > SCRIPT_SECURITY_LIMITS.maxHttpHeaders) {
+        throw new Error("Too many HTTP headers");
+      }
+
       const headers = new Headers();
-      for (const [key, value] of Object.entries(headersRaw)) {
-        headers.set(key, String(value));
+      for (const [keyRaw, valueRaw] of headerEntries) {
+        const key = String(keyRaw || "").trim();
+        if (!key) {
+          continue;
+        }
+        if (key.length > SCRIPT_SECURITY_LIMITS.maxHttpHeaderNameChars) {
+          throw new Error(`HTTP header name is too long: ${key}`);
+        }
+        const value = String(valueRaw ?? "");
+        if (value.length > SCRIPT_SECURITY_LIMITS.maxHttpHeaderValueChars) {
+          throw new Error(`HTTP header value is too long for: ${key}`);
+        }
+        headers.set(key, value);
       }
 
       let body: BodyInit | undefined;
       if (data.body !== undefined && data.body !== null) {
+        if (method === "GET" || method === "HEAD") {
+          throw new Error(`HTTP ${method} requests cannot include a body`);
+        }
+
         if (typeof data.body === "string") {
+          if (utf8ByteLength(data.body) > SCRIPT_SECURITY_LIMITS.maxHttpBodyBytes) {
+            throw new Error(`HTTP body exceeds ${SCRIPT_SECURITY_LIMITS.maxHttpBodyBytes} bytes`);
+          }
           body = data.body;
         } else {
-          body = JSON.stringify(data.body);
+          let jsonBody = "";
+          try {
+            jsonBody = JSON.stringify(data.body);
+          } catch {
+            throw new Error("HTTP body is not JSON serializable");
+          }
+          if (utf8ByteLength(jsonBody) > SCRIPT_SECURITY_LIMITS.maxHttpBodyBytes) {
+            throw new Error(`HTTP body exceeds ${SCRIPT_SECURITY_LIMITS.maxHttpBodyBytes} bytes`);
+          }
+          body = jsonBody;
           if (!headers.has("content-type")) {
             headers.set("content-type", "application/json");
           }
@@ -860,16 +996,26 @@ export function ScriptsDialog({ open, onClose }: ScriptsDialogProps) {
       }
 
       const controller = new AbortController();
-      const timer = window.setTimeout(() => controller.abort(), timeoutMs);
+      let timedOut = false;
+      attachAbortController(scriptId, runtimeId, requestId, controller);
+      const timer = window.setTimeout(() => {
+        timedOut = true;
+        controller.abort();
+      }, timeoutMs);
 
       try {
+        requirePermissionForRequest(scriptId, runtimeId, requestId, "allowHttp", "http.request", true);
         const response = await fetch(url, {
           method,
           headers,
           body,
           signal: controller.signal,
         });
-        const text = await response.text();
+
+        requireActiveRequest(scriptId, runtimeId, requestId);
+        const text = await readResponseTextLimited(response, SCRIPT_SECURITY_LIMITS.maxHttpResponseBytes);
+        requireActiveRequest(scriptId, runtimeId, requestId);
+
         let json: unknown = null;
         if (text.trim().length > 0) {
           try {
@@ -878,6 +1024,7 @@ export function ScriptsDialog({ open, onClose }: ScriptsDialogProps) {
             json = null;
           }
         }
+
         return {
           ok: response.ok,
           status: response.status,
@@ -887,42 +1034,78 @@ export function ScriptsDialog({ open, onClose }: ScriptsDialogProps) {
           text,
           json,
         };
+      } catch (error) {
+        if (timedOut) {
+          throw new Error("HTTP request timed out");
+        }
+        if (error instanceof DOMException && error.name === "AbortError") {
+          throw new Error("Script request was cancelled");
+        }
+        throw error;
       } finally {
         window.clearTimeout(timer);
+        detachAbortController(scriptId, runtimeId, requestId, controller);
       }
     }
 
     if (action === "ws.connect") {
-      ensurePermission(script, "allowWebSocket", "ws.connect", true);
-      const runtime = workersRef.current.get(scriptId);
-      if (!runtime) {
-        throw new Error("Script runtime is not active");
+      requirePermissionForRequest(scriptId, runtimeId, requestId, "allowWebSocket", "ws.connect", true);
+      const runtime = requireActiveRequest(scriptId, runtimeId, requestId);
+      if (runtime.sockets.size >= SCRIPT_SECURITY_LIMITS.maxWebSocketConnections) {
+        throw new Error(
+          `WebSocket limit reached (${SCRIPT_SECURITY_LIMITS.maxWebSocketConnections})`
+        );
       }
 
-      const url = normalizeWebSocketUrl(String(data.url || ""));
+      const allowPrivateNetwork = data.allowPrivateNetwork === true;
+      const url = normalizeWebSocketUrl(String(data.url || ""), allowPrivateNetwork);
       const requestedId = String(data.connectionId || "").trim();
       const connectionId = requestedId || buildId("ws");
+      if (!/^[A-Za-z0-9._:-]{1,96}$/.test(connectionId)) {
+        throw new Error("WebSocket connectionId contains unsupported characters");
+      }
+      if (connectionId.length > SCRIPT_SECURITY_LIMITS.maxWebSocketConnectionIdChars) {
+        throw new Error("WebSocket connectionId is too long");
+      }
 
       if (runtime.sockets.has(connectionId)) {
         throw new Error(`WebSocket connection already exists: ${connectionId}`);
       }
 
       const protocolsInput = data.protocols;
-      let socket: WebSocket;
+      let protocols: string[] | undefined;
       if (Array.isArray(protocolsInput)) {
-        const protocols = protocolsInput
+        protocols = protocolsInput
           .map((entry) => String(entry || "").trim())
           .filter((entry) => entry.length > 0);
-        socket = protocols.length > 0 ? new WebSocket(url, protocols) : new WebSocket(url);
       } else if (typeof protocolsInput === "string" && protocolsInput.trim().length > 0) {
-        socket = new WebSocket(url, protocolsInput.trim());
-      } else {
-        socket = new WebSocket(url);
+        protocols = [protocolsInput.trim()];
       }
 
+      if (protocols && protocols.length > SCRIPT_SECURITY_LIMITS.maxWebSocketProtocols) {
+        throw new Error("Too many WebSocket protocols");
+      }
+      if (
+        protocols &&
+        protocols.some((entry) => entry.length > SCRIPT_SECURITY_LIMITS.maxWebSocketProtocolChars)
+      ) {
+        throw new Error("WebSocket protocol value is too long");
+      }
+
+      requirePermissionForRequest(scriptId, runtimeId, requestId, "allowWebSocket", "ws.connect", true);
+      const socket = protocols && protocols.length > 0 ? new WebSocket(url, protocols) : new WebSocket(url);
       runtime.sockets.set(connectionId, socket);
 
+      const runtimeFingerprint = runtime.runtimeId;
+      const runtimeStillActive = () => {
+        const current = workersRef.current.get(scriptId);
+        return current?.runtimeId === runtimeFingerprint;
+      };
+
       socket.onopen = () => {
+        if (!runtimeStillActive()) {
+          return;
+        }
         appendLog(scriptId, "info", "host", `WS open ${connectionId} -> ${url}`);
         postWorkerEvent(scriptId, "ws", {
           event: "open",
@@ -933,6 +1116,9 @@ export function ScriptsDialog({ open, onClose }: ScriptsDialogProps) {
       };
 
       socket.onerror = () => {
+        if (!runtimeStillActive()) {
+          return;
+        }
         appendLog(scriptId, "warn", "host", `WS error ${connectionId}`);
         postWorkerEvent(scriptId, "ws", {
           event: "error",
@@ -943,7 +1129,15 @@ export function ScriptsDialog({ open, onClose }: ScriptsDialogProps) {
       };
 
       socket.onclose = (event) => {
-        runtime.sockets.delete(connectionId);
+        const current = workersRef.current.get(scriptId);
+        if (current?.runtimeId === runtimeFingerprint) {
+          current.sockets.delete(connectionId);
+        }
+
+        if (!runtimeStillActive()) {
+          return;
+        }
+
         appendLog(
           scriptId,
           "info",
@@ -962,7 +1156,18 @@ export function ScriptsDialog({ open, onClose }: ScriptsDialogProps) {
       };
 
       socket.onmessage = async (event) => {
-        const payload = await wsMessageToPayload(event.data);
+        if (!runtimeStillActive()) {
+          return;
+        }
+        const payloadData = await wsMessageToPayload(event.data);
+        if (payloadData.truncated) {
+          appendLog(
+            scriptId,
+            "warn",
+            "host",
+            `WS message on ${connectionId} exceeded ${SCRIPT_SECURITY_LIMITS.maxWebSocketMessageBytes} bytes and was truncated`
+          );
+        }
         const dataType =
           typeof event.data === "string"
             ? "text"
@@ -976,8 +1181,9 @@ export function ScriptsDialog({ open, onClose }: ScriptsDialogProps) {
           connectionId,
           url,
           dataType,
-          text: payload.text,
-          json: payload.json,
+          text: payloadData.text,
+          json: payloadData.json,
+          truncated: payloadData.truncated,
           state: wsStateLabel(socket.readyState),
         });
       };
@@ -990,11 +1196,8 @@ export function ScriptsDialog({ open, onClose }: ScriptsDialogProps) {
     }
 
     if (action === "ws.send") {
-      ensurePermission(script, "allowWebSocket", "ws.send", true);
-      const runtime = workersRef.current.get(scriptId);
-      if (!runtime) {
-        throw new Error("Script runtime is not active");
-      }
+      requirePermissionForRequest(scriptId, runtimeId, requestId, "allowWebSocket", "ws.send", true);
+      const runtime = requireActiveRequest(scriptId, runtimeId, requestId);
 
       const connectionId = String(data.connectionId || "").trim();
       if (!connectionId) {
@@ -1041,19 +1244,46 @@ export function ScriptsDialog({ open, onClose }: ScriptsDialogProps) {
         });
       }
 
+      requirePermissionForRequest(scriptId, runtimeId, requestId, "allowWebSocket", "ws.send", true);
       if (socket.readyState !== WebSocket.OPEN) {
         throw new Error(`WebSocket ${connectionId} is ${wsStateLabel(socket.readyState)}`);
       }
 
       const frame = data.data;
       if (typeof frame === "string") {
+        if (utf8ByteLength(frame) > SCRIPT_SECURITY_LIMITS.maxWebSocketMessageBytes) {
+          throw new Error(
+            `WebSocket payload exceeds ${SCRIPT_SECURITY_LIMITS.maxWebSocketMessageBytes} bytes`
+          );
+        }
         socket.send(frame);
       } else if (frame instanceof ArrayBuffer) {
+        if (frame.byteLength > SCRIPT_SECURITY_LIMITS.maxWebSocketMessageBytes) {
+          throw new Error(
+            `WebSocket payload exceeds ${SCRIPT_SECURITY_LIMITS.maxWebSocketMessageBytes} bytes`
+          );
+        }
         socket.send(frame);
       } else if (ArrayBuffer.isView(frame)) {
+        if (frame.byteLength > SCRIPT_SECURITY_LIMITS.maxWebSocketMessageBytes) {
+          throw new Error(
+            `WebSocket payload exceeds ${SCRIPT_SECURITY_LIMITS.maxWebSocketMessageBytes} bytes`
+          );
+        }
         socket.send(frame);
       } else {
-        socket.send(JSON.stringify(frame ?? null));
+        let encoded = "";
+        try {
+          encoded = JSON.stringify(frame ?? null);
+        } catch {
+          throw new Error("WebSocket payload is not serializable");
+        }
+        if (utf8ByteLength(encoded) > SCRIPT_SECURITY_LIMITS.maxWebSocketMessageBytes) {
+          throw new Error(
+            `WebSocket payload exceeds ${SCRIPT_SECURITY_LIMITS.maxWebSocketMessageBytes} bytes`
+          );
+        }
+        socket.send(encoded);
       }
 
       return {
@@ -1063,15 +1293,19 @@ export function ScriptsDialog({ open, onClose }: ScriptsDialogProps) {
     }
 
     if (action === "ws.close") {
-      ensurePermission(script, "allowWebSocket", "ws.close", true);
-      const runtime = workersRef.current.get(scriptId);
-      if (!runtime) {
-        throw new Error("Script runtime is not active");
-      }
+      requirePermissionForRequest(scriptId, runtimeId, requestId, "allowWebSocket", "ws.close", true);
+      const runtime = requireActiveRequest(scriptId, runtimeId, requestId);
 
       const connectionId = String(data.connectionId || "").trim();
-      const code = typeof data.code === "number" ? data.code : undefined;
+      const code = typeof data.code === "number" && Number.isInteger(data.code) ? data.code : undefined;
       const reason = typeof data.reason === "string" ? data.reason : undefined;
+
+      if (reason && reason.length > WS_CLOSE_REASON_MAX_CHARS) {
+        throw new Error(`WebSocket close reason exceeds ${WS_CLOSE_REASON_MAX_CHARS} characters`);
+      }
+      if (code !== undefined && (code < 1000 || code > 4999)) {
+        throw new Error("WebSocket close code must be between 1000 and 4999");
+      }
 
       if (connectionId) {
         const socket = runtime.sockets.get(connectionId);
@@ -1089,11 +1323,8 @@ export function ScriptsDialog({ open, onClose }: ScriptsDialogProps) {
     }
 
     if (action === "ws.list") {
-      ensurePermission(script, "allowWebSocket", "ws.list", false);
-      const runtime = workersRef.current.get(scriptId);
-      if (!runtime) {
-        return [];
-      }
+      requirePermissionForRequest(scriptId, runtimeId, requestId, "allowWebSocket", "ws.list", false);
+      const runtime = requireActiveRequest(scriptId, runtimeId, requestId);
       return [...runtime.sockets.entries()].map(([connectionId, socket]) => ({
         connectionId,
         url: socket.url,
@@ -1102,92 +1333,163 @@ export function ScriptsDialog({ open, onClose }: ScriptsDialogProps) {
     }
 
     if (action === "window.snapshot") {
-      ensurePermission(script, "allowWindow", "window.snapshot", false);
+      requirePermissionForRequest(scriptId, runtimeId, requestId, "allowWindow", "window.snapshot", false);
       return snapshotRef.current;
     }
 
     if (action === "window.accounts") {
-      ensurePermission(script, "allowWindow", "window.accounts", false);
+      requirePermissionForRequest(scriptId, runtimeId, requestId, "allowWindow", "window.accounts", false);
       return snapshotRef.current.accounts;
     }
 
     if (action === "window.selected") {
-      ensurePermission(script, "allowWindow", "window.selected", false);
+      requirePermissionForRequest(scriptId, runtimeId, requestId, "allowWindow", "window.selected", false);
       return snapshotRef.current.selectedUserIds;
     }
 
     if (action === "settings.get") {
-      ensurePermission(script, "allowSettings", "settings.get", false);
-      const key = String(data.key || "").trim();
-      if (!key) throw new Error("Missing settings key");
-      const section = `Script.${script.id}`;
+      const script = requirePermissionForRequest(
+        scriptId,
+        runtimeId,
+        requestId,
+        "allowSettings",
+        "settings.get",
+        false
+      );
+      const key = normalizeSettingsKey(data.key);
+      const section = buildScriptSettingsSection(script.id);
+      requireActiveRequest(scriptId, runtimeId, requestId);
       const value = await invoke<string | null>("get_setting", {
         section,
         key,
       });
+      requireActiveRequest(scriptId, runtimeId, requestId);
       return value === null ? data.defaultValue ?? null : value;
     }
 
     if (action === "settings.set") {
-      ensurePermission(script, "allowSettings", "settings.set", true);
-      const key = String(data.key || "").trim();
-      if (!key) throw new Error("Missing settings key");
-      const section = `Script.${script.id}`;
+      const script = requirePermissionForRequest(
+        scriptId,
+        runtimeId,
+        requestId,
+        "allowSettings",
+        "settings.set",
+        true
+      );
+      const key = normalizeSettingsKey(data.key);
+      const value = String(data.value ?? "");
+      if (utf8ByteLength(value) > SCRIPT_SECURITY_LIMITS.maxSettingsValueChars) {
+        throw new Error(`Settings value exceeds ${SCRIPT_SECURITY_LIMITS.maxSettingsValueChars} bytes`);
+      }
+      const section = buildScriptSettingsSection(script.id);
+      requireActiveRequest(scriptId, runtimeId, requestId);
       await invoke("update_setting", {
         section,
         key,
-        value: String(data.value ?? ""),
+        value,
       });
+      requireActiveRequest(scriptId, runtimeId, requestId);
       return true;
     }
 
     if (action === "settings.all") {
-      ensurePermission(script, "allowSettings", "settings.all", false);
+      const script = requirePermissionForRequest(
+        scriptId,
+        runtimeId,
+        requestId,
+        "allowSettings",
+        "settings.all",
+        false
+      );
+      const section = buildScriptSettingsSection(script.id);
+      requireActiveRequest(scriptId, runtimeId, requestId);
       const all = await invoke<Record<string, Record<string, string>>>("get_all_settings");
-      return all[`Script.${script.id}`] || {};
+      requireActiveRequest(scriptId, runtimeId, requestId);
+      return all[section] || {};
     }
 
     if (action === "modal.alert") {
-      ensurePermission(script, "allowModal", "modal.alert", false);
-      const title = typeof data.title === "string" ? data.title : script.name;
-      const message = typeof data.message === "string" ? data.message : safeMessage(payload);
-      const accepted = await confirm(`${title}\n\n${message}`, false);
-      return accepted;
+      const script = requirePermissionForRequest(
+        scriptId,
+        runtimeId,
+        requestId,
+        "allowModal",
+        "modal.alert",
+        false
+      );
+      const title = truncateForLog(typeof data.title === "string" ? data.title : script.name, 240);
+      const message = truncateForLog(
+        typeof data.message === "string" ? data.message : safeMessage(payload),
+        2000
+      );
+      return confirm(`${title}\n\n${message}`, false);
     }
 
     if (action === "modal.confirm") {
-      ensurePermission(script, "allowModal", "modal.confirm", false);
-      const title = typeof data.title === "string" ? data.title : script.name;
-      const message = typeof data.message === "string" ? data.message : "Continue?";
+      const script = requirePermissionForRequest(
+        scriptId,
+        runtimeId,
+        requestId,
+        "allowModal",
+        "modal.confirm",
+        false
+      );
+      const title = truncateForLog(typeof data.title === "string" ? data.title : script.name, 240);
+      const message = truncateForLog(
+        typeof data.message === "string" ? data.message : "Continue?",
+        2000
+      );
       return confirm(`${title}\n\n${message}`, false);
     }
 
     if (action === "modal.prompt") {
-      ensurePermission(script, "allowModal", "modal.prompt", false);
-      const message = typeof data.message === "string" ? data.message : "Input";
-      const defaultValue = typeof data.defaultValue === "string" ? data.defaultValue : "";
+      requirePermissionForRequest(scriptId, runtimeId, requestId, "allowModal", "modal.prompt", false);
+      const message = truncateForLog(
+        typeof data.message === "string" ? data.message : "Input",
+        2000
+      );
+      const defaultValue = truncateForLog(
+        typeof data.defaultValue === "string" ? data.defaultValue : "",
+        2000
+      );
       return prompt(message, defaultValue);
     }
 
     if (action === "modal.json") {
-      ensurePermission(script, "allowModal", "modal.json", false);
-      const title = typeof data.title === "string" ? data.title : `${script.name} Data`;
-      const json = JSON.stringify(data.data ?? payload, null, 2);
+      const script = requirePermissionForRequest(
+        scriptId,
+        runtimeId,
+        requestId,
+        "allowModal",
+        "modal.json",
+        false
+      );
+      const title = truncateForLog(
+        typeof data.title === "string" ? data.title : `${script.name} Data`,
+        240
+      );
+      const json = truncateForLog(JSON.stringify(data.data ?? payload, null, 2), 12_000);
       store.showModal(title, json);
       return true;
     }
 
     if (action === "ui.set") {
-      ensurePermission(script, "allowUi", "ui.set", false);
+      requirePermissionForRequest(scriptId, runtimeId, requestId, "allowUi", "ui.set", false);
       const elements = normalizeUiElements(data.elements);
       updateRuntime(scriptId, { uiElements: elements });
       return true;
     }
 
     if (action === "ui.patch") {
-      ensurePermission(script, "allowUi", "ui.patch", false);
-      const id = String(data.id || "").trim();
-      if (!id) throw new Error("Missing UI element id");
+      requirePermissionForRequest(scriptId, runtimeId, requestId, "allowUi", "ui.patch", false);
+      const id = normalizeUiId(data.id);
+      if (!id) throw new Error("Missing or invalid UI element id");
+
+      const patchBytes = utf8ByteLength(safeMessage(data.patch));
+      if (patchBytes > SCRIPT_SECURITY_LIMITS.maxUiPatchBytes) {
+        throw new Error(`UI patch exceeds ${SCRIPT_SECURITY_LIMITS.maxUiPatchBytes} bytes`);
+      }
+
       setRuntimeByScript((prev) => {
         const current = prev[scriptId] || createInitialRuntime();
         return {
@@ -1202,7 +1504,7 @@ export function ScriptsDialog({ open, onClose }: ScriptsDialogProps) {
     }
 
     if (action === "ui.clear") {
-      ensurePermission(script, "allowUi", "ui.clear", false);
+      requirePermissionForRequest(scriptId, runtimeId, requestId, "allowUi", "ui.clear", false);
       updateRuntime(scriptId, { uiElements: [] });
       return true;
     }
@@ -1250,9 +1552,40 @@ export function ScriptsDialog({ open, onClose }: ScriptsDialogProps) {
         return;
       }
 
-      handleWorkerRequest(scriptId, action, message.payload)
+      if (runtime.pending.has(requestId)) {
+        runtime.worker.postMessage({
+          type: "host-response",
+          requestId,
+          ok: false,
+          error: `Duplicate host request id: ${requestId}`,
+        });
+        return;
+      }
+
+      if (runtime.pending.size >= SCRIPT_SECURITY_LIMITS.maxPendingHostRequests) {
+        runtime.worker.postMessage({
+          type: "host-response",
+          requestId,
+          ok: false,
+          error: `Too many pending host requests (max ${SCRIPT_SECURITY_LIMITS.maxPendingHostRequests})`,
+        });
+        return;
+      }
+
+      const runtimeId = runtime.runtimeId;
+      runtime.pending.set(requestId, {
+        action,
+        startedAtMs: Date.now(),
+        abortControllers: new Set(),
+      });
+
+      handleWorkerRequest(scriptId, runtimeId, requestId, action, message.payload)
         .then((result) => {
-          runtime.worker.postMessage({
+          const current = workersRef.current.get(scriptId);
+          if (!current || current.runtimeId !== runtimeId || !current.pending.has(requestId)) {
+            return;
+          }
+          current.worker.postMessage({
             type: "host-response",
             requestId,
             ok: true,
@@ -1260,14 +1593,24 @@ export function ScriptsDialog({ open, onClose }: ScriptsDialogProps) {
           });
         })
         .catch((error) => {
+          const current = workersRef.current.get(scriptId);
+          if (!current || current.runtimeId !== runtimeId || !current.pending.has(requestId)) {
+            return;
+          }
           const errorText = safeMessage(error);
           appendLog(scriptId, "warn", "host", `${action} -> ${errorText}`);
-          runtime.worker.postMessage({
+          current.worker.postMessage({
             type: "host-response",
             requestId,
             ok: false,
             error: errorText,
           });
+        })
+        .finally(() => {
+          const current = workersRef.current.get(scriptId);
+          if (current && current.runtimeId === runtimeId) {
+            current.pending.delete(requestId);
+          }
         });
     }
   }
@@ -1280,10 +1623,25 @@ export function ScriptsDialog({ open, onClose }: ScriptsDialogProps) {
       return;
     }
 
+    const source = sanitizeScriptSourceForSave(script.source);
+    try {
+      ensureScriptSourceSize(source);
+    } catch (error) {
+      const message = safeMessage(error);
+      appendLog(scriptId, "error", "host", message);
+      updateRuntime(scriptId, {
+        status: "error",
+        lastError: message,
+        stoppedAtMs: Date.now(),
+      });
+      return;
+    }
+
     stopScript(scriptId, false);
     const worker = createScriptWorker();
     const runtime: WorkerRuntime = {
       worker,
+      runtimeId: buildId("runtime"),
       pending: new Map(),
       sockets: new Map(),
     };
@@ -1315,7 +1673,7 @@ export function ScriptsDialog({ open, onClose }: ScriptsDialogProps) {
 
     worker.postMessage({
       type: "start",
-      code: script.source,
+      code: source,
       metadata: {
         id: script.id,
         name: script.name,
@@ -1349,7 +1707,33 @@ export function ScriptsDialog({ open, onClose }: ScriptsDialogProps) {
 
   async function persistScript(script: ManagedScript): Promise<ManagedScript | null> {
     try {
-      const saved = await invoke<ManagedScript>("save_script", { script });
+      const prepared: ManagedScript = {
+        ...script,
+        id: trimToLength(String(script.id || ""), SCRIPT_SECURITY_LIMITS.maxScriptIdChars),
+        name:
+          trimToLength(String(script.name || ""), SCRIPT_SECURITY_LIMITS.maxScriptNameChars) ||
+          "Unnamed Script",
+        description: trimToLength(
+          String(script.description || ""),
+          SCRIPT_SECURITY_LIMITS.maxScriptDescriptionChars
+        ),
+        language: "javascript",
+        source: sanitizeScriptSourceForSave(coerceScriptSource(script.source)),
+        permissions: {
+          ...defaultPermissions(),
+          ...(script.permissions || {}),
+        },
+      };
+
+      if (!prepared.id) {
+        throw new Error("Script id is required");
+      }
+      if (!prepared.name.trim()) {
+        throw new Error("Script name is required");
+      }
+      ensureScriptSourceSize(prepared.source);
+
+      const saved = await invoke<ManagedScript>("save_script", { script: prepared });
       const normalized = normalizeScript(saved);
       const existing = scriptsRef.current.find((item) => item.id === normalized.id) || null;
       const prevSignature = existing ? getScriptSecuritySignature(existing) : null;
@@ -1849,11 +2233,11 @@ export function ScriptsDialog({ open, onClose }: ScriptsDialogProps) {
   }
 
   async function handleCopyApiSnippet() {
-    const snippet = `
+const snippet = `
 await ram.invoke("get_accounts", {});
 const snapshot = await ram.window.snapshot();
-const response = await ram.http.get("http://127.0.0.1:3847/health");
-const socket = await ram.ws.connect({ url: "ws://127.0.0.1:3847/ram" });
+const response = await ram.http.request({ url: "http://127.0.0.1:3847/health", allowPrivateNetwork: true });
+const socket = await ram.ws.connect({ url: "ws://127.0.0.1:3847/ram", allowPrivateNetwork: true });
 await ram.ws.send(socket.connectionId, { type: "ping" });
 await ram.settings.set("endpoint", "http://127.0.0.1:3847/ram/bridge");
 `;
@@ -2612,7 +2996,7 @@ await ram.settings.set("endpoint", "http://127.0.0.1:3847/ram/bridge");
 
                       <div className="rounded-lg border border-zinc-800 bg-zinc-900/30 p-3 text-[11px] text-zinc-500 leading-relaxed">
                         <div className="mb-1 text-zinc-300 font-medium">{t("WebSocket helper")}</div>
-                        <div>{t("Connect with ram.ws.connect({ url, protocols? }).")}</div>
+                        <div>{t("Connect with ram.ws.connect({ url, protocols?, allowPrivateNetwork? }).")}</div>
                         <div>{t("Subscribe with ram.ws.on((evt) => ...).")}</div>
                         <div>{t("Events: open, message, error, close.")}</div>
                         <div>{t("Send data with ram.ws.send(connectionId, payload).")}</div>
@@ -2626,6 +3010,9 @@ await ram.settings.set("endpoint", "http://127.0.0.1:3847/ram/bridge");
                         </div>
                         <div>
                           {t("HTTP requests block localhost/private-network targets by default. Use allowPrivateNetwork: true in ram.http.request(...) only when intentionally needed.")}
+                        </div>
+                        <div>
+                          {t("WebSocket connections also block localhost/private-network targets by default unless allowPrivateNetwork: true is set in ram.ws.connect(...).")}
                         </div>
                       </div>
                     </div>
