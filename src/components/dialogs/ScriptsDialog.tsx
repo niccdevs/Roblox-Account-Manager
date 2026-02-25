@@ -103,6 +103,28 @@ const ALLOWED_HTTP_METHODS = new Set([
   "OPTIONS",
 ]);
 
+const SCRIPT_INVOKE_COMMANDS = [
+  "get_accounts",
+  "update_account",
+  "launch_roblox",
+  "launch_multiple",
+  "cmd_kill_roblox",
+  "cmd_kill_all_roblox",
+  "get_presence",
+  "start_botting_mode",
+  "stop_botting_mode",
+  "start_web_server",
+  "stop_web_server",
+  "start_nexus_server",
+  "stop_nexus_server",
+  "nexus_send_command",
+  "get_all_settings",
+  "update_setting",
+  "get_theme",
+] as const;
+
+const ALLOWED_INVOKE_COMMANDS = new Set<string>(SCRIPT_INVOKE_COMMANDS);
+
 const WS_CLOSE_REASON_MAX_CHARS = 123;
 
 const DEFAULT_SCRIPT_SOURCE = `
@@ -919,6 +941,9 @@ export function ScriptsDialog({ open, onClose }: ScriptsDialogProps) {
       const command = String(data.command || "").trim();
       if (!command) {
         throw new Error("Missing invoke command");
+      }
+      if (!ALLOWED_INVOKE_COMMANDS.has(command)) {
+        throw new Error(`Invoke command is not allowed: ${command}`);
       }
       const args = asRecord(data.args);
       requireActiveRequest(scriptId, runtimeId, requestId);
@@ -1984,28 +2009,9 @@ export function ScriptsDialog({ open, onClose }: ScriptsDialogProps) {
   }, [visibleLogs, tab, stickLogsToBottom]);
 
   const commandList = useMemo(() => {
-    const commands = [
-      "get_accounts",
-      "update_account",
-      "launch_roblox",
-      "launch_multiple",
-      "cmd_kill_roblox",
-      "cmd_kill_all_roblox",
-      "get_presence",
-      "start_botting_mode",
-      "stop_botting_mode",
-      "start_web_server",
-      "stop_web_server",
-      "start_nexus_server",
-      "stop_nexus_server",
-      "nexus_send_command",
-      "get_all_settings",
-      "update_setting",
-      "get_theme",
-    ];
     const q = apiSearch.trim().toLowerCase();
-    if (!q) return commands;
-    return commands.filter((command) => command.toLowerCase().includes(q));
+    if (!q) return [...SCRIPT_INVOKE_COMMANDS];
+    return SCRIPT_INVOKE_COMMANDS.filter((command) => command.toLowerCase().includes(q));
   }, [apiSearch]);
 
   async function handleCreate(kind: "blank" | "monitor" | "discord") {
