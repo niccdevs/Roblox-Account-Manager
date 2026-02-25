@@ -4,7 +4,7 @@ import { useStore } from "../../store";
 import { usePrompt } from "../../hooks/usePrompt";
 import { Tooltip } from "../ui/Tooltip";
 import { tr, useTr } from "../../i18n/text";
-import { Search, X, SquareX, SquareCheckBig, PanelRight, Plus, ChevronDown, Globe, File, FileText, Palette, Layers, Settings } from "lucide-react";
+import { Search, X, SquareX, SquareCheckBig, PanelRight, Plus, ChevronDown, Globe, File, FileText, Palette, Layers, Settings, TerminalSquare } from "lucide-react";
 
 export function Toolbar() {
   const t = useTr();
@@ -196,6 +196,15 @@ export function Toolbar() {
             className="theme-btn-ghost p-1.5 rounded-lg transition-colors"
           >
             <Layers size={16} strokeWidth={1.5} />
+          </button>
+        </Tooltip>
+
+        <Tooltip content={t("Scripts")} side="bottom">
+          <button
+            onClick={() => store.setScriptsOpen(true)}
+            className="theme-btn-ghost p-1.5 rounded-lg transition-colors"
+          >
+            <TerminalSquare size={16} strokeWidth={1.5} />
           </button>
         </Tooltip>
 

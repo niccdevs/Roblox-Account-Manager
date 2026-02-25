@@ -21,6 +21,7 @@ import { ThemeEditorDialog } from "./components/dialogs/ThemeEditorDialog";
 import { UpdateDialog } from "./components/dialogs/UpdateDialog";
 import { NexusDialog } from "./components/dialogs/NexusDialog";
 import { BottingDialog } from "./components/dialogs/BottingDialog";
+import { ScriptsDialog } from "./components/dialogs/ScriptsDialog";
 import { useTr } from "./i18n/text";
 
 function AppContent() {
@@ -40,6 +41,7 @@ function AppContent() {
     store.themeEditorOpen ||
     store.bottingDialogOpen ||
     store.nexusOpen ||
+    store.scriptsOpen ||
     store.updateDialogOpen ||
     !!store.modal;
 
@@ -164,6 +166,11 @@ function AppContent() {
       <NexusDialog
         open={store.nexusOpen}
         onClose={() => store.setNexusOpen(false)}
+      />
+
+      <ScriptsDialog
+        open={store.scriptsOpen}
+        onClose={() => store.setScriptsOpen(false)}
       />
 
       <UpdateDialog />
