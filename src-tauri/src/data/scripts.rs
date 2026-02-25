@@ -20,13 +20,13 @@ pub struct ScriptPermissions {
 impl Default for ScriptPermissions {
     fn default() -> Self {
         Self {
-            allow_invoke: true,
-            allow_http: true,
-            allow_websocket: true,
-            allow_window: true,
-            allow_modal: true,
-            allow_settings: true,
-            allow_ui: true,
+            allow_invoke: false,
+            allow_http: false,
+            allow_websocket: false,
+            allow_window: false,
+            allow_modal: false,
+            allow_settings: false,
+            allow_ui: false,
         }
     }
 }

@@ -118,8 +118,6 @@ const SCRIPT_INVOKE_COMMANDS = [
   "start_nexus_server",
   "stop_nexus_server",
   "nexus_send_command",
-  "get_all_settings",
-  "update_setting",
   "get_theme",
 ] as const;
 
@@ -273,13 +271,13 @@ function buildId(prefix: string): string {
 
 function defaultPermissions(): ScriptPermissions {
   return {
-    allowInvoke: true,
-    allowHttp: true,
-    allowWebSocket: true,
-    allowWindow: true,
-    allowModal: true,
-    allowSettings: true,
-    allowUi: true,
+    allowInvoke: false,
+    allowHttp: false,
+    allowWebSocket: false,
+    allowWindow: false,
+    allowModal: false,
+    allowSettings: false,
+    allowUi: false,
   };
 }
 
