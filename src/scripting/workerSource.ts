@@ -17,65 +17,6 @@ const nativeClearInterval = clearInterval.bind(self);
 const nativeQueueMicrotask =
   typeof queueMicrotask === "function" ? queueMicrotask.bind(self) : null;
 
-const SANDBOX_ALLOWED_GLOBALS = [
-  "Array",
-  "ArrayBuffer",
-  "Atomics",
-  "BigInt",
-  "BigInt64Array",
-  "BigUint64Array",
-  "Boolean",
-  "DataView",
-  "Date",
-  "decodeURI",
-  "decodeURIComponent",
-  "encodeURI",
-  "encodeURIComponent",
-  "Error",
-  "EvalError",
-  "Float32Array",
-  "Float64Array",
-  "Int8Array",
-  "Int16Array",
-  "Int32Array",
-  "Intl",
-  "isFinite",
-  "isNaN",
-  "JSON",
-  "Map",
-  "Math",
-  "Number",
-  "Object",
-  "parseFloat",
-  "parseInt",
-  "Promise",
-  "Proxy",
-  "RangeError",
-  "ReferenceError",
-  "Reflect",
-  "RegExp",
-  "Set",
-  "String",
-  "Symbol",
-  "SyntaxError",
-  "TextDecoder",
-  "TextEncoder",
-  "TypeError",
-  "URIError",
-  "URL",
-  "URLSearchParams",
-  "Uint8Array",
-  "Uint8ClampedArray",
-  "Uint16Array",
-  "Uint32Array",
-  "WeakMap",
-  "WeakSet",
-  "atob",
-  "btoa",
-  "crypto",
-  "structuredClone",
-];
-
 const SANDBOX_BLOCKED_NAMES = new Set([
   "globalThis",
   "self",
@@ -105,7 +46,6 @@ const SANDBOX_BLOCKED_NAMES = new Set([
   "AsyncFunction",
   "GeneratorFunction",
   "AsyncGeneratorFunction",
-  "eval",
 ]);
 
 function toMessage(value) {
@@ -179,111 +119,100 @@ function emitLocalLog(level, values) {
   safePostMessage({ type: "host-log", level, message });
 }
 
-function hardenPrototype(proto) {
+function assertConstructorDescriptor(proto, label) {
+  if (!Object.prototype.hasOwnProperty.call(proto, "constructor")) {
+    return;
+  }
+
+  const desc = Object.getOwnPropertyDescriptor(proto, "constructor");
+  if (!desc) {
+    throw new Error("Sandbox hardening failed: missing constructor descriptor for " + label);
+  }
+
+  if (
+    typeof desc.get === "function" ||
+    typeof desc.set === "function" ||
+    desc.value !== undefined ||
+    desc.writable !== false ||
+    desc.configurable !== false
+  ) {
+    throw new Error("Sandbox hardening failed: constructor still reachable for " + label);
+  }
+}
+
+function freezeStrict(value, label) {
+  if (!Object.isFrozen(value)) {
+    Object.freeze(value);
+  }
+
+  if (!Object.isFrozen(value)) {
+    throw new Error("Sandbox hardening failed: cannot freeze " + label);
+  }
+}
+
+function hardenPrototypeStrict(proto, label) {
   if (!proto || (typeof proto !== "object" && typeof proto !== "function")) {
     return;
   }
 
-  try {
-    if (Object.prototype.hasOwnProperty.call(proto, "constructor")) {
-      try {
-        proto.constructor = undefined;
-      } catch {
-      }
-      try {
-        Object.defineProperty(proto, "constructor", {
-          value: undefined,
-          configurable: false,
-          enumerable: false,
-          writable: false,
-        });
-      } catch {
-      }
-    }
-  } catch {
+  if (Object.prototype.hasOwnProperty.call(proto, "constructor")) {
+    Object.defineProperty(proto, "constructor", {
+      value: undefined,
+      configurable: false,
+      enumerable: false,
+      writable: false,
+    });
+    assertConstructorDescriptor(proto, label);
   }
 
-  try {
-    Object.freeze(proto);
-  } catch {
-  }
+  freezeStrict(proto, label);
 }
 
-function hardenConstructor(ctor) {
+function hardenConstructorStrict(ctor, label) {
   if (typeof ctor !== "function") {
     return;
   }
-  hardenPrototype(ctor.prototype);
-  try {
-    Object.freeze(ctor);
-  } catch {
+  hardenPrototypeStrict(ctor.prototype, label + ".prototype");
+  freezeStrict(ctor, label);
+}
+
+function verifyConstructorBarrier() {
+  const probes = [
+    ["function", (function () {}).constructor],
+    ["async function", (async function () {}).constructor],
+    ["generator function", (function* () {}).constructor],
+    ["async generator function", (async function* () {}).constructor],
+  ];
+
+  for (const [label, value] of probes) {
+    if (value !== undefined) {
+      throw new Error("Sandbox hardening failed: constructor reachable from " + label);
+    }
   }
+
+  assertConstructorDescriptor(Object.prototype, "Object.prototype");
+  assertConstructorDescriptor(Function.prototype, "Function.prototype");
+  assertConstructorDescriptor(AsyncFunction.prototype, "AsyncFunction.prototype");
+  assertConstructorDescriptor(GeneratorFunction.prototype, "GeneratorFunction.prototype");
+  assertConstructorDescriptor(
+    AsyncGeneratorFunction.prototype,
+    "AsyncGeneratorFunction.prototype"
+  );
 }
 
 function hardenIntrinsics() {
   if (intrinsicsHardened) {
     return;
   }
+
+  hardenConstructorStrict(Object, "Object");
+  hardenConstructorStrict(Function, "Function");
+  hardenConstructorStrict(AsyncFunction, "AsyncFunction");
+  hardenConstructorStrict(GeneratorFunction, "GeneratorFunction");
+  hardenConstructorStrict(AsyncGeneratorFunction, "AsyncGeneratorFunction");
+
+  verifyConstructorBarrier();
   intrinsicsHardened = true;
-
-  const constructorNames = [
-    "Object",
-    "Array",
-    "String",
-    "Number",
-    "Boolean",
-    "Date",
-    "RegExp",
-    "Error",
-    "EvalError",
-    "RangeError",
-    "ReferenceError",
-    "SyntaxError",
-    "TypeError",
-    "URIError",
-    "Map",
-    "Set",
-    "WeakMap",
-    "WeakSet",
-    "Promise",
-    "Proxy",
-    "ArrayBuffer",
-    "DataView",
-    "Int8Array",
-    "Int16Array",
-    "Int32Array",
-    "Uint8Array",
-    "Uint8ClampedArray",
-    "Uint16Array",
-    "Uint32Array",
-    "Float32Array",
-    "Float64Array",
-    "BigInt64Array",
-    "BigUint64Array",
-    "TextEncoder",
-    "TextDecoder",
-    "URL",
-    "URLSearchParams",
-    "Function",
-  ];
-
-  for (const name of constructorNames) {
-    let value;
-    try {
-      value = self[name];
-    } catch {
-      value = undefined;
-    }
-    hardenConstructor(value);
-  }
-
-  hardenConstructor(AsyncFunction);
-  hardenConstructor(GeneratorFunction);
-  hardenConstructor(AsyncGeneratorFunction);
-  hardenPrototype(Function && Function.prototype);
-  hardenPrototype(AsyncFunction && AsyncFunction.prototype);
-  hardenPrototype(GeneratorFunction && GeneratorFunction.prototype);
-  hardenPrototype(AsyncGeneratorFunction && AsyncGeneratorFunction.prototype);
 }
 
 function deepFreeze(value, seen = new WeakSet()) {
@@ -347,80 +276,39 @@ function createSafeConsole() {
   });
 }
 
-function createExecutionGlobals(ram, metadata) {
-  const globals = Object.create(null);
-  const safeTimers = createSafeTimerApi();
-
-  globals.ram = ram;
-  globals.script = ram;
-  globals.metadata = deepFreeze(
+function createSafeMetadata(metadata) {
+  const data =
     metadata && typeof metadata === "object" && !Array.isArray(metadata)
       ? { ...metadata }
-      : {}
-  );
-  globals.console = createSafeConsole();
-  globals.setTimeout = safeTimers.setTimeout;
-  globals.clearTimeout = safeTimers.clearTimeout;
-  globals.setInterval = safeTimers.setInterval;
-  globals.clearInterval = safeTimers.clearInterval;
+      : {};
+  return deepFreeze(data);
+}
+
+function createSafeQueueMicrotask() {
   if (nativeQueueMicrotask) {
-    globals.queueMicrotask = nativeQueueMicrotask;
+    return nativeQueueMicrotask;
   }
 
-  for (const name of SANDBOX_ALLOWED_GLOBALS) {
-    if (Object.prototype.hasOwnProperty.call(globals, name)) {
+  return (handler) => {
+    if (typeof handler !== "function") {
+      throw new Error("queueMicrotask requires a function callback");
+    }
+    Promise.resolve().then(handler);
+  };
+}
+
+function buildBlockedBindingsSource() {
+  const lines = [];
+  for (const name of SANDBOX_BLOCKED_NAMES) {
+    if (!/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(name)) {
       continue;
     }
-    let value;
-    try {
-      value = self[name];
-    } catch {
-      value = undefined;
-    }
-    if (value !== undefined) {
-      globals[name] = value;
-    }
+    lines.push("const " + name + " = undefined;");
   }
-
-  globals.undefined = undefined;
-  globals.NaN = NaN;
-  globals.Infinity = Infinity;
-
-  for (const name of SANDBOX_BLOCKED_NAMES) {
-    globals[name] = undefined;
-  }
-
-  return deepFreeze(globals);
+  return lines.join("\n");
 }
 
-function createSandboxProxy(globals) {
-  return new Proxy(globals, {
-    has() {
-      return true;
-    },
-    get(target, key) {
-      if (key === Symbol.unscopables) {
-        return undefined;
-      }
-      if (Object.prototype.hasOwnProperty.call(target, key)) {
-        return target[key];
-      }
-      return undefined;
-    },
-    set() {
-      return false;
-    },
-    defineProperty() {
-      return false;
-    },
-    deleteProperty() {
-      return false;
-    },
-    getPrototypeOf() {
-      return null;
-    },
-  });
-}
+const BLOCKED_BINDINGS_SOURCE = buildBlockedBindingsSource();
 
 function createRamApi() {
   const ram = {
@@ -559,6 +447,11 @@ function assertNoDynamicImport(source) {
     /\bimport(?:\s|\/\*[\s\S]*?\*\/|\/\/[^\n]*(?:\n|$))*\(/;
   const importScriptsPattern =
     /\bimportScripts(?:\s|\/\*[\s\S]*?\*\/|\/\/[^\n]*(?:\n|$))*\(/;
+  const evalPattern =
+    /\beval(?:\s|\/\*[\s\S]*?\*\/|\/\/[^\n]*(?:\n|$))*\(/;
+
+  const functionCtorPattern =
+    /\b(?:Function|AsyncFunction|GeneratorFunction|AsyncGeneratorFunction)(?:\s|\/\*[\s\S]*?\*\/|\/\/[^\n]*(?:\n|$))*\(/;
 
   if (importCallPattern.test(source)) {
     throw new Error(
@@ -568,18 +461,40 @@ function assertNoDynamicImport(source) {
   if (importScriptsPattern.test(source)) {
     throw new Error("importScripts() is blocked in scripts.");
   }
+  if (evalPattern.test(source)) {
+    throw new Error("eval() is blocked in scripts.");
+  }
+  if (functionCtorPattern.test(source)) {
+    throw new Error("Function constructor APIs are blocked in scripts.");
+  }
 }
 
 function createSandboxRunner(source) {
   const body = [
-    "with (__scope) {",
-    "return (async () => {",
     '"use strict";',
+    "const ram = __ram;",
+    "const script = __ram;",
+    "const metadata = __metadata;",
+    "const console = __console;",
+    "const setTimeout = __setTimeout;",
+    "const clearTimeout = __clearTimeout;",
+    "const setInterval = __setInterval;",
+    "const clearInterval = __clearInterval;",
+    "const queueMicrotask = __queueMicrotask;",
+    BLOCKED_BINDINGS_SOURCE,
     source,
-    "})();",
-    "}",
   ].join("\n");
-  return new AsyncFunction("__scope", body);
+  return new AsyncFunction(
+    "__ram",
+    "__metadata",
+    "__console",
+    "__setTimeout",
+    "__clearTimeout",
+    "__setInterval",
+    "__clearInterval",
+    "__queueMicrotask",
+    body
+  );
 }
 
 function extractSyntaxContext(error, source, preludeLines) {
@@ -601,9 +516,17 @@ function extractSyntaxContext(error, source, preludeLines) {
 }
 
 async function runUserScript(code, metadata) {
-  hardenIntrinsics();
+  try {
+    hardenIntrinsics();
+  } catch (error) {
+    throw new Error("Script sandbox initialization failed: " + toMessage(error));
+  }
 
   const ram = deepFreeze(createRamApi());
+  const safeMetadata = createSafeMetadata(metadata);
+  const safeConsole = createSafeConsole();
+  const safeTimers = createSafeTimerApi();
+  const safeQueueMicrotask = createSafeQueueMicrotask();
   const normalizedCode = normalizeUserCode(code);
 
   try {
@@ -651,11 +574,17 @@ async function runUserScript(code, metadata) {
     }
   }
 
-  const globals = createExecutionGlobals(ram, metadata);
-  const sandbox = createSandboxProxy(globals);
-
   try {
-    await wrapped(sandbox);
+    await wrapped(
+      ram,
+      safeMetadata,
+      safeConsole,
+      safeTimers.setTimeout,
+      safeTimers.clearTimeout,
+      safeTimers.setInterval,
+      safeTimers.clearInterval,
+      safeQueueMicrotask
+    );
   } catch (error) {
     throw new Error("Script runtime failed: " + toMessage(error));
   }
