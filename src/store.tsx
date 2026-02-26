@@ -215,6 +215,7 @@ export interface StoreValue {
   updateDialogOpen: boolean;
   setUpdateDialogOpen: (open: boolean) => void;
   checkForUpdates: (manual?: boolean) => Promise<void>;
+  openUpdatePreviewDialog: () => void;
 
   openLoginBrowser: () => Promise<void>;
   openAccountBrowser: (userId: number) => Promise<void>;
@@ -1361,6 +1362,40 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   }, [settings?.General?.CheckForUpdates, addToast]);
 
+  const openUpdatePreviewDialog = useCallback(() => {
+    const previewBody = [
+      "> [!WARNING]",
+      "> This is a beta release. Missing features, bugs and crashes are possible. Run at your own risk.",
+      "",
+      "Channel: Beta",
+      "Release commit: d9530e6",
+      "Release commit message: Merge pull request #21 from niccsprojects/fix/windows-client-settings-runtime-overrides",
+      "App version: 4.2.6",
+      "",
+      "## What's Changed",
+      "",
+      "\\* fix(client-settings): add Windows runtime overrides via GlobalBasicSettings_13.xml by @niccdevs in #21",
+      "* fix(update-dialog): render release notes with GitHub-style bullets, callouts, and links",
+      "* chore(ui): improve update modal note spacing for long changelogs",
+      "",
+      "Full Changelog: https://github.com/niccsprojects/Roblox-Account-Manager/compare/v4.2.5-beta...v4.2.6-beta",
+      "",
+      "## Contributors",
+      "",
+      "<a href=\"https://github.com/niccdevs\"><img src=\"https://github.com/niccdevs.png?size=64\" width=\"32\" height=\"32\" alt=\"@niccdevs\" /></a>",
+      "",
+      "[@niccdevs](https://github.com/niccdevs)",
+    ].join("\n");
+
+    setUpdateInfo({
+      version: "4.2.6-beta",
+      currentVersion: "4.2.5",
+      date: new Date().toISOString(),
+      body: previewBody,
+    });
+    setUpdateDialogOpen(true);
+  }, []);
+
   const value: StoreValue = {
     accounts,
     groups,
@@ -1477,6 +1512,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     updateDialogOpen,
     setUpdateDialogOpen,
     checkForUpdates,
+    openUpdatePreviewDialog,
     openLoginBrowser,
     openAccountBrowser,
   };
