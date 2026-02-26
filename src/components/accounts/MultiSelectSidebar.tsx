@@ -27,6 +27,13 @@ export function MultiSelectSidebar() {
   const shownAccounts = accountsExpanded ? accounts : previewAccounts;
   const bottingEnabled = store.settings?.General?.BottingEnabled === "true";
   const showBottingButton = bottingEnabled || store.bottingStatus?.active === true;
+  const bottingActive = store.bottingStatus?.active === true;
+  const activeBottingUserIds = useMemo(() => new Set(store.bottingStatus?.userIds || []), [store.bottingStatus?.userIds]);
+  const addableBottingIds = useMemo(
+    () => accounts.map((a) => a.UserID).filter((id) => !activeBottingUserIds.has(id)),
+    [accounts, activeBottingUserIds]
+  );
+  const addableBottingCount = addableBottingIds.length;
   const errorLower = (store.error || "").toLowerCase();
   const pulseCloseAction =
     errorLower.includes("failed to enable multi roblox") ||
@@ -108,6 +115,22 @@ export function MultiSelectSidebar() {
       store.addToast(tr("Failed to save launch fields: {{error}}", { error: String(e) }));
     } finally {
       setSavingLaunchFields(false);
+    }
+  }
+
+  async function handleAddToBottingMode() {
+    if (!bottingActive) {
+      store.addToast(t("Botting Mode is not running"));
+      return;
+    }
+    if (addableBottingCount <= 0) {
+      store.addToast(t("Selected accounts are already in Botting Mode"));
+      return;
+    }
+    try {
+      await store.addBottingAccounts(addableBottingIds);
+    } catch (e) {
+      store.addToast(t("Botting account action failed: {{error}}", { error: String(e) }));
     }
   }
 
@@ -242,6 +265,22 @@ export function MultiSelectSidebar() {
               className="sidebar-btn theme-btn mt-1.5 bg-[var(--buttons-bg)]/80 border-[var(--buttons-bc)] animate-fade-in"
             >
               {t("Open Botting Mode")}
+            </button>
+          )}
+          {bottingActive && (
+            <button
+              onClick={handleAddToBottingMode}
+              disabled={addableBottingCount <= 0}
+              className="sidebar-btn theme-btn mt-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {addableBottingCount <= 0
+                ? t("Already in Botting Mode")
+                : t(
+                    addableBottingCount === 1
+                      ? "Add {{count}} account to Botting Mode"
+                      : "Add {{count}} accounts to Botting Mode",
+                    { count: addableBottingCount }
+                  )}
             </button>
           )}
           <button

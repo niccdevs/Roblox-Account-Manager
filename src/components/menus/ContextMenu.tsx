@@ -48,6 +48,9 @@ export function ContextMenu() {
   const accounts = store.selectedAccounts;
   const single = accounts.length === 1 ? accounts[0] : null;
   const userIds = accounts.map((a) => a.UserID);
+  const bottingActive = store.bottingStatus?.active === true;
+  const activeBottingIds = new Set(store.bottingStatus?.userIds || []);
+  const addableBottingIds = userIds.filter((id) => !activeBottingIds.has(id));
 
   async function copyToClipboard(text: string, label: string) {
     try {
@@ -182,6 +185,29 @@ export function ContextMenu() {
     { label: t("Copy"), submenu: copySubmenu },
     { separator: true, label: "" },
   ];
+
+  if (bottingActive) {
+    items.push({
+      label:
+        addableBottingIds.length > 1
+          ? t("Add {{count}} accounts to Botting Mode", { count: addableBottingIds.length })
+          : addableBottingIds.length === 1
+            ? t("Add {{count}} account to Botting Mode", { count: 1 })
+            : t("Already in Botting Mode"),
+      action: async () => {
+        if (addableBottingIds.length === 0) {
+          store.addToast(t("Selected accounts are already in Botting Mode"));
+          return;
+        }
+        try {
+          await store.addBottingAccounts(addableBottingIds);
+        } catch (e) {
+          store.addToast(t("Botting account action failed: {{error}}", { error: String(e) }));
+        }
+      },
+    });
+    items.push({ separator: true, label: "" });
+  }
 
   if (store.devMode) {
     items.push(

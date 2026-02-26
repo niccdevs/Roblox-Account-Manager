@@ -121,6 +121,8 @@ export function SingleSelectSidebar() {
   const hideAvatar = store.hideUsernames && !store.showAvatarsWhenHidden;
   const presenceType = store.presenceByUserId.get(account.UserID) ?? 0;
   const isJoining = store.joiningAccounts.has(account.UserID);
+  const bottingActive = store.bottingStatus?.active === true;
+  const alreadyInBotting = !!store.bottingStatus?.userIds?.includes(account.UserID);
   const savedPlaceId = account.Fields?.SavedPlaceId ?? "";
   const recentGameSelectValue = recentGames.some((g) => String(g.placeId) === store.placeId)
     ? store.placeId
@@ -313,6 +315,27 @@ export function SingleSelectSidebar() {
               <span className="w-2.5 h-2.5 border border-[var(--accent-color)] border-t-transparent rounded-full animate-spin" />
               <span>{t("Preparing Roblox launch for this account...")}</span>
             </div>
+          )}
+          {bottingActive && (
+            <button
+              onClick={async () => {
+                if (alreadyInBotting) {
+                  store.addToast(t("Selected accounts are already in Botting Mode"));
+                  return;
+                }
+                try {
+                  await store.addBottingAccounts([account.UserID]);
+                } catch (e) {
+                  store.addToast(t("Botting account action failed: {{error}}", { error: String(e) }));
+                }
+              }}
+              disabled={alreadyInBotting}
+              className="sidebar-btn theme-btn mt-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {alreadyInBotting
+                ? t("Already in Botting Mode")
+                : t("Add {{count}} account to Botting Mode", { count: 1 })}
+            </button>
           )}
         </SidebarSection>
 

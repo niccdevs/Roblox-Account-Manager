@@ -144,6 +144,7 @@ export interface StoreValue {
   killAllRobloxProcesses: () => Promise<void>;
   startBottingMode: (config: BottingStartConfig) => Promise<void>;
   stopBottingMode: (closeBotAccounts: boolean) => Promise<void>;
+  addBottingAccounts: (userIds: number[]) => Promise<void>;
   setBottingPlayerAccounts: (userIds: number[]) => Promise<void>;
   bottingAccountAction: (
     userId: number,
@@ -846,6 +847,27 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  async function addBottingAccounts(userIds: number[]) {
+    if (userIds.length === 0) return;
+    try {
+      const status = await invoke<BottingStatus>("add_botting_accounts", {
+        userIds,
+      });
+      setBottingStatus(status);
+      addToast(
+        tr(
+          userIds.length === 1
+            ? "Added {{count}} account to Botting Mode"
+            : "Added {{count}} accounts to Botting Mode",
+          { count: userIds.length }
+        )
+      );
+    } catch (e) {
+      setError(String(e));
+      throw e;
+    }
+  }
+
   async function setBottingPlayerAccounts(userIds: number[]) {
     try {
       const status = await invoke<BottingStatus>("set_botting_player_accounts", {
@@ -1396,6 +1418,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     killAllRobloxProcesses,
     startBottingMode,
     stopBottingMode,
+    addBottingAccounts,
     setBottingPlayerAccounts,
     bottingAccountAction,
     refreshBottingStatus,
