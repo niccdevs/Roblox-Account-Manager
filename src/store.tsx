@@ -717,6 +717,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       } else {
         const linkLike = rawJobId.match(/(?:privateServerLinkCode|linkCode|code)=([^&\s]+)/i);
         if (linkLike?.[1]) {
+          resolvedJobId = "";
           try {
             linkCode = decodeURIComponent(linkLike[1]);
           } catch {

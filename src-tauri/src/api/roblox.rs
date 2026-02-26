@@ -993,7 +993,9 @@ fn decode_url_component(value: &str) -> String {
 fn extract_query_param_value(input: &str, key: &str) -> Option<String> {
     for part in input.split(['?', '&']) {
         let pair = part.split('#').next().unwrap_or(part);
-        let (k, v) = pair.split_once('=')?;
+        let Some((k, v)) = pair.split_once('=') else {
+            continue;
+        };
         if !k.eq_ignore_ascii_case(key) {
             continue;
         }
