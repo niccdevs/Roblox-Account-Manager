@@ -267,7 +267,7 @@ impl SettingsStore {
             ("MinimizeToTray", "false", None),
             ("BottingEnabled", "false", None),
             ("BottingUseSharedClientProfile", "true", None),
-            ("BottingAutoShareLaunchFields", "false", None),
+            ("BottingAutoShareLaunchFields", "true", None),
             ("BottingPlayerUnlockFPS", "false", None),
             ("BottingPlayerMaxFPSValue", "120", None),
             ("BottingPlayerCustomClientSettings", "", None),
