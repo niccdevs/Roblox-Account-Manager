@@ -1762,6 +1762,99 @@ fn get_botting_mode_status() -> Result<BottingStatusPayload, String> {
 
 #[cfg(target_os = "windows")]
 #[tauri::command]
+fn add_botting_accounts(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AccountStore>,
+    user_ids: Vec<i64>,
+) -> Result<BottingStatusPayload, String> {
+    let Some(session) = BOTTING_MANAGER.get_session() else {
+        return Err("Botting Mode is not running".into());
+    };
+    if user_ids.is_empty() {
+        return Err("Select at least one account to add".into());
+    }
+
+    let all_accounts = state.get_all()?;
+    let known_ids: HashSet<i64> = all_accounts.iter().map(|a| a.user_id).collect();
+
+    let mut requested = Vec::new();
+    let mut seen = HashSet::new();
+    for uid in user_ids {
+        if seen.insert(uid) {
+            requested.push(uid);
+        }
+    }
+
+    for uid in &requested {
+        if !known_ids.contains(uid) {
+            return Err(format!("Account {} not found", uid));
+        }
+    }
+
+    let tracker = platform::windows::tracker();
+    let now = now_ms();
+
+    let mut cfg = session.config.lock().map_err(|e| e.to_string())?;
+    let launch_delay_ms = (cfg.launch_delay_seconds as i64).saturating_mul(1000);
+    let interval_ms = (cfg.interval_minutes as i64).saturating_mul(60_000);
+    let mut runtime_map = session.accounts.lock().map_err(|e| e.to_string())?;
+
+    let mut to_add = Vec::new();
+    for uid in requested {
+        if cfg.user_ids.contains(&uid) || runtime_map.contains_key(&uid) {
+            continue;
+        }
+        to_add.push(uid);
+    }
+
+    if to_add.is_empty() {
+        return Err("Selected accounts are already in Botting Mode".into());
+    }
+
+    for uid in to_add {
+        cfg.user_ids.push(uid);
+
+        let has_running_client = tracker.get_pid(uid).is_some();
+        let next_restart_at_ms = if has_running_client {
+            Some(now.saturating_add(interval_ms))
+        } else {
+            Some(now.saturating_add(launch_delay_ms))
+        };
+        let phase = if has_running_client { "running" } else { "queued" };
+
+        runtime_map.insert(
+            uid,
+            BottingAccountRuntime {
+                user_id: uid,
+                is_player: false,
+                disconnected: false,
+                phase,
+                retry_count: 0,
+                next_restart_at_ms,
+                player_grace_until_ms: None,
+                last_error: None,
+            },
+        );
+    }
+    drop(runtime_map);
+    drop(cfg);
+
+    emit_botting_status(&app);
+    Ok(current_botting_status())
+}
+
+#[cfg(not(target_os = "windows"))]
+#[tauri::command]
+fn add_botting_accounts(
+    _app: tauri::AppHandle,
+    _state: tauri::State<'_, AccountStore>,
+    _user_ids: Vec<i64>,
+) -> Result<BottingStatusPayload, String> {
+    Err("Botting Mode is only supported on Windows".into())
+}
+
+#[cfg(target_os = "windows")]
+#[tauri::command]
 fn set_botting_player_accounts(
     app: tauri::AppHandle,
     player_user_ids: Vec<i64>,
@@ -3386,6 +3479,7 @@ pub fn run() {
             start_botting_mode,
             stop_botting_mode,
             get_botting_mode_status,
+            add_botting_accounts,
             set_botting_player_accounts,
             botting_account_action,
             cmd_kill_roblox,
