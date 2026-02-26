@@ -609,6 +609,10 @@ fn wait_for_process_exit(pid: u32, timeout: Duration) -> bool {
     !get_roblox_pids().contains(&pid)
 }
 
+fn is_roblox_pid_alive(pid: u32) -> bool {
+    get_roblox_pids().contains(&pid)
+}
+
 pub fn get_foreground_hwnd() -> HWND {
     unsafe { GetForegroundWindow() }
 }
@@ -741,9 +745,18 @@ impl ProcessTracker {
 
     pub fn kill_for_user(&self, user_id: i64) -> bool {
         if let Some(pid) = self.get_pid(user_id) {
-            let result = kill_process(pid).is_ok();
-            self.untrack(user_id);
-            result
+            if kill_process(pid).is_ok() {
+                let exited = wait_for_process_exit(pid, Duration::from_millis(1200));
+                if exited {
+                    self.untrack(user_id);
+                }
+                exited
+            } else if !is_roblox_pid_alive(pid) {
+                self.untrack(user_id);
+                true
+            } else {
+                false
+            }
         } else {
             false
         }
@@ -754,13 +767,16 @@ impl ProcessTracker {
             return true;
         };
 
-        let kill_ok = kill_process(pid).is_ok();
-        let exited = if kill_ok {
+        let exited = if kill_process(pid).is_ok() {
             wait_for_process_exit(pid, Duration::from_millis(timeout_ms.max(250)))
         } else {
-            false
+            !is_roblox_pid_alive(pid)
         };
-        self.untrack(user_id);
+
+        if exited {
+            self.untrack(user_id);
+        }
+
         exited
     }
 
