@@ -257,9 +257,19 @@ pub fn build_launch_url(
     };
 
     let place_launcher_url = if join_vip {
+        let access_param = if access_code.is_empty() {
+            String::new()
+        } else {
+            format!("&accessCode={}", urlencoding::encode(access_code))
+        };
+        let link_param = if link_code.is_empty() {
+            String::new()
+        } else {
+            format!("&linkCode={}", urlencoding::encode(link_code))
+        };
         format!(
-            "https://assetgame.roblox.com/game/PlaceLauncher.ashx?request=RequestPrivateGame&placeId={}&accessCode={}&linkCode={}{}",
-            place_id, access_code, link_code, ld_param
+            "https://assetgame.roblox.com/game/PlaceLauncher.ashx?request=RequestPrivateGame&placeId={}{}{}{}",
+            place_id, access_param, link_param, ld_param
         )
     } else if follow_user {
         format!(
@@ -326,9 +336,19 @@ pub fn launch_old_join(
     };
 
     let join_url = if join_vip {
+        let access_param = if access_code.is_empty() {
+            String::new()
+        } else {
+            format!("&accessCode={}", urlencoding::encode(access_code))
+        };
+        let link_param = if link_code.is_empty() {
+            String::new()
+        } else {
+            format!("&linkCode={}", urlencoding::encode(link_code))
+        };
         format!(
-            "https://assetgame.roblox.com/game/PlaceLauncher.ashx?request=RequestPrivateGame&placeId={}&accessCode={}&linkCode={}{}",
-            place_id, access_code, link_code, ld_param
+            "https://assetgame.roblox.com/game/PlaceLauncher.ashx?request=RequestPrivateGame&placeId={}{}{}{}",
+            place_id, access_param, link_param, ld_param
         )
     } else if follow_user {
         format!(

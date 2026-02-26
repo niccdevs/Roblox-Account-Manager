@@ -717,13 +717,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       } else {
         const linkLike = rawJobId.match(/(?:privateServerLinkCode|linkCode|code)=([^&\s]+)/i);
         if (linkLike?.[1]) {
-          joinVip = true;
           try {
             linkCode = decodeURIComponent(linkLike[1]);
           } catch {
             linkCode = linkLike[1];
           }
-          resolvedJobId = "";
         }
       }
 
