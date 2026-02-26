@@ -886,6 +886,7 @@ fn ensure_multi_roblox_enabled(auto_close_conflicts: bool) -> Result<(), String>
         if killed > 0 {
             std::thread::sleep(std::time::Duration::from_millis(700));
         }
+        let _ = platform::windows::tracker().cleanup_dead_processes();
         let enabled_after = platform::windows::enable_multi_roblox()?;
         if enabled_after {
             return Ok(());
@@ -1209,20 +1210,22 @@ async fn launch_account_for_cycle(
         return Err(format!("Launch failed: {}", e));
     }
 
-    if let Some(pid) = wait_for_new_roblox_pid(&pids_before, std::time::Duration::from_secs(12)).await
-    {
-        tracker.track(user_id, pid, browser_tracker_id);
-        if detect_auth_failure_window(pid).await {
-            let _ = tracker.kill_for_user(user_id);
-            return Err("Roblox authentication failed (429) while joining".into());
-        }
+    let Some(pid) = wait_for_new_roblox_pid(&pids_before, std::time::Duration::from_secs(12)).await
+    else {
+        return Err("Timed out waiting for Roblox process after launch".into());
+    };
 
-        if start_minimized {
-            let baseline = pids_before.clone();
-            tokio::spawn(async move {
-                minimize_new_roblox_windows(baseline, std::time::Duration::from_secs(14)).await;
-            });
-        }
+    tracker.track(user_id, pid, browser_tracker_id);
+    if detect_auth_failure_window(pid).await {
+        let _ = tracker.kill_for_user(user_id);
+        return Err("Roblox authentication failed (429) while joining".into());
+    }
+
+    if start_minimized {
+        let baseline = pids_before.clone();
+        tokio::spawn(async move {
+            minimize_new_roblox_windows(baseline, std::time::Duration::from_secs(14)).await;
+        });
     }
 
     Ok(())
@@ -1440,20 +1443,36 @@ async fn run_botting_session(
             }
             let closed = tracker.kill_for_user_graceful(uid, 4500);
             if !closed {
+                let pid_hint = tracker
+                    .get_pid(uid)
+                    .map(|pid| format!(" (pid {})", pid))
+                    .unwrap_or_default();
                 if let Ok(mut map) = accounts.lock() {
                     if let Some(entry) = map.get_mut(&uid) {
                         entry.retry_count = entry.retry_count.saturating_add(1);
+                        let retry_delay_seconds = backoff_delay_seconds(
+                            cfg.retry_base_seconds,
+                            entry.retry_count,
+                            cfg.retry_max,
+                        )
+                        .max(cfg.launch_delay_seconds.saturating_mul(2))
+                        .clamp(6, 300);
                         entry.phase = "retry-backoff";
                         entry.last_error = Some(
-                            "Previous Roblox instance did not close before relaunch".to_string(),
+                            format!(
+                                "Previous Roblox instance did not close before relaunch{}",
+                                pid_hint
+                            ),
                         );
-                        entry.next_restart_at_ms = Some(now_ms().saturating_add(6000));
+                        entry.next_restart_at_ms = Some(
+                            now_ms().saturating_add((retry_delay_seconds as i64).saturating_mul(1000)),
+                        );
                     }
                 }
                 emit_botting_status(&app);
                 continue;
             }
-            tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+            tokio::time::sleep(std::time::Duration::from_millis(450)).await;
 
             let is_player = cfg.player_user_ids.contains(&uid);
             let launch_result = launch_account_for_cycle(
