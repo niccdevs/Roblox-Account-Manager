@@ -71,6 +71,7 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
   const [placeId, setPlaceId] = useState("");
   const [jobId, setJobId] = useState("");
   const [launchData, setLaunchData] = useState("");
+  const [shareLaunchFields, setShareLaunchFields] = useState(false);
   const [intervalMinutes, setIntervalMinutes] = useState(19);
   const [launchDelaySeconds, setLaunchDelaySeconds] = useState(20);
   const [playerGraceMinutes, setPlayerGraceMinutes] = useState(15);
@@ -97,9 +98,16 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
       } catch {}
       if (cancelled) return;
 
-      const draftPlace = general.BottingDraftPlaceId || store.placeId || "";
-      const draftJob = general.BottingDraftJobId || store.jobId || "";
-      const draftData = general.BottingDraftLaunchData || store.launchData || "";
+      const shouldShareLaunchFields = general.BottingAutoShareLaunchFields === "true";
+      const draftPlace = shouldShareLaunchFields
+        ? store.placeId || ""
+        : general.BottingDraftPlaceId || store.placeId || "";
+      const draftJob = shouldShareLaunchFields
+        ? store.jobId || ""
+        : general.BottingDraftJobId || store.jobId || "";
+      const draftData = shouldShareLaunchFields
+        ? store.launchData || ""
+        : general.BottingDraftLaunchData || store.launchData || "";
       const draftInterval = parseInt(general.BottingDefaultIntervalMinutes || "19", 10);
       const draftDelay = parseInt(general.BottingLaunchDelaySeconds || "20", 10);
       const draftGrace = parseInt(
@@ -113,6 +121,7 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
         .map((s) => parseInt(s.trim(), 10))
         .filter((n) => Number.isFinite(n));
 
+      setShareLaunchFields(shouldShareLaunchFields);
       setPlaceId(draftPlace);
       setJobId(draftJob);
       setLaunchData(draftData);
@@ -525,7 +534,13 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
               <input
                 value={placeId}
-                onChange={(e) => setPlaceId(e.target.value)}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  setPlaceId(next);
+                  if (shareLaunchFields) {
+                    store.setPlaceId(next);
+                  }
+                }}
                 onBlur={() =>
                   saveDraft(
                     placeId.trim(),
@@ -542,7 +557,13 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
               />
               <input
                 value={jobId}
-                onChange={(e) => setJobId(e.target.value)}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  setJobId(next);
+                  if (shareLaunchFields) {
+                    store.setJobId(next);
+                  }
+                }}
                 onBlur={() =>
                   saveDraft(
                     placeId.trim(),
@@ -559,7 +580,13 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
               />
               <input
                 value={launchData}
-                onChange={(e) => setLaunchData(e.target.value)}
+                onChange={(e) => {
+                  const next = e.target.value;
+                  setLaunchData(next);
+                  if (shareLaunchFields) {
+                    store.setLaunchData(next);
+                  }
+                }}
                 onBlur={() =>
                   saveDraft(
                     placeId.trim(),
@@ -575,18 +602,24 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
                 className="sidebar-input text-xs"
               />
             </div>
-            <div className="mt-2 flex gap-2">
-              <button
-                onClick={() => {
-                  setPlaceId(store.placeId);
-                  setJobId(store.jobId);
-                  setLaunchData(store.launchData);
-                }}
-                className="sidebar-btn-sm"
-              >
-                {t("Use Current Launch Fields")}
-              </button>
-            </div>
+            {shareLaunchFields ? (
+              <div className="mt-2 text-[10px] theme-muted">
+                {t("Launch fields are currently synced with Sidebar")}
+              </div>
+            ) : (
+              <div className="mt-2 flex gap-2">
+                <button
+                  onClick={() => {
+                    setPlaceId(store.placeId);
+                    setJobId(store.jobId);
+                    setLaunchData(store.launchData);
+                  }}
+                  className="sidebar-btn-sm"
+                >
+                  {t("Use Current Launch Fields")}
+                </button>
+              </div>
+            )}
           </section>
 
           <section className="theme-surface rounded-xl border theme-border p-3 animate-fade-in">

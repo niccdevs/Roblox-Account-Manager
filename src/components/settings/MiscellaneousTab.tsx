@@ -132,6 +132,12 @@ export function MiscellaneousTab({
             label="Use same client settings for player and bots"
             description="When enabled, botting uses the Roblox Client settings section"
           />
+          <Toggle
+            checked={s.getBool("General", "BottingAutoShareLaunchFields")}
+            onChange={(v) => s.setBool("General", "BottingAutoShareLaunchFields", v)}
+            label="Auto-share launch fields with Sidebar"
+            description="Keeps Place ID, Job ID, and JoinData synced between Sidebar and Botting Mode"
+          />
           <Divider />
         </>
       )}
