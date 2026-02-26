@@ -975,6 +975,237 @@ fn now_ms() -> i64 {
         .as_millis() as i64
 }
 
+#[derive(Debug, Clone, Default)]
+struct ResolvedLaunchJob {
+    job_id: String,
+    join_vip: bool,
+    link_code: String,
+}
+
+fn decode_url_component(value: &str) -> String {
+    urlencoding::decode(value)
+        .map(|v| v.into_owned())
+        .unwrap_or_else(|_| value.to_string())
+}
+
+fn extract_query_param_value(input: &str, key: &str) -> Option<String> {
+    for part in input.split(['?', '&']) {
+        let pair = part.split('#').next().unwrap_or(part);
+        let Some((k, v)) = pair.split_once('=') else {
+            continue;
+        };
+        if !k.eq_ignore_ascii_case(key) {
+            continue;
+        }
+
+        let decoded = decode_url_component(v.trim());
+        let value = decoded.trim();
+        if value.is_empty()
+            || value.eq_ignore_ascii_case("null")
+            || value.eq_ignore_ascii_case("undefined")
+        {
+            continue;
+        }
+
+        return Some(value.to_string());
+    }
+    None
+}
+
+fn extract_query_param_value_recursive(input: &str, key: &str) -> Option<String> {
+    if let Some(value) = extract_query_param_value(input, key) {
+        return Some(value);
+    }
+
+    let decoded = decode_url_component(input);
+    if decoded != input {
+        return extract_query_param_value(&decoded, key);
+    }
+
+    None
+}
+
+fn strip_ascii_prefix<'a>(value: &'a str, prefix: &str) -> Option<&'a str> {
+    let head = value.get(..prefix.len())?;
+    if !head.eq_ignore_ascii_case(prefix) {
+        return None;
+    }
+    value.get(prefix.len()..)
+}
+
+fn looks_like_share_link(value: &str) -> bool {
+    let lower = value.to_ascii_lowercase();
+    lower.contains("/share?")
+        || lower.contains("/share-links")
+        || lower.contains("navigation/share_links")
+        || lower.contains("type=server")
+        || lower.contains("pid=server")
+}
+
+fn extract_private_server_link_code(value: &str) -> Option<String> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+
+    if let Some(rest) = strip_ascii_prefix(trimmed, "vip:") {
+        let decoded = decode_url_component(rest.trim());
+        let code = decoded.trim();
+        if !code.is_empty() {
+            return Some(code.to_string());
+        }
+    }
+
+    if let Some(code) = extract_query_param_value_recursive(trimmed, "privateServerLinkCode") {
+        return Some(code);
+    }
+    if let Some(code) = extract_query_param_value_recursive(trimmed, "linkCode") {
+        return Some(code);
+    }
+
+    let starts_with_code = trimmed
+        .get(..5)
+        .map(|head| head.eq_ignore_ascii_case("code="))
+        .unwrap_or(false);
+    if looks_like_share_link(trimmed) || starts_with_code {
+        if let Some(code) = extract_query_param_value_recursive(trimmed, "code") {
+            return Some(code);
+        }
+    }
+
+    None
+}
+
+fn resolve_launch_job(
+    raw_job_id: &str,
+    explicit_join_vip: bool,
+    explicit_link_code: &str,
+) -> ResolvedLaunchJob {
+    let trimmed_job = raw_job_id.trim();
+    let mut job_id = trimmed_job.to_string();
+
+    let mut link_code = extract_private_server_link_code(explicit_link_code).unwrap_or_else(|| {
+        decode_url_component(explicit_link_code.trim())
+            .trim()
+            .to_string()
+    });
+
+    let mut join_vip = explicit_join_vip;
+    if let Some(rest) = strip_ascii_prefix(trimmed_job, "vip:") {
+        join_vip = true;
+        job_id = rest.trim().to_string();
+    }
+
+    if link_code.is_empty() {
+        if let Some(code) = extract_private_server_link_code(trimmed_job) {
+            link_code = code;
+        }
+    }
+
+    if join_vip && link_code.is_empty() {
+        if job_id.trim().is_empty() {
+            join_vip = false;
+        } else {
+            link_code = decode_url_component(job_id.trim()).trim().to_string();
+        }
+    }
+
+    ResolvedLaunchJob {
+        job_id,
+        join_vip,
+        link_code,
+    }
+}
+
+fn looks_like_access_code(value: &str) -> bool {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return false;
+    }
+
+    let parts: Vec<&str> = trimmed.split('-').collect();
+    if parts.len() != 5 {
+        return false;
+    }
+
+    parts.iter().all(|part| {
+        !part.is_empty()
+            && part
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '_')
+    })
+}
+
+fn looks_like_share_link_code(value: &str) -> bool {
+    let trimmed = value.trim();
+    trimmed.len() == 32
+        && trimmed.chars().any(|c| c.is_ascii_alphabetic())
+        && trimmed.chars().all(|c| c.is_ascii_hexdigit())
+}
+
+fn extract_place_id_from_url(value: &str) -> Option<i64> {
+    let lower = value.to_ascii_lowercase();
+    let marker = "/games/";
+    let start = lower.find(marker)? + marker.len();
+    let rest = value.get(start..)?;
+    let digits: String = rest.chars().take_while(|c| c.is_ascii_digit()).collect();
+    if digits.is_empty() {
+        return None;
+    }
+    digits.parse::<i64>().ok().filter(|id| *id > 0)
+}
+
+#[derive(Debug, Clone)]
+struct ResolvedPrivateJoin {
+    place_id: i64,
+    link_code: String,
+    access_code: String,
+    use_private_join: bool,
+}
+
+async fn resolve_private_join(
+    cookie: &str,
+    place_id: i64,
+    launch: &ResolvedLaunchJob,
+) -> Result<ResolvedPrivateJoin, String> {
+    let mut resolved_place_id = place_id;
+    let mut resolved_link_code = launch.link_code.trim().to_string();
+
+    if !resolved_link_code.is_empty() {
+        if let Some(url_place_id) = extract_place_id_from_url(&launch.job_id) {
+            resolved_place_id = url_place_id;
+        }
+    }
+
+    if !resolved_link_code.is_empty()
+        && (looks_like_share_link(&launch.job_id) || looks_like_share_link_code(&resolved_link_code))
+    {
+        let (maybe_place_id, resolved_code) =
+            api::roblox::resolve_share_server_link(cookie, &resolved_link_code).await?;
+        if let Some(pid) = maybe_place_id {
+            resolved_place_id = pid;
+        }
+        if !resolved_code.trim().is_empty() {
+            resolved_link_code = resolved_code.trim().to_string();
+        }
+    }
+
+    let mut access_code = String::new();
+    if looks_like_access_code(&resolved_link_code) {
+        access_code = resolved_link_code.clone();
+        resolved_link_code.clear();
+    }
+
+    let use_private_join = launch.join_vip || !resolved_link_code.is_empty() || !access_code.is_empty();
+
+    Ok(ResolvedPrivateJoin {
+        place_id: resolved_place_id,
+        link_code: resolved_link_code,
+        access_code,
+        use_private_join,
+    })
+}
+
 #[cfg(target_os = "windows")]
 fn backoff_delay_seconds(base: u64, retry_count: u32, retry_max: u32) -> u64 {
     let exp = retry_count.saturating_sub(1).min(retry_max.max(1));
@@ -1132,6 +1363,8 @@ async fn launch_account_for_cycle(
         )
     };
 
+    let resolved_launch = resolve_launch_job(job_id, false, "");
+
     if multi_rbx {
         ensure_multi_roblox_enabled(auto_close_multi_conflicts)?;
     } else {
@@ -1176,31 +1409,33 @@ async fn launch_account_for_cycle(
     }
     let ticket =
         ticket.ok_or_else(|| format!("Failed to get auth ticket for launch: {}", last_ticket_err))?;
+    let private_join = resolve_private_join(&cookie, place_id, &resolved_launch).await?;
+
     let pids_before = windows::get_roblox_pids();
 
     let launch_result = if use_old_join {
         windows::launch_old_join(
             &ticket,
-            place_id,
-            job_id,
+            private_join.place_id,
+            &resolved_launch.job_id,
             launch_data,
             false,
-            false,
-            "",
-            "",
+            private_join.use_private_join,
+            &private_join.access_code,
+            &private_join.link_code,
             is_teleport,
         )
     } else {
         let url = windows::build_launch_url(
             &ticket,
-            place_id,
-            job_id,
+            private_join.place_id,
+            &resolved_launch.job_id,
             &browser_tracker_id,
             launch_data,
             false,
-            false,
-            "",
-            "",
+            private_join.use_private_join,
+            &private_join.access_code,
+            &private_join.link_code,
             is_teleport,
         );
         windows::launch_url(&url)
@@ -2102,8 +2337,14 @@ async fn launch_roblox(
         tokio::time::sleep(std::time::Duration::from_millis(250)).await;
     }
 
-    let mut actual_job = job_id.clone();
-    if shuffle_job && !follow_user && !join_vip {
+    let mut resolved_launch = resolve_launch_job(&job_id, join_vip, &link_code);
+    if follow_user {
+        resolved_launch.join_vip = false;
+        resolved_launch.link_code.clear();
+    }
+
+    let mut actual_job = resolved_launch.job_id.clone();
+    if shuffle_job && !follow_user && actual_job.trim().is_empty() {
         if let Ok(response) =
             api::roblox::get_servers(place_id, "Public", None, Some(&cookie)).await
         {
@@ -2120,48 +2361,33 @@ async fn launch_roblox(
 
     let browser_tracker_id = get_or_create_browser_tracker_id(&state, user_id)?;
     let ticket = api::auth::get_auth_ticket(&cookie).await?;
-
-    let mut access_code = String::new();
-    let mut final_link_code = link_code.clone();
-
-    if join_vip && !link_code.is_empty() {
-        if link_code.starts_with("http") {
-            if let Some(code) = link_code.split("code=").nth(1) {
-                final_link_code = code.split('&').next().unwrap_or(code).to_string();
-            }
-        }
-        match api::roblox::parse_private_server_link_code(&cookie, place_id, &final_link_code).await
-        {
-            Ok(code) => access_code = code,
-            Err(_) => {}
-        }
-    }
+    let private_join = resolve_private_join(&cookie, place_id, &resolved_launch).await?;
 
     let pids_before = windows::get_roblox_pids();
 
     if use_old_join {
         windows::launch_old_join(
             &ticket,
-            place_id,
+            private_join.place_id,
             &actual_job,
             &launch_data,
             follow_user,
-            join_vip,
-            &access_code,
-            &final_link_code,
+            private_join.use_private_join,
+            &private_join.access_code,
+            &private_join.link_code,
             is_teleport,
         )?;
     } else {
         let url = windows::build_launch_url(
             &ticket,
-            place_id,
+            private_join.place_id,
             &actual_job,
             &browser_tracker_id,
             &launch_data,
             follow_user,
-            join_vip,
-            &access_code,
-            &final_link_code,
+            private_join.use_private_join,
+            &private_join.access_code,
+            &private_join.link_code,
             is_teleport,
         );
         windows::launch_url(&url)?;
@@ -2259,8 +2485,14 @@ async fn launch_roblox(
             tokio::time::sleep(std::time::Duration::from_secs(1)).await;
         }
 
-        let mut actual_job = job_id.clone();
-        if shuffle_job && !follow_user && !join_vip {
+        let mut resolved_launch = resolve_launch_job(&job_id, join_vip, &link_code);
+        if follow_user {
+            resolved_launch.join_vip = false;
+            resolved_launch.link_code.clear();
+        }
+
+        let mut actual_job = resolved_launch.job_id.clone();
+        if shuffle_job && !follow_user && actual_job.trim().is_empty() {
             if let Ok(response) =
                 api::roblox::get_servers(place_id, "Public", None, Some(&cookie)).await
             {
@@ -2277,49 +2509,33 @@ async fn launch_roblox(
 
         let browser_tracker_id = get_or_create_browser_tracker_id(&state, user_id)?;
         let ticket = api::auth::get_auth_ticket(&cookie).await?;
-
-        let mut access_code = String::new();
-        let mut final_link_code = link_code.clone();
-
-        if join_vip && !link_code.is_empty() {
-            if link_code.starts_with("http") {
-                if let Some(code) = link_code.split("code=").nth(1) {
-                    final_link_code = code.split('&').next().unwrap_or(code).to_string();
-                }
-            }
-            if let Ok(code) =
-                api::roblox::parse_private_server_link_code(&cookie, place_id, &final_link_code)
-                    .await
-            {
-                access_code = code;
-            }
-        }
+        let private_join = resolve_private_join(&cookie, place_id, &resolved_launch).await?;
 
         let pids_before = macos::get_roblox_pids();
 
         if use_old_join {
             macos::launch_old_join(
                 &ticket,
-                place_id,
+                private_join.place_id,
                 &actual_job,
                 &launch_data,
                 follow_user,
-                join_vip,
-                &access_code,
-                &final_link_code,
+                private_join.use_private_join,
+                &private_join.access_code,
+                &private_join.link_code,
                 is_teleport,
             )?;
         } else {
             let url = macos::build_launch_url(
                 &ticket,
-                place_id,
+                private_join.place_id,
                 &actual_job,
                 &browser_tracker_id,
                 &launch_data,
                 follow_user,
-                join_vip,
-                &access_code,
-                &final_link_code,
+                private_join.use_private_join,
+                &private_join.access_code,
+                &private_join.link_code,
                 is_teleport,
             );
             macos::launch_url(&url)?;
@@ -2408,6 +2624,8 @@ async fn launch_multiple(
             Err(_) => continue,
         };
 
+        let resolved_launch = resolve_launch_job(&acct_job, false, "");
+
         if multi_rbx {
             ensure_multi_roblox_enabled(auto_close_multi_conflicts)?;
         } else {
@@ -2433,32 +2651,39 @@ async fn launch_multiple(
                 continue;
             }
         };
+        let private_join = match resolve_private_join(&cookie, acct_place, &resolved_launch).await {
+            Ok(value) => value,
+            Err(_) => {
+                tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+                continue;
+            }
+        };
 
         let pids_before = windows::get_roblox_pids();
 
         let launch_result = if use_old_join {
             windows::launch_old_join(
                 &ticket,
-                acct_place,
-                &acct_job,
+                private_join.place_id,
+                &resolved_launch.job_id,
                 &launch_data,
                 false,
-                false,
-                "",
-                "",
+                private_join.use_private_join,
+                &private_join.access_code,
+                &private_join.link_code,
                 is_teleport,
             )
         } else {
             let url = windows::build_launch_url(
                 &ticket,
-                acct_place,
-                &acct_job,
+                private_join.place_id,
+                &resolved_launch.job_id,
                 &browser_tracker_id,
                 &launch_data,
                 false,
-                false,
-                "",
-                "",
+                private_join.use_private_join,
+                &private_join.access_code,
+                &private_join.link_code,
                 is_teleport,
             );
             windows::launch_url(&url)
@@ -2556,6 +2781,8 @@ async fn launch_multiple(
                 Err(_) => continue,
             };
 
+            let resolved_launch = resolve_launch_job(&acct_job, false, "");
+
             if multi_rbx {
                 let enabled = macos::enable_multi_roblox()?;
                 if !enabled {
@@ -2583,32 +2810,40 @@ async fn launch_multiple(
                     continue;
                 }
             };
+            let private_join = match resolve_private_join(&cookie, acct_place, &resolved_launch).await
+            {
+                Ok(value) => value,
+                Err(_) => {
+                    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+                    continue;
+                }
+            };
 
             let pids_before = macos::get_roblox_pids();
 
             let launch_result = if use_old_join {
                 macos::launch_old_join(
                     &ticket,
-                    acct_place,
-                    &acct_job,
+                    private_join.place_id,
+                    &resolved_launch.job_id,
                     &launch_data,
                     false,
-                    false,
-                    "",
-                    "",
+                    private_join.use_private_join,
+                    &private_join.access_code,
+                    &private_join.link_code,
                     is_teleport,
                 )
             } else {
                 let url = macos::build_launch_url(
                     &ticket,
-                    acct_place,
-                    &acct_job,
+                    private_join.place_id,
+                    &resolved_launch.job_id,
                     &browser_tracker_id,
                     &launch_data,
                     false,
-                    false,
-                    "",
-                    "",
+                    private_join.use_private_join,
+                    &private_join.access_code,
+                    &private_join.link_code,
                     is_teleport,
                 );
                 macos::launch_url(&url)
