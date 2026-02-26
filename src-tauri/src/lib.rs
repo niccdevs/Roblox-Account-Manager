@@ -1726,12 +1726,14 @@ fn stop_botting_mode(app: tauri::AppHandle, close_bot_accounts: bool) -> Result<
                 .map_err(|e| e.to_string())?
                 .clone();
             let tracker = platform::windows::tracker();
-            for uid in cfg.user_ids {
-                if cfg.player_user_ids.contains(&uid) {
-                    continue;
-                }
-                let _ = tracker.kill_for_user(uid);
-            }
+            let keep_player_pids: Vec<u32> = cfg
+                .player_user_ids
+                .iter()
+                .filter_map(|uid| tracker.get_pid(*uid))
+                .collect();
+
+            let _ = platform::windows::kill_all_roblox_except(&keep_player_pids);
+            let _ = tracker.cleanup_dead_processes();
         }
         BOTTING_MANAGER.replace_session(None);
     }

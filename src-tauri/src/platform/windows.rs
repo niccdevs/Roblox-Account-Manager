@@ -219,6 +219,20 @@ pub fn kill_all_roblox() -> u32 {
     killed
 }
 
+pub fn kill_all_roblox_except(keep_pids: &[u32]) -> u32 {
+    let pids = get_roblox_pids();
+    let mut killed = 0u32;
+    for pid in pids {
+        if keep_pids.contains(&pid) {
+            continue;
+        }
+        if kill_process(pid).is_ok() {
+            killed += 1;
+        }
+    }
+    killed
+}
+
 pub fn build_launch_url(
     ticket: &str,
     place_id: i64,
