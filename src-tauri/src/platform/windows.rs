@@ -22,7 +22,7 @@ use windows_sys::Win32::System::Threading::{
 };
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     EnumWindows, GetForegroundWindow, GetWindowRect, GetWindowTextLengthW, GetWindowTextW,
-    GetWindowThreadProcessId, IsWindowVisible, MoveWindow, ShowWindow,
+    GetWindowThreadProcessId, IsWindowVisible, MoveWindow, SetForegroundWindow, ShowWindow,
 };
 
 const WAIT_OBJECT_0: u32 = 0;
@@ -30,6 +30,7 @@ const WAIT_ABANDONED_0: u32 = 0x80;
 const CREATE_NO_WINDOW: u32 = 0x08000000;
 const INVALID_HANDLE_VALUE: HANDLE = -1isize as HANDLE;
 const SW_MINIMIZE: i32 = 6;
+const SW_RESTORE: i32 = 9;
 
 struct SendHandle(HANDLE);
 unsafe impl Send for SendHandle {}
@@ -630,6 +631,13 @@ pub fn set_window_position(hwnd: HWND, x: i32, y: i32, w: i32, h: i32) -> bool {
 
 pub fn minimize_window(hwnd: HWND) -> bool {
     unsafe { ShowWindow(hwnd, SW_MINIMIZE) != 0 }
+}
+
+pub fn focus_window(hwnd: HWND) -> bool {
+    unsafe {
+        let _ = ShowWindow(hwnd, SW_RESTORE);
+        SetForegroundWindow(hwnd) != 0
+    }
 }
 
 fn wait_for_process_exit(pid: u32, timeout: Duration) -> bool {

@@ -2948,6 +2948,31 @@ fn cmd_kill_roblox(user_id: i64) -> Result<bool, String> {
 }
 
 #[tauri::command]
+fn focus_roblox_window(user_id: i64) -> Result<bool, String> {
+    #[cfg(target_os = "windows")]
+    {
+        let tracker = platform::windows::tracker();
+        let Some(pid) = tracker.get_pid(user_id) else {
+            return Ok(false);
+        };
+        let Some(hwnd) = platform::windows::find_main_window(pid) else {
+            return Ok(false);
+        };
+        return Ok(platform::windows::focus_window(hwnd));
+    }
+    #[cfg(target_os = "macos")]
+    {
+        let _ = user_id;
+        return Ok(false);
+    }
+    #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
+    {
+        let _ = user_id;
+        Ok(false)
+    }
+}
+
+#[tauri::command]
 fn cmd_kill_all_roblox() -> Result<u32, String> {
     #[cfg(target_os = "windows")]
     {
@@ -3735,6 +3760,7 @@ pub fn run() {
             set_botting_player_accounts,
             botting_account_action,
             cmd_kill_roblox,
+            focus_roblox_window,
             cmd_kill_all_roblox,
             get_running_instances,
             cmd_enable_multi_roblox,

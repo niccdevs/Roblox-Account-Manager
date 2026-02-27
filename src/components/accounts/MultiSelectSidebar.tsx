@@ -34,6 +34,11 @@ export function MultiSelectSidebar() {
     [accounts, activeBottingUserIds]
   );
   const addableBottingCount = addableBottingIds.length;
+  const launchedSelectedIds = useMemo(
+    () => accounts.map((a) => a.UserID).filter((id) => store.launchedByProgram.has(id)),
+    [accounts, store.launchedByProgram]
+  );
+  const launchedSelectedCount = launchedSelectedIds.length;
   const errorLower = (store.error || "").toLowerCase();
   const pulseCloseAction =
     errorLower.includes("failed to enable multi roblox") ||
@@ -132,6 +137,10 @@ export function MultiSelectSidebar() {
     } catch (e) {
       store.addToast(t("Botting account action failed: {{error}}", { error: String(e) }));
     }
+  }
+
+  async function handleRestartLaunchedClients() {
+    await store.restartRobloxClients(launchedSelectedIds);
   }
 
   return (
@@ -258,6 +267,15 @@ export function MultiSelectSidebar() {
             className="sidebar-btn theme-btn mt-1.5 disabled:opacity-60 disabled:cursor-not-allowed"
           >
             {store.launchProgress?.mode === "multi" ? t("Joining...") : t("Join All ({{count}})", { count })}
+          </button>
+          <button
+            onClick={handleRestartLaunchedClients}
+            disabled={launchedSelectedCount === 0 || store.launchProgress?.mode === "multi"}
+            className="sidebar-btn theme-btn mt-1.5 disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            {launchedSelectedCount <= 1
+              ? t("Restart launched client")
+              : t("Restart launched clients ({{count}})", { count: launchedSelectedCount })}
           </button>
           {showBottingButton && (
             <button
