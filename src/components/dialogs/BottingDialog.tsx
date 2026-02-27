@@ -359,6 +359,21 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
     }
   }
 
+  async function runRowFocus(userId: number) {
+    if (actionButtonsLocked) return;
+    setRowBusy(userId);
+    try {
+      const focused = await store.focusRobloxClient(userId);
+      if (!focused) {
+        store.addToast(t("No active Roblox window found for this account"));
+      }
+    } catch (e) {
+      store.addToast(t("Failed to focus client: {{error}}", { error: String(e) }));
+    } finally {
+      setRowBusy(null);
+    }
+  }
+
   async function handleCloseRobloxBannerAction() {
     if (closingRoblox) return;
     setClosingRoblox(true);
@@ -1082,6 +1097,7 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
                       liveRows.map(({ userId, account, row }, rowIndex) => {
                         const isRowBusy = rowBusy === userId;
                         const canAct = !!status?.active && !actionButtonsLocked && !!row;
+                        const canFocus = canAct && !row?.disconnected && store.launchedByProgram.has(userId);
                         const isBulkSelected = bulkSelectedSet.has(userId);
                         const dueCountdownRaw = row?.disconnected
                           ? "disconnected"
@@ -1231,6 +1247,33 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
                                     }}
                                   >
                                     {t("Close client")}
+                                  </button>
+                                </span>
+                              </Tooltip>
+
+                              <Tooltip
+                                content={
+                                  <div className="space-y-0.5">
+                                    <div className="font-semibold">{t("Focus client")}</div>
+                                    <div className="theme-muted">{t("Brings this Roblox window to the front and restores it if minimized.")}</div>
+                                  </div>
+                                }
+                              >
+                                <span>
+                                  <button
+                                    type="button"
+                                    disabled={!canFocus || isRowBusy}
+                                    className={[
+                                      "px-3 py-1 text-[11px] font-medium rounded-lg border border-sky-400/25",
+                                      "bg-[rgba(56,189,248,0.10)] text-sky-100",
+                                      "hover:bg-[rgba(56,189,248,0.18)] hover:border-sky-300/35 transition",
+                                      "disabled:opacity-50 disabled:cursor-not-allowed",
+                                    ].join(" ")}
+                                    onClick={() => {
+                                      void runRowFocus(userId);
+                                    }}
+                                  >
+                                    {t("Focus client")}
                                   </button>
                                 </span>
                               </Tooltip>
@@ -1583,6 +1626,7 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
               {liveRows.map(({ userId, account, row }) => {
                 const isRowBusy = rowBusy === userId;
                 const canAct = !!status?.active && !actionButtonsLocked && !!row;
+                const canFocus = canAct && !row?.disconnected && store.launchedByProgram.has(userId);
                 const dueCountdownRaw = row?.disconnected
                   ? "disconnected"
                   : row?.isPlayer
@@ -1690,6 +1734,33 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
                                 }}
                               >
                                 {t("Close client")}
+                              </button>
+                            </span>
+                          </Tooltip>
+
+                          <Tooltip
+                            content={
+                              <div className="space-y-0.5">
+                                <div className="font-semibold">{t("Focus client")}</div>
+                                <div className="theme-muted">{t("Brings this Roblox window to the front and restores it if minimized.")}</div>
+                              </div>
+                            }
+                          >
+                            <span>
+                              <button
+                                type="button"
+                                disabled={!canFocus || isRowBusy}
+                                className={[
+                                  "px-3 py-1 text-[11px] font-medium rounded-lg border border-sky-400/25",
+                                  "bg-[rgba(56,189,248,0.10)] text-sky-100",
+                                  "hover:bg-[rgba(56,189,248,0.18)] hover:border-sky-300/35 transition",
+                                  "disabled:opacity-50 disabled:cursor-not-allowed",
+                                ].join(" ")}
+                                onClick={() => {
+                                  void runRowFocus(userId);
+                                }}
+                              >
+                                {t("Focus client")}
                               </button>
                             </span>
                           </Tooltip>

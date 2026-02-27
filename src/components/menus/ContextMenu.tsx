@@ -51,6 +51,8 @@ export function ContextMenu() {
   const bottingActive = store.bottingStatus?.active === true;
   const activeBottingIds = new Set(store.bottingStatus?.userIds || []);
   const addableBottingIds = userIds.filter((id) => !activeBottingIds.has(id));
+  const launchedSelectedIds = userIds.filter((id) => store.launchedByProgram.has(id));
+  const singleLaunched = !!single && launchedSelectedIds.includes(single.UserID);
 
   async function copyToClipboard(text: string, label: string) {
     try {
@@ -206,6 +208,37 @@ export function ContextMenu() {
         }
       },
     });
+    items.push({ separator: true, label: "" });
+  }
+
+  if (singleLaunched || launchedSelectedIds.length > 0) {
+    if (singleLaunched) {
+      items.push({
+        label: t("Focus client"),
+        action: async () => {
+          if (!single) return;
+          try {
+            const focused = await store.focusRobloxClient(single.UserID);
+            if (!focused) {
+              store.addToast(t("No active Roblox window found for this account"));
+            }
+          } catch (e) {
+            store.addToast(t("Failed to focus client: {{error}}", { error: String(e) }));
+          }
+        },
+      });
+    }
+
+    items.push({
+      label:
+        launchedSelectedIds.length <= 1
+          ? t("Restart client")
+          : t("Restart clients ({{count}})", { count: launchedSelectedIds.length }),
+      action: async () => {
+        await store.restartRobloxClients(launchedSelectedIds);
+      },
+    });
+
     items.push({ separator: true, label: "" });
   }
 

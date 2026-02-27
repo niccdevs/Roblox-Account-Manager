@@ -141,6 +141,8 @@ export interface StoreValue {
 
   joinServer: (userId: number) => Promise<void>;
   launchMultiple: (userIds: number[]) => Promise<void>;
+  restartRobloxClients: (userIds: number[]) => Promise<void>;
+  focusRobloxClient: (userId: number) => Promise<boolean>;
   killAllRobloxProcesses: () => Promise<void>;
   startBottingMode: (config: BottingStartConfig) => Promise<void>;
   stopBottingMode: (closeBotAccounts: boolean) => Promise<void>;
@@ -805,6 +807,49 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  async function focusRobloxClient(userId: number): Promise<boolean> {
+    try {
+      return await invoke<boolean>("focus_roblox_window", { userId });
+    } catch (e) {
+      setError(String(e));
+      throw e;
+    }
+  }
+
+  async function restartRobloxClients(userIds: number[]) {
+    const uniqueIds = Array.from(new Set(userIds));
+    const launchedIds = uniqueIds.filter((userId) => launchedByProgram.has(userId));
+    if (launchedIds.length === 0) {
+      addToast(tr("No launched Roblox clients selected"));
+      return;
+    }
+
+    let closeFailures = 0;
+    for (const userId of launchedIds) {
+      try {
+        const closed = await invoke<boolean>("cmd_kill_roblox", { userId });
+        if (!closed) closeFailures += 1;
+      } catch {
+        closeFailures += 1;
+      }
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    if (closeFailures > 0) {
+      addToast(tr("Some clients could not be closed before restart"));
+    }
+
+    if (launchedIds.length === 1) {
+      await joinServer(launchedIds[0]);
+      return;
+    }
+
+    try {
+      await launchMultiple(launchedIds);
+    } catch {
+    }
+  }
+
   async function refreshBottingStatus() {
     try {
       const status = await invoke<BottingStatus>("get_botting_mode_status");
@@ -1449,6 +1494,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     launchedByProgram,
     joinServer,
     launchMultiple,
+    restartRobloxClients,
+    focusRobloxClient,
     killAllRobloxProcesses,
     startBottingMode,
     stopBottingMode,
