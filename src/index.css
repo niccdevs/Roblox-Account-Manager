@@ -320,8 +320,267 @@ body {
   color: var(--panel-fg) !important;
 }
 
+.restricted-fluid-bg {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  isolation: isolate;
+  background: var(--app-bg);
+}
+
+.restricted-fluid-svg {
+  position: absolute;
+  inset: -26%;
+  width: 152%;
+  height: 152%;
+  transform: translate3d(0, 0, 0);
+  transform-origin: 50% 50%;
+}
+
+.restricted-fluid-svg-main {
+  opacity: 0.96;
+  filter: saturate(1.28) contrast(1.09) brightness(1.05);
+  mix-blend-mode: screen;
+  animation: restricted-fluid-pan 30s cubic-bezier(0.42, 0, 0.29, 1) infinite alternate;
+}
+
+.restricted-fluid-caustic {
+  position: absolute;
+  inset: -24%;
+  background:
+    conic-gradient(from 36deg at 28% 26%, transparent 0deg, var(--accent-soft) 58deg, transparent 132deg, var(--panel-soft) 210deg, transparent 304deg, var(--accent-soft) 360deg),
+    radial-gradient(42% 34% at 70% 38%, var(--accent-soft), transparent 66%),
+    radial-gradient(44% 38% at 18% 70%, var(--panel-soft), transparent 70%);
+  mix-blend-mode: soft-light;
+  filter: blur(20px) saturate(1.35);
+  opacity: 0.74;
+  animation: restricted-caustic-shift 24s ease-in-out infinite alternate;
+}
+
+.restricted-fluid-ring {
+  position: absolute;
+  border-radius: 9999px;
+  border: 1px solid var(--accent-soft);
+  mix-blend-mode: screen;
+  opacity: 0.34;
+  filter: blur(0.2px);
+}
+
+.restricted-fluid-ring-a {
+  width: min(64vw, 980px);
+  height: min(64vw, 980px);
+  left: -20vw;
+  top: -28vw;
+  animation: restricted-ring-drift-a 22s ease-in-out infinite alternate;
+}
+
+.restricted-fluid-ring-b {
+  width: min(58vw, 860px);
+  height: min(58vw, 860px);
+  right: -18vw;
+  bottom: -24vw;
+  border-color: var(--panel-soft);
+  opacity: 0.28;
+  animation: restricted-ring-drift-b 26s ease-in-out infinite alternate;
+}
+
+.restricted-fluid-glow {
+  position: absolute;
+  border-radius: 9999px;
+  mix-blend-mode: screen;
+  pointer-events: none;
+  transform: translate3d(0, 0, 0);
+}
+
+.restricted-fluid-glow-a {
+  width: min(54vw, 820px);
+  height: min(54vw, 820px);
+  left: -10vw;
+  top: -20vw;
+  background: radial-gradient(circle at 40% 35%, var(--accent-color) 0%, var(--accent-soft) 32%, transparent 74%);
+  filter: blur(76px);
+  opacity: 0.48;
+  animation: restricted-glow-drift-a 18s ease-in-out infinite alternate;
+}
+
+.restricted-fluid-glow-b {
+  width: min(60vw, 940px);
+  height: min(60vw, 940px);
+  right: -16vw;
+  bottom: -26vw;
+  background: radial-gradient(circle at 50% 50%, var(--panel-soft) 0%, var(--accent-soft) 42%, transparent 78%);
+  filter: blur(92px);
+  opacity: 0.52;
+  animation: restricted-glow-drift-b 22s ease-in-out infinite alternate;
+}
+
+.restricted-fluid-grain {
+  position: absolute;
+  inset: -30%;
+  background-image:
+    radial-gradient(rgba(255, 255, 255, 0.11) 0.7px, transparent 0.9px),
+    radial-gradient(rgba(255, 255, 255, 0.08) 0.6px, transparent 0.9px);
+  background-size: 3px 3px, 5px 5px;
+  background-position: 0 0, 40px 30px;
+  mix-blend-mode: soft-light;
+  opacity: 0.24;
+  animation: restricted-grain-shift 7s steps(10) infinite;
+}
+
+.restricted-fluid-vignette {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(132% 98% at 52% 42%, rgba(0, 0, 0, 0) 30%, rgba(0, 0, 0, 0.26) 66%, var(--app-bg) 88%),
+    linear-gradient(180deg, rgba(0, 0, 0, 0.04), rgba(0, 0, 0, 0.28));
+  opacity: 0.96;
+}
+
+.restricted-auth-shell {
+  animation: restricted-auth-float 12s ease-in-out infinite;
+}
+
+.restricted-auth-title {
+  text-shadow: 0 6px 22px rgba(0, 0, 0, 0.35);
+}
+
+.restricted-auth-subtitle {
+  letter-spacing: 0.01em;
+}
+
+.restricted-auth-card {
+  position: relative;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02) 34%, rgba(255, 255, 255, 0)),
+    var(--panel-bg);
+  box-shadow:
+    0 36px 88px rgba(0, 0, 0, 0.46),
+    inset 0 1px 0 rgba(255, 255, 255, 0.09);
+}
+
+.restricted-auth-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(132deg, var(--accent-soft), rgba(255, 255, 255, 0.16), transparent 62%);
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  opacity: 0.9;
+}
+
+.restricted-auth-input {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.01)),
+    var(--textboxes-bg);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07);
+}
+
+.restricted-auth-input:focus {
+  box-shadow:
+    0 0 0 2px var(--input-focus),
+    0 0 0 1px var(--accent-strong),
+    0 0 44px var(--accent-soft),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.restricted-auth-btn {
+  position: relative;
+  overflow: hidden;
+  border-color: var(--accent-strong);
+  color: var(--panel-fg);
+  background:
+    linear-gradient(132deg, var(--accent-soft), transparent 62%),
+    var(--buttons-bg);
+  box-shadow:
+    0 14px 30px var(--accent-soft),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22);
+}
+
+.restricted-auth-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  filter: brightness(1.1) saturate(1.1);
+}
+
+.restricted-auth-btn:active:not(:disabled) {
+  transform: translateY(0) scale(0.985);
+}
+
+.restricted-auth-btn::before {
+  content: "";
+  position: absolute;
+  inset: -140% -30%;
+  background: linear-gradient(112deg, transparent 42%, rgba(255, 255, 255, 0.44) 50%, transparent 58%);
+  transform: translateX(-56%) rotate(9deg);
+  animation: restricted-btn-sheen 4.4s ease-in-out infinite;
+  pointer-events: none;
+}
+
 :root[data-show-headers="false"] .theme-group-header {
   display: none !important;
+}
+
+@keyframes restricted-fluid-pan {
+  0% { transform: translate3d(-7%, -5%, 0) scale(1.07) rotate(-1.2deg); }
+  50% { transform: translate3d(4%, 5%, 0) scale(1.13) rotate(1deg); }
+  100% { transform: translate3d(-4%, 3%, 0) scale(1.1) rotate(-0.8deg); }
+}
+
+@keyframes restricted-caustic-shift {
+  0% { transform: translate3d(-3%, -2%, 0) rotate(0deg) scale(1.03); }
+  50% { transform: translate3d(2.4%, 4%, 0) rotate(6deg) scale(1.1); }
+  100% { transform: translate3d(-2%, 2%, 0) rotate(11deg) scale(1.06); }
+}
+
+@keyframes restricted-ring-drift-a {
+  0% { transform: translate3d(0, 0, 0) rotate(0deg) scale(1); }
+  50% { transform: translate3d(6%, 4%, 0) rotate(8deg) scale(1.05); }
+  100% { transform: translate3d(-3%, 8%, 0) rotate(15deg) scale(1.02); }
+}
+
+@keyframes restricted-ring-drift-b {
+  0% { transform: translate3d(0, 0, 0) rotate(0deg) scale(1); }
+  50% { transform: translate3d(-5%, -5%, 0) rotate(-7deg) scale(1.06); }
+  100% { transform: translate3d(4%, -8%, 0) rotate(-12deg) scale(1.01); }
+}
+
+@keyframes restricted-glow-drift-a {
+  0% { transform: translate3d(0, 0, 0) scale(1); opacity: 0.44; }
+  50% { transform: translate3d(6%, 6%, 0) scale(1.12); opacity: 0.58; }
+  100% { transform: translate3d(-4%, 2%, 0) scale(1.05); opacity: 0.5; }
+}
+
+@keyframes restricted-glow-drift-b {
+  0% { transform: translate3d(0, 0, 0) scale(1); opacity: 0.46; }
+  50% { transform: translate3d(-6%, -3%, 0) scale(1.14); opacity: 0.62; }
+  100% { transform: translate3d(2%, -6%, 0) scale(1.04); opacity: 0.54; }
+}
+
+@keyframes restricted-grain-shift {
+  0% { transform: translate3d(0, 0, 0); }
+  25% { transform: translate3d(-1.4%, 0.9%, 0); }
+  50% { transform: translate3d(1.2%, -1.6%, 0); }
+  75% { transform: translate3d(2%, 1.1%, 0); }
+  100% { transform: translate3d(0, 0, 0); }
+}
+
+@keyframes restricted-auth-float {
+  0% { transform: translate3d(0, 0, 0); }
+  50% { transform: translate3d(0, -4px, 0); }
+  100% { transform: translate3d(0, 0, 0); }
+}
+
+@keyframes restricted-btn-sheen {
+  0% { transform: translateX(-56%) rotate(9deg); opacity: 0; }
+  12% { opacity: 0.62; }
+  24% { transform: translateX(56%) rotate(9deg); opacity: 0; }
+  100% { transform: translateX(56%) rotate(9deg); opacity: 0; }
 }
 
 @keyframes fade-in {
@@ -415,6 +674,27 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .restricted-fluid-svg,
+  .restricted-fluid-caustic,
+  .restricted-fluid-ring,
+  .restricted-fluid-glow,
+  .restricted-fluid-grain {
+    animation: none !important;
+  }
+
+  .restricted-auth-shell {
+    animation: none !important;
+  }
+
+  .restricted-auth-btn::before {
+    animation: none !important;
+    display: none;
+  }
+
+  .restricted-fluid-svg animate {
+    display: none;
+  }
+
   .animate-tooltip-pop {
     animation: none !important;
   }
