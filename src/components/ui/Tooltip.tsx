@@ -129,8 +129,8 @@ export function Tooltip({
                 top: pos.y,
                 transform:
                   pos.side === "top"
-                    ? "translate(-50%, calc(-100% - 10px))"
-                    : "translate(-50%, 10px)",
+                    ? "translate(-50%, calc(-100% - 8px))"
+                    : "translate(-50%, 8px)",
               }}
             >
               <div
@@ -141,8 +141,8 @@ export function Tooltip({
                 ].join(" ")}
                 style={{
                   maxWidth,
-                  // The animation comes from the anchor direction.
-                  ["--tt-from-y" as never]: pos.side === "top" ? "10px" : "-10px",
+                  willChange: "transform, opacity",
+                  ["--tt-from-y" as never]: pos.side === "top" ? "6px" : "-6px",
                 }}
                 role="tooltip"
               >
