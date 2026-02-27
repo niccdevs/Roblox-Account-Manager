@@ -21,15 +21,15 @@ const manifest = JSON.parse(
 
 manifest.version = version;
 
-if (!manifest.notes) {
-  const releaseJson = execSync(`gh release view "${tag}" --repo "${repo}" --json body,publishedAt`, {
-    encoding: "utf-8",
-  });
-  const releaseData = JSON.parse(releaseJson);
-  manifest.notes = releaseData.body || "";
-  if (!manifest.pub_date) {
-    manifest.pub_date = releaseData.publishedAt || new Date().toISOString();
-  }
+const releaseJson = execSync(`gh release view "${tag}" --repo "${repo}" --json body,publishedAt`, {
+  encoding: "utf-8",
+});
+const releaseData = JSON.parse(releaseJson);
+
+manifest.notes = releaseData.body || manifest.notes || "";
+
+if (!manifest.pub_date) {
+  manifest.pub_date = releaseData.publishedAt || new Date().toISOString();
 }
 
 const token = process.env.GH_TOKEN || process.env.GITHUB_TOKEN;

@@ -219,11 +219,26 @@ function renderMarkdown(src: string): React.ReactNode[] {
         contentLines.pop();
       }
 
-      const paragraphs = contentLines
+      let paragraphs = contentLines
         .join("\n")
         .split(/\n{2,}/)
         .map((part) => part.split("\n").map((entry) => entry.trim()).join(" ").trim())
         .filter(Boolean);
+
+      if (type && paragraphs.length === 0) {
+        const fallbackLines: string[] = [];
+        while (i < lines.length) {
+          const candidate = lines[i].trimEnd();
+          if (!candidate.trim()) break;
+          if (isBlockStart(candidate)) break;
+          if (htmlTag.test(candidate)) break;
+          fallbackLines.push(candidate.trim());
+          i += 1;
+        }
+        if (fallbackLines.length > 0) {
+          paragraphs = [fallbackLines.join(" ")];
+        }
+      }
 
       if (type && type in styleByType) {
         const style = styleByType[type as keyof typeof styleByType];
@@ -458,7 +473,36 @@ export function UpdateDialog() {
 
     const nextNotes = info?.body?.trim() ? info.body : null;
     setReleaseNotes(nextNotes);
-  }, [open, info?.body]);
+
+    if (!info?.version) return;
+
+    const hasDetailedSections = !!nextNotes
+      && /(^|\n)##\s+What's Changed\b/i.test(nextNotes)
+      && /(^|\n)##\s+Contributors\b/i.test(nextNotes);
+
+    if (hasDetailedSections) return;
+
+    const controller = new AbortController();
+
+    fetch(`https://api.github.com/repos/niccsprojects/roblox-account-manager/releases/tags/v${info.version}`, {
+      signal: controller.signal,
+      headers: {
+        Accept: "application/vnd.github+json",
+      },
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        const remoteBody = typeof data?.body === "string" ? data.body.trim() : "";
+        if (remoteBody) {
+          setReleaseNotes(remoteBody);
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      controller.abort();
+    };
+  }, [open, info?.body, info?.version]);
 
   const startDownload = useCallback(async () => {
     setPhase("downloading");
