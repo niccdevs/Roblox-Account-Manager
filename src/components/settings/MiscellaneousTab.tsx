@@ -138,6 +138,12 @@ export function MiscellaneousTab({
             label="Auto-share launch fields with Sidebar"
             description="Keeps Place ID, Job ID, and JoinData synced between Sidebar and Botting Mode"
           />
+          <Toggle
+            checked={s.get("General", "BottingDualPanelDialog", "true") === "true"}
+            onChange={(v) => s.setBool("General", "BottingDualPanelDialog", v)}
+            label="Use dual-panel Botting dialog"
+            description="Shows setup and live cycle side-by-side with a 1/3 + 2/3 layout"
+          />
           <Divider />
         </>
       )}
