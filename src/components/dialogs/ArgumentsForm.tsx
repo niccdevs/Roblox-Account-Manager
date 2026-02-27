@@ -17,7 +17,6 @@ export function ArgumentsForm({
   const store = useStore();
   const [isTeleport, setIsTeleport] = useState(false);
   const [useOldJoin, setUseOldJoin] = useState(false);
-  const [version, setVersion] = useState("");
   const panelRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{
     top: number;
@@ -32,7 +31,6 @@ export function ArgumentsForm({
     if (s?.Developer) {
       setIsTeleport(s.Developer.IsTeleport === "true");
       setUseOldJoin(s.Developer.UseOldJoin === "true");
-      setVersion(s.Developer.CurrentVersion || "");
     }
     function handleClick(e: MouseEvent) {
       if (
@@ -124,15 +122,6 @@ export function ArgumentsForm({
     invoke("update_setting", { section: "Developer", key, value: String(val) }).catch(() => {});
   }
 
-  function handleSetVersion() {
-    invoke("update_setting", {
-      section: "Developer",
-      key: "CurrentVersion",
-      value: version,
-    }).catch(() => {});
-    store.addToast(t("Version set"));
-  }
-
   const panel = (
     <div
       ref={panelRef}
@@ -167,21 +156,6 @@ export function ArgumentsForm({
         <span className="text-xs text-zinc-300">{t("Use Old Join Method")}</span>
       </label>
 
-      <div className="flex items-center gap-2">
-        <input
-          value={version}
-          onChange={(e) => setVersion(e.target.value)}
-          placeholder={t("Roblox Version")}
-          className="flex-1 px-2.5 py-1.5 bg-zinc-800/50 border border-zinc-700/50 rounded-lg text-xs text-zinc-300 font-mono focus:outline-none focus:border-zinc-600 transition-colors"
-          spellCheck={false}
-        />
-        <button
-          onClick={handleSetVersion}
-          className="px-2.5 py-1.5 bg-zinc-800 border border-zinc-700/50 rounded-lg text-xs text-zinc-300 hover:bg-zinc-700 transition-colors"
-        >
-          {t("Set")}
-        </button>
-      </div>
     </div>
   );
 

@@ -275,13 +275,6 @@ export function MiscellaneousTab({
         label="Shuffle Job ID"
         description="Randomize which server instance to join"
       />
-      <NumberField
-        value={s.getNumber("General", "ShufflePageCount", 5)}
-        onChange={(v) => s.setNumber("General", "ShufflePageCount", v)}
-        label="Shuffle Page Count"
-        min={1}
-        max={100}
-      />
 
       <Divider />
       <SectionLabel>Other</SectionLabel>

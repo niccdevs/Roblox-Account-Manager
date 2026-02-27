@@ -125,12 +125,6 @@ export function GeneralTab({ s }: { s: UseSettingsReturn }) {
         suffix="sec"
       />
       <Toggle
-        checked={s.getBool("General", "SavePasswords")}
-        onChange={(v) => s.setBool("General", "SavePasswords", v)}
-        label="Save Passwords"
-        description="Store passwords when logging in via user:pass"
-      />
-      <Toggle
         checked={s.getBool("General", "DisableAgingAlert")}
         onChange={(v) => s.setBool("General", "DisableAgingAlert", v)}
         label="Disable Aging Alert"
@@ -165,14 +159,6 @@ export function GeneralTab({ s }: { s: UseSettingsReturn }) {
         onChange={(v) => s.setBool("General", "HideRobuxWhenHidden", v)}
         label="Hide Robux When Hidden"
         description="Mask the Robux balance in the sidebar when names are hidden"
-      />
-
-      <Divider />
-
-      <Toggle
-        checked={s.getBool("General", "ShuffleChoosesLowestServer")}
-        onChange={(v) => s.setBool("General", "ShuffleChoosesLowestServer", v)}
-        label="Shuffle Chooses Lowest Server"
       />
 
       <Divider />

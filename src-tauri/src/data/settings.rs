@@ -232,19 +232,13 @@ impl SettingsStore {
             ("AsyncJoin", "false", None),
             ("DisableAgingAlert", "false", None),
             ("HideUsernames", "false", None),
-            ("SavePasswords", "true", None),
             (
                 "ServerRegionFormat",
                 "<city>, <countryCode>",
                 Some("Visit http://ip-api.com/json/1.1.1.1 to see available format options"),
             ),
             ("MaxRecentGames", "8", None),
-            ("ShuffleChoosesLowestServer", "false", None),
-            ("ShufflePageCount", "5", None),
-            ("IPApiLink", "http://ip-api.com/json/<ip>", None),
             ("Language", "en", None),
-            ("WindowScale", "1.0", None),
-            ("ScaleFonts", "true", None),
             ("AutoCookieRefresh", "true", None),
             ("AutoCloseLastProcess", "false", None),
             ("AutoCloseRobloxForMultiRbx", "false", None),
@@ -262,7 +256,6 @@ impl SettingsStore {
             ("ClientWindowWidth", "1280", None),
             ("ClientWindowHeight", "720", None),
             ("StartRobloxMinimized", "false", None),
-            ("UseCefSharpBrowser", "false", None),
             ("StartOnPCStartup", "false", None),
             ("MinimizeToTray", "false", None),
             ("RestrictedBackgroundStyle", "warp", None),
@@ -339,9 +332,6 @@ impl SettingsStore {
         if !developer.exists("UseOldJoin") {
             developer.set("UseOldJoin", "false", None);
         }
-        if !developer.exists("CurrentVersion") {
-            developer.set("CurrentVersion", "", None);
-        }
 
         let ws_defaults: &[(&str, &str)] = &[
             ("WebServerPort", "7963"),
@@ -363,10 +353,8 @@ impl SettingsStore {
         let ac_defaults: &[(&str, &str)] = &[
             ("AllowExternalConnections", "false"),
             ("StartOnLaunch", "false"),
-            ("SaveOutput", "false"),
             ("RelaunchDelay", "60"),
             ("LauncherDelay", "9"),
-            ("LauncherDelayNumber", "9"),
             ("NexusPort", "5242"),
             ("AutoMinimizeEnabled", "false"),
             ("AutoCloseEnabled", "false"),
@@ -384,15 +372,6 @@ impl SettingsStore {
                 account_control.set(key, value, None);
             }
         }
-        if !account_control.exists("LauncherDelay") && account_control.exists("LauncherDelayNumber")
-        {
-            if let Some(val) = account_control
-                .get("LauncherDelayNumber")
-                .map(|v| v.to_string())
-            {
-                account_control.set("LauncherDelay", &val, None);
-            }
-        }
 
         let watcher_defaults: &[(&str, &str)] = &[
             ("Enabled", "false"),
@@ -401,8 +380,6 @@ impl SettingsStore {
             ("ExitIfNoConnection", "false"),
             ("NoConnectionTimeout", "60"),
             ("ExitOnBeta", "false"),
-            ("VerifyDataModel", "true"),
-            ("IgnoreExistingProcesses", "true"),
             ("CloseRbxMemory", "false"),
             ("MemoryLowValue", "200"),
             ("CloseRbxWindowTitle", "false"),

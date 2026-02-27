@@ -57,18 +57,6 @@ export function WatcherTab({ s }: { s: UseSettingsReturn }) {
         label="Exit on Beta"
         description="Close if a beta version of Roblox is detected"
       />
-      <Toggle
-        checked={s.getBool("Watcher", "VerifyDataModel")}
-        onChange={(v) => s.setBool("Watcher", "VerifyDataModel", v)}
-        label="Data Model Verification"
-        description="Verify that the closing signal from the game is valid"
-      />
-      <Toggle
-        checked={s.getBool("Watcher", "IgnoreExistingProcesses")}
-        onChange={(v) => s.setBool("Watcher", "IgnoreExistingProcesses", v)}
-        label="Ignore Existing Processes"
-        description="Skip Roblox processes that were running before the watcher started"
-      />
 
       <Divider />
       <SectionLabel>Memory & Window</SectionLabel>
