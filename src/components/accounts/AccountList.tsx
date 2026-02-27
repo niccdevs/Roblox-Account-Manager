@@ -116,8 +116,15 @@ export function AccountList() {
     const list = listRef.current;
     if (!list) return;
 
-    const target = e.target as HTMLElement;
-    if (target.closest("[data-account-row='true']")) return;
+    const target = e.target;
+    if (!(target instanceof Element)) return;
+
+    const rowTarget = target.closest<HTMLElement>("[data-account-row='true']");
+    if (rowTarget) {
+      const onRowBackground = target === rowTarget;
+      const onRowMarqueeSurface = target.closest("[data-row-marquee-surface='true']") !== null;
+      if (!onRowBackground && !onRowMarqueeSurface) return;
+    }
 
     e.preventDefault();
     list.focus();

@@ -159,7 +159,7 @@ export function AccountRow({ account }: { account: Account }) {
         )}
       </div>
 
-      <div className="flex-1 min-w-0">
+      <div data-row-marquee-surface="true" className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5 min-w-0">
           {showPresence && presenceType >= 1 && (
             <Tooltip content={presenceMeta.label} side="bottom">
