@@ -917,6 +917,7 @@ struct BottingAccountRuntime {
     user_id: i64,
     is_player: bool,
     disconnected: bool,
+    manual_restart_pending: bool,
     phase: &'static str,
     retry_count: u32,
     next_restart_at_ms: Option<i64>,
@@ -1629,9 +1630,17 @@ async fn run_botting_session(
                         } else {
                             "disconnected"
                         };
+                        entry.manual_restart_pending = false;
                         entry.next_restart_at_ms = None;
                         entry.player_grace_until_ms = None;
                         skip_for_player = true;
+                    } else if entry.manual_restart_pending {
+                        let due = entry.next_restart_at_ms.unwrap_or(now);
+                        if now >= due {
+                            entry.phase = "restarting";
+                            entry.last_error = None;
+                            should_launch = true;
+                        }
                     } else if entry.is_player {
                         if tracker.get_pid(uid).is_some() {
                             entry.phase = "running-player";
@@ -1729,10 +1738,20 @@ async fn run_botting_session(
                         auth429_cooldowns.remove(&uid);
                         entry.retry_count = 0;
                         entry.last_error = None;
-                        entry.phase = "running";
                         entry.player_grace_until_ms = None;
-                        entry.next_restart_at_ms =
-                            Some(now_after + (cfg.interval_minutes as i64 * 60_000));
+                        if is_player {
+                            entry.is_player = true;
+                            entry.disconnected = false;
+                            entry.phase = "running-player";
+                            entry.next_restart_at_ms = None;
+                        } else {
+                            entry.is_player = false;
+                            entry.disconnected = false;
+                            entry.phase = "running";
+                            entry.next_restart_at_ms =
+                                Some(now_after + (cfg.interval_minutes as i64 * 60_000));
+                        }
+                        entry.manual_restart_pending = false;
                     } else {
                         entry.retry_count = entry.retry_count.saturating_add(1);
                         let mut delay = backoff_delay_seconds(
@@ -1757,6 +1776,7 @@ async fn run_botting_session(
                         entry.phase = "retry-backoff";
                         entry.last_error = launch_error.clone();
                         entry.next_restart_at_ms = Some(now_after + delay * 1000);
+                        entry.is_player = is_player;
                     }
                 }
             }
@@ -1890,6 +1910,7 @@ async fn start_botting_mode(
                 user_id: *uid,
                 is_player,
                 disconnected: false,
+                manual_restart_pending: false,
                 phase: if is_player {
                     "queued-player"
                 } else {
@@ -2063,6 +2084,7 @@ fn add_botting_accounts(
                 user_id: uid,
                 is_player: false,
                 disconnected: false,
+                manual_restart_pending: false,
                 phase,
                 retry_count: 0,
                 next_restart_at_ms,
@@ -2121,6 +2143,7 @@ fn set_botting_player_accounts(
         if is_player {
             entry.is_player = true;
             entry.disconnected = false;
+            entry.manual_restart_pending = false;
             entry.retry_count = 0;
             entry.last_error = None;
             entry.player_grace_until_ms = None;
@@ -2135,6 +2158,7 @@ fn set_botting_player_accounts(
 
         if was_player && !is_player {
             entry.is_player = false;
+            entry.manual_restart_pending = false;
             entry.retry_count = 0;
             entry.last_error = None;
             if tracker.get_pid(entry.user_id).is_some() {
@@ -2196,21 +2220,17 @@ fn botting_account_action(
                 | BottingAccountAction::RestartLoop
         );
     let should_restart_loop = matches!(action, BottingAccountAction::RestartLoop);
-    let keep_in_loop = matches!(action, BottingAccountAction::RestartLoop);
 
     let tracker = platform::windows::tracker();
 
     let (is_player, interval_ms) = {
-        let mut cfg = session.config.lock().map_err(|e| e.to_string())?;
+        let cfg = session.config.lock().map_err(|e| e.to_string())?;
         if !cfg.user_ids.contains(&user_id) {
             return Err("Account is not part of the current botting session".into());
         }
         let is_player_account = cfg.player_user_ids.contains(&user_id);
         if should_disconnect && is_player_account {
             return Err("Player accounts cannot be disconnected; remove them from Player Accounts first".into());
-        }
-        if keep_in_loop {
-            cfg.player_user_ids.remove(&user_id);
         }
         (
             cfg.player_user_ids.contains(&user_id),
@@ -2234,11 +2254,8 @@ fn botting_account_action(
         entry.last_error = None;
         entry.player_grace_until_ms = None;
         entry.is_player = is_player;
-        entry.disconnected = if keep_in_loop {
-            false
-        } else {
-            should_disconnect
-        };
+        entry.disconnected = should_disconnect;
+        entry.manual_restart_pending = should_restart_loop;
 
         if entry.disconnected {
             entry.next_restart_at_ms = None;
@@ -2247,6 +2264,9 @@ fn botting_account_action(
             } else {
                 "disconnected"
             };
+        } else if should_restart_loop {
+            entry.next_restart_at_ms = Some(now);
+            entry.phase = "restarting";
         } else if is_player {
             entry.next_restart_at_ms = None;
             entry.phase = if !should_close && tracker.get_pid(user_id).is_some() {
@@ -2255,9 +2275,6 @@ fn botting_account_action(
                 "queued-player"
             };
         } else if matches!(action, BottingAccountAction::Close) && was_disconnected {
-            entry.next_restart_at_ms = Some(now);
-            entry.phase = "restarting";
-        } else if should_restart_loop {
             entry.next_restart_at_ms = Some(now);
             entry.phase = "restarting";
         } else {

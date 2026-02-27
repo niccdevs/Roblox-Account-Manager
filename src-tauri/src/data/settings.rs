@@ -268,6 +268,7 @@ impl SettingsStore {
             ("BottingEnabled", "false", None),
             ("BottingUseSharedClientProfile", "true", None),
             ("BottingAutoShareLaunchFields", "true", None),
+            ("BottingDualPanelDialog", "true", None),
             ("BottingPlayerUnlockFPS", "false", None),
             ("BottingPlayerMaxFPSValue", "120", None),
             ("BottingPlayerCustomClientSettings", "", None),
