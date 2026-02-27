@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { enable, disable } from "@tauri-apps/plugin-autostart";
 import type { UseSettingsReturn } from "../../hooks/useSettings";
 import { Toggle } from "../ui/Toggle";
@@ -9,9 +10,22 @@ import { WarningBadge } from "../ui/WarningBadge";
 import { Select } from "../ui/Select";
 import i18n, { normalizeLanguage } from "../../i18n";
 import { useTr } from "../../i18n/text";
+import { useStore } from "../../store";
 
 export function GeneralTab({ s }: { s: UseSettingsReturn }) {
   const t = useTr();
+  const store = useStore();
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
+
+  const handleManualUpdateCheck = async () => {
+    if (checkingUpdate) return;
+    setCheckingUpdate(true);
+    try {
+      await store.checkForUpdates(true);
+    } finally {
+      setCheckingUpdate(false);
+    }
+  };
 
   return (
     <div className="space-y-0">
@@ -38,9 +52,29 @@ export function GeneralTab({ s }: { s: UseSettingsReturn }) {
       <Toggle
         checked={s.getBool("General", "CheckForUpdates")}
         onChange={(v) => s.setBool("General", "CheckForUpdates", v)}
-        label="Check for Updates"
+        label="Auto Check for Updates"
         description="Automatically check for new versions on launch"
       />
+      <div className="px-1 py-3">
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-zinc-800/70 bg-zinc-900/35 px-3 py-2">
+          <div className="min-w-0">
+            <div className="text-[13px] text-zinc-200">{t("Manual Update Check")}</div>
+            <div className="mt-0.5 text-[11px] text-zinc-500">
+              {t("Run an update check immediately")}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              void handleManualUpdateCheck();
+            }}
+            disabled={checkingUpdate}
+            className="shrink-0 rounded-lg border border-zinc-700/70 bg-zinc-800 px-3 py-1.5 text-[12px] font-medium text-zinc-200 transition-colors hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {checkingUpdate ? t("Checking...") : t("Check Now")}
+          </button>
+        </div>
+      </div>
       <Toggle
         checked={s.getBool("General", "AsyncJoin")}
         onChange={(v) => s.setBool("General", "AsyncJoin", v)}
