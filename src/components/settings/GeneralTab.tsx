@@ -16,6 +16,13 @@ export function GeneralTab({ s }: { s: UseSettingsReturn }) {
   const t = useTr();
   const store = useStore();
   const [checkingUpdate, setCheckingUpdate] = useState(false);
+  const restrictedBackgroundStyle = (() => {
+    const style = s.get("General", "RestrictedBackgroundStyle", "warp");
+    if (style === "bubbles" || style === "warp" || style === "waves") {
+      return style;
+    }
+    return "warp";
+  })();
 
   const handleManualUpdateCheck = async () => {
     if (checkingUpdate) return;
@@ -75,6 +82,33 @@ export function GeneralTab({ s }: { s: UseSettingsReturn }) {
           </button>
         </div>
       </div>
+
+      <div className="flex items-center gap-3 py-2 px-1">
+        <div className="min-w-0">
+          <div className="text-[13px] text-zinc-300">{t("Restricted Screen Style")}</div>
+          <div className="mt-0.5 text-[11px] text-zinc-500">
+            {t("Choose the animated background used on the password screen")}
+          </div>
+        </div>
+        <div className="ml-auto min-w-[220px]">
+          <Select
+            value={restrictedBackgroundStyle}
+            options={[
+              { value: "warp", label: t("Fluid Warp (Default)") },
+              { value: "waves", label: t("Waves & Lines") },
+              { value: "bubbles", label: t("Fluid Bubbles") },
+            ]}
+            onChange={(value) => {
+              s.set(
+                "General",
+                "RestrictedBackgroundStyle",
+                value === "bubbles" || value === "warp" || value === "waves" ? value : "warp"
+              );
+            }}
+          />
+        </div>
+      </div>
+
       <Toggle
         checked={s.getBool("General", "AsyncJoin")}
         onChange={(v) => s.setBool("General", "AsyncJoin", v)}

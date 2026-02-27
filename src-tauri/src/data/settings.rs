@@ -265,6 +265,7 @@ impl SettingsStore {
             ("UseCefSharpBrowser", "false", None),
             ("StartOnPCStartup", "false", None),
             ("MinimizeToTray", "false", None),
+            ("RestrictedBackgroundStyle", "warp", None),
             ("BottingEnabled", "false", None),
             ("BottingUseSharedClientProfile", "true", None),
             ("BottingAutoShareLaunchFields", "true", None),
