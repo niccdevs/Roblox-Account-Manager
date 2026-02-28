@@ -304,6 +304,7 @@ pub fn run() {
             get_nexus_elements,
             set_nexus_element_value,
             export_nexus_lua,
+            open_repo_url,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

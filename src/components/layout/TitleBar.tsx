@@ -54,7 +54,11 @@ export function TitleBar({ controlsHidden = false }: { controlsHidden?: boolean 
       >
         <Tooltip content={t("Open GitHub repository")} side="bottom" delayMs={500}>
           <button
-            onClick={() => window.open(repoUrl, "_blank")}
+            onClick={() => {
+              void invoke("open_repo_url").catch(() => {
+                window.open(repoUrl, "_blank");
+              });
+            }}
             className="h-9 w-11 flex items-center justify-center theme-muted hover:text-[var(--panel-fg)] hover:bg-[var(--panel-soft)] transition-colors"
           >
             <Github size={12} strokeWidth={1.6} />
