@@ -1,12 +1,13 @@
 import { useState, useEffect, useCallback } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { invoke } from "@tauri-apps/api/core";
-import { Minus, Square, Copy, X } from "lucide-react";
+import { Minus, Square, Copy, X, Github } from "lucide-react";
 import { Tooltip } from "../ui/Tooltip";
 import { useTr } from "../../i18n/text";
 
 export function TitleBar({ controlsHidden = false }: { controlsHidden?: boolean }) {
   const t = useTr();
+  const repoUrl = "https://github.com/niccsprojects/Roblox-Account-Manager";
   const [maximized, setMaximized] = useState(false);
   const [minimizeToTray, setMinimizeToTray] = useState(false);
   const appWindow = getCurrentWindow();
@@ -48,9 +49,17 @@ export function TitleBar({ controlsHidden = false }: { controlsHidden?: boolean 
           "flex items-center shrink-0 overflow-hidden transition-all duration-250 ease-out",
           controlsHidden
             ? "max-w-0 opacity-0 scale-95 -translate-y-1 pointer-events-none"
-            : "max-w-[132px] opacity-100 scale-100 translate-y-0",
+            : "max-w-[176px] opacity-100 scale-100 translate-y-0",
         ].join(" ")}
       >
+        <Tooltip content={t("Open GitHub repository")} side="bottom" delayMs={500}>
+          <button
+            onClick={() => window.open(repoUrl, "_blank")}
+            className="h-9 w-11 flex items-center justify-center theme-muted hover:text-[var(--panel-fg)] hover:bg-[var(--panel-soft)] transition-colors"
+          >
+            <Github size={12} strokeWidth={1.6} />
+          </button>
+        </Tooltip>
         <Tooltip content={t("Minimize")} side="bottom" delayMs={500}>
           <button
             onClick={() => appWindow.minimize()}

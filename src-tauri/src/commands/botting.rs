@@ -85,8 +85,8 @@ async fn launch_account_for_cycle(
             }
         }
     }
-    let ticket =
-        ticket.ok_or_else(|| format!("Failed to get auth ticket for launch: {}", last_ticket_err))?;
+    let ticket = ticket
+        .ok_or_else(|| format!("Failed to get auth ticket for launch: {}", last_ticket_err))?;
     let private_join = resolve_private_join(&cookie, place_id, &resolved_launch).await?;
 
     let pids_before = windows::get_roblox_pids();
@@ -253,7 +253,9 @@ async fn run_botting_session(
                         .map(|e| is_429_related_error(e))
                         .unwrap_or(false);
                     if is_429 {
-                        delay = delay.max(45).max((cfg.launch_delay_seconds as i64).saturating_mul(2));
+                        delay = delay
+                            .max(45)
+                            .max((cfg.launch_delay_seconds as i64).saturating_mul(2));
                         auth429_cooldowns.insert(
                             *uid,
                             std::time::Instant::now()
@@ -308,6 +310,8 @@ async fn run_botting_session(
                             "disconnected"
                         };
                         entry.manual_restart_pending = false;
+                        entry.manual_restart_keep_schedule = false;
+                        entry.manual_restart_saved_next_restart_at_ms = None;
                         entry.next_restart_at_ms = None;
                         entry.player_grace_until_ms = None;
                         skip_for_player = true;
@@ -346,7 +350,8 @@ async fn run_botting_session(
             if let Some(until) = auth429_cooldowns.get(&uid).copied() {
                 let now_instant = std::time::Instant::now();
                 if until > now_instant {
-                    let remaining_ms = (until - now_instant).as_millis().min(i64::MAX as u128) as i64;
+                    let remaining_ms =
+                        (until - now_instant).as_millis().min(i64::MAX as u128) as i64;
                     if let Ok(mut map) = accounts.lock() {
                         if let Some(entry) = map.get_mut(&uid) {
                             entry.phase = "retry-backoff";
@@ -379,14 +384,13 @@ async fn run_botting_session(
                         .max(cfg.launch_delay_seconds.saturating_mul(2))
                         .clamp(6, 300);
                         entry.phase = "retry-backoff";
-                        entry.last_error = Some(
-                            format!(
-                                "Previous Roblox instance did not close before relaunch{}",
-                                pid_hint
-                            ),
-                        );
+                        entry.last_error = Some(format!(
+                            "Previous Roblox instance did not close before relaunch{}",
+                            pid_hint
+                        ));
                         entry.next_restart_at_ms = Some(
-                            now_ms().saturating_add((retry_delay_seconds as i64).saturating_mul(1000)),
+                            now_ms()
+                                .saturating_add((retry_delay_seconds as i64).saturating_mul(1000)),
                         );
                     }
                 }
@@ -411,6 +415,8 @@ async fn run_botting_session(
 
             if let Ok(mut map) = accounts.lock() {
                 if let Some(entry) = map.get_mut(&uid) {
+                    let restart_keep_schedule = entry.manual_restart_keep_schedule;
+                    let saved_restart_due = entry.manual_restart_saved_next_restart_at_ms;
                     if launch_ok {
                         auth429_cooldowns.remove(&uid);
                         entry.retry_count = 0;
@@ -425,10 +431,16 @@ async fn run_botting_session(
                             entry.is_player = false;
                             entry.disconnected = false;
                             entry.phase = "running";
-                            entry.next_restart_at_ms =
-                                Some(now_after + (cfg.interval_minutes as i64 * 60_000));
+                            let default_due = now_after + (cfg.interval_minutes as i64 * 60_000);
+                            entry.next_restart_at_ms = Some(if restart_keep_schedule {
+                                saved_restart_due.unwrap_or(default_due)
+                            } else {
+                                default_due
+                            });
                         }
                         entry.manual_restart_pending = false;
+                        entry.manual_restart_keep_schedule = false;
+                        entry.manual_restart_saved_next_restart_at_ms = None;
                     } else {
                         entry.retry_count = entry.retry_count.saturating_add(1);
                         let mut delay = backoff_delay_seconds(
@@ -441,7 +453,9 @@ async fn run_botting_session(
                             .map(|e| is_429_related_error(e))
                             .unwrap_or(false);
                         if is_429 {
-                            delay = delay.max(45).max((cfg.launch_delay_seconds as i64).saturating_mul(2));
+                            delay = delay
+                                .max(45)
+                                .max((cfg.launch_delay_seconds as i64).saturating_mul(2));
                             auth429_cooldowns.insert(
                                 uid,
                                 std::time::Instant::now()
@@ -588,11 +602,9 @@ async fn start_botting_mode(
                 is_player,
                 disconnected: false,
                 manual_restart_pending: false,
-                phase: if is_player {
-                    "queued-player"
-                } else {
-                    "queued"
-                },
+                manual_restart_keep_schedule: false,
+                manual_restart_saved_next_restart_at_ms: None,
+                phase: if is_player { "queued-player" } else { "queued" },
                 retry_count: 0,
                 next_restart_at_ms: None,
                 player_grace_until_ms: None,
@@ -653,11 +665,7 @@ fn stop_botting_mode(app: tauri::AppHandle, close_bot_accounts: bool) -> Result<
     if let Some(session) = session {
         session.stop_flag.store(true, Ordering::Relaxed);
         if close_bot_accounts {
-            let cfg = session
-                .config
-                .lock()
-                .map_err(|e| e.to_string())?
-                .clone();
+            let cfg = session.config.lock().map_err(|e| e.to_string())?.clone();
             let tracker = platform::windows::tracker();
             let keep_player_pids: Vec<u32> = cfg
                 .player_user_ids
@@ -753,7 +761,11 @@ fn add_botting_accounts(
         } else {
             Some(now.saturating_add(launch_delay_ms))
         };
-        let phase = if has_running_client { "running" } else { "queued" };
+        let phase = if has_running_client {
+            "running"
+        } else {
+            "queued"
+        };
 
         runtime_map.insert(
             uid,
@@ -762,6 +774,8 @@ fn add_botting_accounts(
                 is_player: false,
                 disconnected: false,
                 manual_restart_pending: false,
+                manual_restart_keep_schedule: false,
+                manual_restart_saved_next_restart_at_ms: None,
                 phase,
                 retry_count: 0,
                 next_restart_at_ms,
@@ -821,6 +835,8 @@ fn set_botting_player_accounts(
             entry.is_player = true;
             entry.disconnected = false;
             entry.manual_restart_pending = false;
+            entry.manual_restart_keep_schedule = false;
+            entry.manual_restart_saved_next_restart_at_ms = None;
             entry.retry_count = 0;
             entry.last_error = None;
             entry.player_grace_until_ms = None;
@@ -836,6 +852,8 @@ fn set_botting_player_accounts(
         if was_player && !is_player {
             entry.is_player = false;
             entry.manual_restart_pending = false;
+            entry.manual_restart_keep_schedule = false;
+            entry.manual_restart_saved_next_restart_at_ms = None;
             entry.retry_count = 0;
             entry.last_error = None;
             if tracker.get_pid(entry.user_id).is_some() {
@@ -863,6 +881,7 @@ enum BottingAccountAction {
     Disconnect,
     Close,
     CloseDisconnect,
+    RestartClient,
     RestartLoop,
 }
 
@@ -873,6 +892,7 @@ enum BottingAccountAction {
     Disconnect,
     Close,
     CloseDisconnect,
+    RestartClient,
     RestartLoop,
 }
 
@@ -887,33 +907,51 @@ fn botting_account_action(
         return Err("Botting Mode is not running".into());
     };
 
-    let should_disconnect =
-        matches!(action, BottingAccountAction::Disconnect | BottingAccountAction::CloseDisconnect);
-    let should_close =
-        matches!(
-            action,
-            BottingAccountAction::Close
-                | BottingAccountAction::CloseDisconnect
-                | BottingAccountAction::RestartLoop
-        );
+    let should_disconnect = matches!(
+        action,
+        BottingAccountAction::Disconnect | BottingAccountAction::CloseDisconnect
+    );
+    let should_close = matches!(
+        action,
+        BottingAccountAction::Close
+            | BottingAccountAction::CloseDisconnect
+            | BottingAccountAction::RestartClient
+            | BottingAccountAction::RestartLoop
+    );
+    let should_restart_client = matches!(action, BottingAccountAction::RestartClient);
     let should_restart_loop = matches!(action, BottingAccountAction::RestartLoop);
 
     let tracker = platform::windows::tracker();
 
-    let (is_player, interval_ms) = {
+    let (is_player_from_config, interval_ms) = {
         let cfg = session.config.lock().map_err(|e| e.to_string())?;
         if !cfg.user_ids.contains(&user_id) {
             return Err("Account is not part of the current botting session".into());
-        }
-        let is_player_account = cfg.player_user_ids.contains(&user_id);
-        if should_disconnect && is_player_account {
-            return Err("Player accounts cannot be disconnected; remove them from Player Accounts first".into());
         }
         (
             cfg.player_user_ids.contains(&user_id),
             (cfg.interval_minutes as i64).saturating_mul(60_000),
         )
     };
+
+    if should_disconnect && is_player_from_config {
+        return Err(
+            "Player accounts cannot be disconnected; remove them from Player Accounts first".into(),
+        );
+    }
+
+    if should_disconnect {
+        let accounts = session.accounts.lock().map_err(|e| e.to_string())?;
+        let Some(entry) = accounts.get(&user_id) else {
+            return Err("Account runtime is missing for the current botting session".into());
+        };
+        if entry.is_player {
+            return Err(
+                "Player accounts cannot be disconnected; remove them from Player Accounts first"
+                    .into(),
+            );
+        }
+    }
 
     if should_close {
         let _ = tracker.kill_for_user(user_id);
@@ -926,13 +964,27 @@ fn botting_account_action(
             return Err("Account runtime is missing for the current botting session".into());
         };
         let was_disconnected = entry.disconnected;
+        let is_player = is_player_from_config || entry.is_player;
+
+        if should_disconnect && is_player {
+            return Err(
+                "Player accounts cannot be disconnected; remove them from Player Accounts first"
+                    .into(),
+            );
+        }
 
         entry.retry_count = 0;
         entry.last_error = None;
         entry.player_grace_until_ms = None;
         entry.is_player = is_player;
         entry.disconnected = should_disconnect;
-        entry.manual_restart_pending = should_restart_loop;
+        entry.manual_restart_pending = should_restart_loop || should_restart_client;
+        entry.manual_restart_keep_schedule = should_restart_client && !is_player;
+        entry.manual_restart_saved_next_restart_at_ms = if entry.manual_restart_keep_schedule {
+            entry.next_restart_at_ms
+        } else {
+            None
+        };
 
         if entry.disconnected {
             entry.next_restart_at_ms = None;
@@ -941,7 +993,7 @@ fn botting_account_action(
             } else {
                 "disconnected"
             };
-        } else if should_restart_loop {
+        } else if should_restart_loop || should_restart_client {
             entry.next_restart_at_ms = Some(now);
             entry.phase = "restarting";
         } else if is_player {
@@ -955,6 +1007,8 @@ fn botting_account_action(
             entry.next_restart_at_ms = Some(now);
             entry.phase = "restarting";
         } else {
+            entry.manual_restart_keep_schedule = false;
+            entry.manual_restart_saved_next_restart_at_ms = None;
             let next_due = entry
                 .next_restart_at_ms
                 .unwrap_or_else(|| now.saturating_add(interval_ms));
@@ -989,4 +1043,3 @@ fn set_botting_player_accounts(
 ) -> Result<BottingStatusPayload, String> {
     Ok(BottingStatusPayload::default())
 }
-

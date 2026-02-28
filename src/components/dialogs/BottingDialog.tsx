@@ -12,7 +12,7 @@ interface BottingDialogProps {
   onClose: () => void;
 }
 
-type BottingRowAction = "disconnect" | "close" | "closeDisconnect" | "restartLoop";
+type BottingRowAction = "disconnect" | "close" | "closeDisconnect" | "restartClient" | "restartLoop";
 
 function ThemedCheckbox({
   checked,
@@ -47,6 +47,9 @@ function canRunBottingActionOnRow(
   if (!row) return false;
   if (action === "disconnect" || action === "closeDisconnect") {
     return !row.disconnected && !row.isPlayer;
+  }
+  if (action === "restartClient") {
+    return !row.disconnected;
   }
   return true;
 }
@@ -446,6 +449,7 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
       disconnect: 0,
       close: 0,
       closeDisconnect: 0,
+      restartClient: 0,
       restartLoop: 0,
     };
     if (!status?.active) return counts;
@@ -454,6 +458,7 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
       if (canRunBottingActionOnRow(row, "disconnect")) counts.disconnect += 1;
       if (canRunBottingActionOnRow(row, "close")) counts.close += 1;
       if (canRunBottingActionOnRow(row, "closeDisconnect")) counts.closeDisconnect += 1;
+      if (canRunBottingActionOnRow(row, "restartClient")) counts.restartClient += 1;
       if (canRunBottingActionOnRow(row, "restartLoop")) counts.restartLoop += 1;
     }
     return counts;
@@ -502,6 +507,8 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
         ? t("Disconnect")
         : action === "close"
           ? t("Close client")
+          : action === "restartClient"
+            ? t("Restart client")
           : action === "closeDisconnect"
             ? t("Close + Disconnect")
             : t("Restart loop");
@@ -1054,6 +1061,17 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
                         <button
                           type="button"
                           onClick={() => {
+                            void runBulkAction("restartClient");
+                          }}
+                          disabled={actionButtonsLocked || !status?.active || bulkEligibleCounts.restartClient === 0}
+                          className="px-3 py-1 text-[11px] font-medium rounded-lg border border-emerald-400/30 bg-[rgba(16,185,129,0.10)] text-emerald-100 hover:bg-[rgba(16,185,129,0.18)] hover:border-emerald-300/40 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {t("Restart client")} ({bulkEligibleCounts.restartClient})
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
                             void runBulkAction("restartLoop");
                           }}
                           disabled={actionButtonsLocked || !status?.active || bulkEligibleCounts.restartLoop === 0}
@@ -1247,6 +1265,33 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
                                     }}
                                   >
                                     {t("Close client")}
+                                  </button>
+                                </span>
+                              </Tooltip>
+
+                              <Tooltip
+                                content={
+                                  <div className="space-y-0.5">
+                                    <div className="font-semibold">{t("Restart client")}</div>
+                                    <div className="theme-muted">{t("Closes and relaunches this client now while keeping the current loop timing. Works for player accounts too.")}</div>
+                                  </div>
+                                }
+                              >
+                                <span>
+                                  <button
+                                    type="button"
+                                    disabled={!canAct || isRowBusy || !canRunBottingActionOnRow(row, "restartClient")}
+                                    className={[
+                                      "px-3 py-1 text-[11px] font-medium rounded-lg border border-emerald-400/30",
+                                      "bg-[rgba(16,185,129,0.10)] text-emerald-100",
+                                      "hover:bg-[rgba(16,185,129,0.18)] hover:border-emerald-300/40 transition",
+                                      "disabled:opacity-50 disabled:cursor-not-allowed",
+                                    ].join(" ")}
+                                    onClick={() => {
+                                      void runRowAction(userId, "restartClient");
+                                    }}
+                                  >
+                                    {t("Restart client")}
                                   </button>
                                 </span>
                               </Tooltip>
@@ -1734,6 +1779,33 @@ export function BottingDialog({ open, onClose }: BottingDialogProps) {
                                 }}
                               >
                                 {t("Close client")}
+                              </button>
+                            </span>
+                          </Tooltip>
+
+                          <Tooltip
+                            content={
+                              <div className="space-y-0.5">
+                                <div className="font-semibold">{t("Restart client")}</div>
+                                <div className="theme-muted">{t("Closes and relaunches this client now while keeping the current loop timing. Works for player accounts too.")}</div>
+                              </div>
+                            }
+                          >
+                            <span>
+                              <button
+                                type="button"
+                                disabled={!canAct || isRowBusy || !canRunBottingActionOnRow(row, "restartClient")}
+                                className={[
+                                  "px-3 py-1 text-[11px] font-medium rounded-lg border border-emerald-400/30",
+                                  "bg-[rgba(16,185,129,0.10)] text-emerald-100",
+                                  "hover:bg-[rgba(16,185,129,0.18)] hover:border-emerald-300/40 transition",
+                                  "disabled:opacity-50 disabled:cursor-not-allowed",
+                                ].join(" ")}
+                                onClick={() => {
+                                  void runRowAction(userId, "restartClient");
+                                }}
+                              >
+                                {t("Restart client")}
                               </button>
                             </span>
                           </Tooltip>
