@@ -123,7 +123,9 @@ fn windows_client_overrides(
     );
 
     let graphics_level = if settings.get_bool("General", override_graphics_key) {
-        let lvl = settings.get_int("General", graphics_level_key).unwrap_or(10);
+        let lvl = settings
+            .get_int("General", graphics_level_key)
+            .unwrap_or(10);
         if lvl > 0 {
             Some(lvl.clamp(1, 10) as u32)
         } else {
@@ -153,8 +155,12 @@ fn windows_client_overrides(
     );
 
     let window_size = if settings.get_bool("General", override_window_key) {
-        let w = settings.get_int("General", window_width_key).unwrap_or(1280);
-        let h = settings.get_int("General", window_height_key).unwrap_or(720);
+        let w = settings
+            .get_int("General", window_width_key)
+            .unwrap_or(1280);
+        let h = settings
+            .get_int("General", window_height_key)
+            .unwrap_or(720);
         if w > 0 && h > 0 {
             Some((w as u32, h as u32))
         } else {
@@ -289,14 +295,15 @@ fn get_or_create_browser_tracker_id(state: &AccountStore, user_id: i64) -> Resul
 }
 
 #[cfg(target_os = "windows")]
-async fn wait_for_new_roblox_pid(
-    pids_before: &[u32],
-    timeout: std::time::Duration,
-) -> Option<u32> {
+async fn wait_for_new_roblox_pid(pids_before: &[u32], timeout: std::time::Duration) -> Option<u32> {
     let deadline = std::time::Instant::now() + timeout;
     loop {
         let pids_after = platform::windows::get_roblox_pids();
-        if let Some(pid) = pids_after.iter().find(|p| !pids_before.contains(p)).copied() {
+        if let Some(pid) = pids_after
+            .iter()
+            .find(|p| !pids_before.contains(p))
+            .copied()
+        {
             return Some(pid);
         }
         if std::time::Instant::now() >= deadline {
@@ -307,14 +314,15 @@ async fn wait_for_new_roblox_pid(
 }
 
 #[cfg(target_os = "macos")]
-async fn wait_for_new_roblox_pid(
-    pids_before: &[u32],
-    timeout: std::time::Duration,
-) -> Option<u32> {
+async fn wait_for_new_roblox_pid(pids_before: &[u32], timeout: std::time::Duration) -> Option<u32> {
     let deadline = std::time::Instant::now() + timeout;
     loop {
         let pids_after = platform::macos::get_roblox_pids();
-        if let Some(pid) = pids_after.iter().find(|p| !pids_before.contains(p)).copied() {
+        if let Some(pid) = pids_after
+            .iter()
+            .find(|p| !pids_before.contains(p))
+            .copied()
+        {
             return Some(pid);
         }
         if std::time::Instant::now() >= deadline {
@@ -419,6 +427,8 @@ struct BottingAccountRuntime {
     is_player: bool,
     disconnected: bool,
     manual_restart_pending: bool,
+    manual_restart_keep_schedule: bool,
+    manual_restart_saved_next_restart_at_ms: Option<i64>,
     phase: &'static str,
     retry_count: u32,
     next_restart_at_ms: Option<i64>,
@@ -630,12 +640,9 @@ fn looks_like_access_code(value: &str) -> bool {
         return false;
     }
 
-    parts.iter().all(|part| {
-        !part.is_empty()
-            && part
-                .chars()
-                .all(|c| c.is_ascii_alphanumeric() || c == '_')
-    })
+    parts
+        .iter()
+        .all(|part| !part.is_empty() && part.chars().all(|c| c.is_ascii_alphanumeric() || c == '_'))
 }
 
 fn looks_like_share_link_code(value: &str) -> bool {
@@ -680,7 +687,8 @@ async fn resolve_private_join(
     }
 
     if !resolved_link_code.is_empty()
-        && (looks_like_share_link(&launch.job_id) || looks_like_share_link_code(&resolved_link_code))
+        && (looks_like_share_link(&launch.job_id)
+            || looks_like_share_link_code(&resolved_link_code))
     {
         let (maybe_place_id, resolved_code) =
             api::roblox::resolve_share_server_link(cookie, &resolved_link_code).await?;
@@ -698,7 +706,8 @@ async fn resolve_private_join(
         resolved_link_code.clear();
     }
 
-    let use_private_join = launch.join_vip || !resolved_link_code.is_empty() || !access_code.is_empty();
+    let use_private_join =
+        launch.join_vip || !resolved_link_code.is_empty() || !access_code.is_empty();
 
     Ok(ResolvedPrivateJoin {
         place_id: resolved_place_id,

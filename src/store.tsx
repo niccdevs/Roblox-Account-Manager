@@ -150,7 +150,7 @@ export interface StoreValue {
   setBottingPlayerAccounts: (userIds: number[]) => Promise<void>;
   bottingAccountAction: (
     userId: number,
-    action: "disconnect" | "close" | "closeDisconnect" | "restartLoop"
+    action: "disconnect" | "close" | "closeDisconnect" | "restartClient" | "restartLoop"
   ) => Promise<void>;
   refreshBottingStatus: () => Promise<void>;
   refreshCookie: (userId: number) => Promise<boolean>;
@@ -928,7 +928,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   async function bottingAccountAction(
     userId: number,
-    action: "disconnect" | "close" | "closeDisconnect" | "restartLoop"
+    action: "disconnect" | "close" | "closeDisconnect" | "restartClient" | "restartLoop"
   ) {
     try {
       const status = await invoke<BottingStatus>("botting_account_action", {
