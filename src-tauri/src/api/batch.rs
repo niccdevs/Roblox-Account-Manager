@@ -1,11 +1,12 @@
+use reqwest::header::COOKIE;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::{Mutex, oneshot};
-use serde::{Deserialize, Serialize};
-use reqwest::header::COOKIE;
+use tokio::sync::{oneshot, Mutex};
 
 const BATCH_WINDOW_MS: u64 = 50;
 const MAX_BATCH_SIZE: usize = 100;
+#[allow(dead_code)]
 const MAX_PLACE_BATCH_SIZE: usize = 50;
 
 fn cookie_header(security_token: &str) -> String {
@@ -30,6 +31,7 @@ struct PendingRequest {
     sender: oneshot::Sender<Option<String>>,
 }
 
+#[allow(dead_code)]
 struct PendingPlaceRequest {
     place_id: i64,
     sender: oneshot::Sender<Option<i64>>,
@@ -37,10 +39,12 @@ struct PendingPlaceRequest {
 
 pub struct ImageCache {
     thumbnail_queue: Arc<Mutex<Vec<PendingRequest>>>,
+    #[allow(dead_code)]
     place_queue: Arc<Mutex<Vec<PendingPlaceRequest>>>,
     cache: Arc<Mutex<HashMap<String, String>>>,
     place_universe_cache: Arc<Mutex<HashMap<i64, i64>>>,
     batch_active: Arc<Mutex<bool>>,
+    #[allow(dead_code)]
     place_batch_active: Arc<Mutex<bool>>,
 }
 
@@ -93,7 +97,11 @@ impl ImageCache {
         rx.await.ok().flatten()
     }
 
-    pub async fn get_game_icon(&self, place_id: i64, security_token: Option<&str>) -> Option<String> {
+    pub async fn get_game_icon(
+        &self,
+        place_id: i64,
+        security_token: Option<&str>,
+    ) -> Option<String> {
         let key = Self::cache_key(place_id, "GameIcon", "512x512");
 
         {
@@ -111,7 +119,9 @@ impl ImageCache {
         let universe_id = match universe_id {
             Some(id) => id,
             None => {
-                let resolved = self.resolve_place_to_universe(place_id, security_token).await;
+                let resolved = self
+                    .resolve_place_to_universe(place_id, security_token)
+                    .await;
                 match resolved {
                     Some(id) => id,
                     None => {
@@ -126,7 +136,9 @@ impl ImageCache {
             }
         };
 
-        let url = self.get_image(universe_id, "GameIcon", "512x512", "png").await;
+        let url = self
+            .get_image(universe_id, "GameIcon", "512x512", "png")
+            .await;
         if let Some(ref u) = url {
             let mut cache = self.cache.lock().await;
             cache.insert(key, u.clone());
@@ -134,9 +146,16 @@ impl ImageCache {
         url
     }
 
-    async fn resolve_place_to_universe(&self, place_id: i64, security_token: Option<&str>) -> Option<i64> {
+    async fn resolve_place_to_universe(
+        &self,
+        place_id: i64,
+        security_token: Option<&str>,
+    ) -> Option<i64> {
         let client = reqwest::Client::new();
-        let url = format!("https://games.roblox.com/v1/games/multiget-place-details?placeIds={}", place_id);
+        let url = format!(
+            "https://games.roblox.com/v1/games/multiget-place-details?placeIds={}",
+            place_id
+        );
 
         let mut request = client.get(&url);
         if let Some(token) = security_token {
@@ -193,7 +212,12 @@ impl ImageCache {
                     .keys()
                     .map(|k| {
                         let first = &requests_by_key[k][0];
-                        (first.target_id, first.thumbnail_type.clone(), first.size.clone(), first.format.clone())
+                        (
+                            first.target_id,
+                            first.thumbnail_type.clone(),
+                            first.size.clone(),
+                            first.format.clone(),
+                        )
                     })
                     .collect();
 
@@ -227,14 +251,19 @@ impl ImageCache {
                                     let mut c = cache.lock().await;
                                     for item in data {
                                         let target_id = item["targetId"].as_i64().unwrap_or(0);
-                                        let image_url = item["imageUrl"].as_str().unwrap_or_default();
+                                        let image_url =
+                                            item["imageUrl"].as_str().unwrap_or_default();
                                         let error_code = item["errorCode"].as_i64().unwrap_or(-1);
 
                                         if error_code == 0 && !image_url.is_empty() {
-                                            let req_id = item["requestId"].as_str().unwrap_or_default();
+                                            let req_id =
+                                                item["requestId"].as_str().unwrap_or_default();
                                             let parts: Vec<&str> = req_id.split(':').collect();
                                             if parts.len() >= 4 {
-                                                let key = format!("{}:{}:{}", target_id, parts[2], parts[3]);
+                                                let key = format!(
+                                                    "{}:{}:{}",
+                                                    target_id, parts[2], parts[3]
+                                                );
                                                 c.insert(key, image_url.to_string());
                                             }
                                         }
@@ -267,6 +296,7 @@ impl ImageCache {
         });
     }
 
+    #[allow(dead_code)]
     pub async fn get_cached_thumbnails(&self) -> Vec<CachedThumbnail> {
         let cache = self.cache.lock().await;
         cache
@@ -289,7 +319,12 @@ impl ImageCache {
         pu_cache.clear();
     }
 
-    pub async fn get_cached_url(&self, target_id: i64, thumbnail_type: &str, size: &str) -> Option<String> {
+    pub async fn get_cached_url(
+        &self,
+        target_id: i64,
+        thumbnail_type: &str,
+        size: &str,
+    ) -> Option<String> {
         let key = Self::cache_key(target_id, thumbnail_type, size);
         let cache = self.cache.lock().await;
         cache.get(&key).cloned()
@@ -339,7 +374,10 @@ impl ImageCache {
     }
 }
 
-async fn get_asset_image_fallback(asset_id: i64, security_token: Option<&str>) -> Result<String, String> {
+async fn get_asset_image_fallback(
+    asset_id: i64,
+    security_token: Option<&str>,
+) -> Result<String, String> {
     let client = reqwest::Client::new();
 
     let mut request = client.get(format!(
@@ -351,13 +389,19 @@ async fn get_asset_image_fallback(asset_id: i64, security_token: Option<&str>) -
         request = request.header(COOKIE, cookie_header(token));
     }
 
-    let response = request.send().await.map_err(|e| format!("Request failed: {}", e))?;
+    let response = request
+        .send()
+        .await
+        .map_err(|e| format!("Request failed: {}", e))?;
 
     if !response.status().is_success() {
         return Err("Asset thumbnail request failed".to_string());
     }
 
-    let body: serde_json::Value = response.json().await.map_err(|e| format!("Parse failed: {}", e))?;
+    let body: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Parse failed: {}", e))?;
 
     body["data"]
         .as_array()
