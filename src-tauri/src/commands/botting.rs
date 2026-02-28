@@ -316,6 +316,7 @@ async fn run_botting_session(
                         if now >= due {
                             entry.phase = "restarting";
                             entry.last_error = None;
+                            entry.manual_restart_pending = false;
                             should_launch = true;
                         }
                     } else if entry.is_player {
@@ -411,6 +412,7 @@ async fn run_botting_session(
 
             if let Ok(mut map) = accounts.lock() {
                 if let Some(entry) = map.get_mut(&uid) {
+                    entry.manual_restart_pending = false;
                     if launch_ok {
                         auth429_cooldowns.remove(&uid);
                         entry.retry_count = 0;
@@ -428,7 +430,6 @@ async fn run_botting_session(
                             entry.next_restart_at_ms =
                                 Some(now_after + (cfg.interval_minutes as i64 * 60_000));
                         }
-                        entry.manual_restart_pending = false;
                     } else {
                         entry.retry_count = entry.retry_count.saturating_add(1);
                         let mut delay = backoff_delay_seconds(
@@ -900,14 +901,10 @@ fn botting_account_action(
 
     let tracker = platform::windows::tracker();
 
-    let (is_player, interval_ms) = {
+    let (is_player_from_config, interval_ms) = {
         let cfg = session.config.lock().map_err(|e| e.to_string())?;
         if !cfg.user_ids.contains(&user_id) {
             return Err("Account is not part of the current botting session".into());
-        }
-        let is_player_account = cfg.player_user_ids.contains(&user_id);
-        if should_disconnect && is_player_account {
-            return Err("Player accounts cannot be disconnected; remove them from Player Accounts first".into());
         }
         (
             cfg.player_user_ids.contains(&user_id),
@@ -926,6 +923,11 @@ fn botting_account_action(
             return Err("Account runtime is missing for the current botting session".into());
         };
         let was_disconnected = entry.disconnected;
+        let is_player = is_player_from_config || entry.is_player;
+
+        if should_disconnect && is_player {
+            return Err("Player accounts cannot be disconnected; remove them from Player Accounts first".into());
+        }
 
         entry.retry_count = 0;
         entry.last_error = None;
