@@ -444,6 +444,36 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function toTagName(version: string): string {
+  const trimmed = version.trim();
+  return trimmed.startsWith("v") ? trimmed : `v${trimmed}`;
+}
+
+function buildCommitMessagesSection(
+  currentVersion: string,
+  nextVersion: string,
+  commits: Array<{ sha: string; message: string }>
+): string {
+  const lines = commits
+    .map((commit) => {
+      const sha = String(commit.sha || "").trim();
+      const shortSha = sha.slice(0, 7);
+      const subject = String(commit.message || "").split(/\r?\n/, 1)[0].trim();
+      if (!sha || !subject) return "";
+      return `- ${subject} ([${shortSha}](https://github.com/niccsprojects/Roblox-Account-Manager/commit/${sha}))`;
+    })
+    .filter(Boolean);
+
+  if (lines.length === 0) return "";
+
+  return [
+    "## All Commit Messages",
+    `Range: ${currentVersion}...${nextVersion}`,
+    "",
+    ...lines,
+  ].join("\n");
+}
+
 export function UpdateDialog() {
   const t = useTr();
   const store = useStore();
@@ -471,35 +501,87 @@ export function UpdateDialog() {
     const nextNotes = info?.body?.trim() ? info.body : null;
     setReleaseNotes(nextNotes);
 
-    if (!info?.version) return;
+    if (!info?.version || !info?.currentVersion) return;
+
+    const releaseTag = toTagName(info.version);
+    const currentTag = toTagName(info.currentVersion);
 
     const hasDetailedSections = !!nextNotes
       && /(^|\n)##\s+What's Changed\b/i.test(nextNotes)
       && /(^|\n)##\s+Contributors\b/i.test(nextNotes);
-
-    if (hasDetailedSections) return;
+    const hasAllCommitMessages = !!nextNotes
+      && /(^|\n)##\s+All Commit Messages\b/i.test(nextNotes);
 
     const controller = new AbortController();
 
-    fetch(`https://api.github.com/repos/niccsprojects/roblox-account-manager/releases/tags/v${info.version}`, {
-      signal: controller.signal,
-      headers: {
-        Accept: "application/vnd.github+json",
-      },
-    })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        const remoteBody = typeof data?.body === "string" ? data.body.trim() : "";
-        if (remoteBody) {
-          setReleaseNotes(remoteBody);
+    (async () => {
+      let resolvedNotes = nextNotes || "";
+
+      if (!hasDetailedSections) {
+        try {
+          const releaseResponse = await fetch(
+            `https://api.github.com/repos/niccsprojects/roblox-account-manager/releases/tags/${releaseTag}`,
+            {
+              signal: controller.signal,
+              headers: {
+                Accept: "application/vnd.github+json",
+              },
+            }
+          );
+
+          if (releaseResponse.ok) {
+            const releaseData = await releaseResponse.json();
+            const remoteBody = typeof releaseData?.body === "string" ? releaseData.body.trim() : "";
+            if (remoteBody) {
+              resolvedNotes = remoteBody;
+            }
+          }
+        } catch {}
+      }
+
+      if (!hasAllCommitMessages && currentTag !== releaseTag) {
+        try {
+          const compareResponse = await fetch(
+            `https://api.github.com/repos/niccsprojects/roblox-account-manager/compare/${encodeURIComponent(currentTag)}...${encodeURIComponent(releaseTag)}`,
+            {
+              signal: controller.signal,
+              headers: {
+                Accept: "application/vnd.github+json",
+              },
+            }
+          );
+
+          if (compareResponse.ok) {
+            const compareData = await compareResponse.json();
+            const commits = Array.isArray(compareData?.commits)
+              ? compareData.commits.map((entry: any) => ({
+                  sha: String(entry?.sha || ""),
+                  message: String(entry?.commit?.message || ""),
+                }))
+              : [];
+
+            const commitSection = buildCommitMessagesSection(currentTag, releaseTag, commits);
+            if (commitSection) {
+              resolvedNotes = resolvedNotes.trim()
+                ? `${resolvedNotes.trim()}\n\n${commitSection}`
+                : commitSection;
+            }
+          }
+        } catch {}
+      }
+
+      if (!controller.signal.aborted) {
+        const finalNotes = resolvedNotes.trim();
+        if (finalNotes) {
+          setReleaseNotes(finalNotes);
         }
-      })
-      .catch(() => {});
+      }
+    })();
 
     return () => {
       controller.abort();
     };
-  }, [open, info?.body, info?.version]);
+  }, [open, info?.body, info?.currentVersion, info?.version]);
 
   const startDownload = useCallback(async () => {
     setPhase("downloading");
