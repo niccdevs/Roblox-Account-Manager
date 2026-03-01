@@ -4,6 +4,7 @@ import { useModalClose } from "../../hooks/useModalClose";
 import { TabBar } from "./TabBar";
 import { TabContent } from "./TabContent";
 import { useTr } from "../../i18n/text";
+import { ENABLE_WEBSERVER } from "../../featureFlags";
 import { Settings as SettingsIcon, Code, Server, Eye, MoreHorizontal, X } from "lucide-react";
 
 interface SettingsDialogProps {
@@ -15,7 +16,9 @@ interface SettingsDialogProps {
 
 export type TabId = "general" | "developer" | "webserver" | "watcher" | "miscellaneous";
 
-export const TAB_ORDER: TabId[] = ["general", "developer", "webserver", "watcher", "miscellaneous"];
+export const TAB_ORDER: TabId[] = ENABLE_WEBSERVER
+  ? ["general", "developer", "webserver", "watcher", "miscellaneous"]
+  : ["general", "developer", "watcher", "miscellaneous"];
 
 export interface TabDef {
   id: TabId;
@@ -61,8 +64,6 @@ export function SettingsDialog({
     }
   }, [activeTab]);
 
-  if (!visible) return null;
-
   const devMode = s.getBool("Developer", "DevMode");
   const wsEnabled = s.getBool("Developer", "EnableWebServer");
 
@@ -81,7 +82,7 @@ export function SettingsDialog({
       id: "webserver",
       label: "WebServer",
       icon: <Server size={15} strokeWidth={1.5} />,
-      hidden: !devMode && !wsEnabled,
+      hidden: !ENABLE_WEBSERVER || (!devMode && !wsEnabled),
     },
     {
       id: "watcher",
@@ -96,6 +97,15 @@ export function SettingsDialog({
   ];
 
   const visibleTabs = tabs.filter((t) => !t.hidden);
+
+  useEffect(() => {
+    if (!open || visibleTabs.length === 0) return;
+    if (!visibleTabs.some((tab) => tab.id === activeTab)) {
+      setActiveTab(visibleTabs[0].id);
+    }
+  }, [open, activeTab, visibleTabs]);
+
+  if (!visible) return null;
 
   return (
     <div

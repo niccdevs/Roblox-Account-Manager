@@ -24,6 +24,7 @@ import { NexusDialog } from "./components/dialogs/NexusDialog";
 import { BottingDialog } from "./components/dialogs/BottingDialog";
 import { ScriptsDialog } from "./components/dialogs/ScriptsDialog";
 import { useTr } from "./i18n/text";
+import { ENABLE_NEXUS } from "./featureFlags";
 
 function AppContent() {
   const t = useTr();
@@ -42,7 +43,7 @@ function AppContent() {
     !!store.missingAssets ||
     store.themeEditorOpen ||
     store.bottingDialogOpen ||
-    store.nexusOpen ||
+    (ENABLE_NEXUS && store.nexusOpen) ||
     store.scriptsOpen ||
     store.updateDialogOpen ||
     store.firstRunWalkthroughOpen ||
@@ -167,10 +168,12 @@ function AppContent() {
         onClose={() => store.setBottingDialogOpen(false)}
       />
 
-      <NexusDialog
-        open={store.nexusOpen}
-        onClose={() => store.setNexusOpen(false)}
-      />
+      {ENABLE_NEXUS && (
+        <NexusDialog
+          open={store.nexusOpen}
+          onClose={() => store.setNexusOpen(false)}
+        />
+      )}
 
       <ScriptsDialog
         open={store.scriptsOpen}

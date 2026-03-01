@@ -3,6 +3,7 @@ import { Toggle } from "../ui/Toggle";
 import { RestartBadge } from "../ui/RestartBadge";
 import { useTr } from "../../i18n/text";
 import { useStore } from "../../store";
+import { ENABLE_WEBSERVER } from "../../featureFlags";
 
 export function DeveloperTab({ s }: { s: UseSettingsReturn }) {
   const t = useTr();
@@ -15,17 +16,19 @@ export function DeveloperTab({ s }: { s: UseSettingsReturn }) {
         label="Enable Developer Mode"
         description="Show advanced options like auth tickets, field editing, and raw links"
       />
-      <Toggle
-        checked={s.getBool("Developer", "EnableWebServer")}
-        onChange={(v) => s.setBool("Developer", "EnableWebServer", v)}
-        label={
-          <>
-            {t("Enable Web Server")}
-            <RestartBadge />
-          </>
-        }
-        description="Start a local HTTP API for external tools and scripts"
-      />
+      {ENABLE_WEBSERVER && (
+        <Toggle
+          checked={s.getBool("Developer", "EnableWebServer")}
+          onChange={(v) => s.setBool("Developer", "EnableWebServer", v)}
+          label={
+            <>
+              {t("Enable Web Server")}
+              <RestartBadge />
+            </>
+          }
+          description="Start a local HTTP API for external tools and scripts"
+        />
+      )}
 
       <div className="px-1 py-3">
         <div className="flex items-center justify-between gap-3 rounded-lg border border-zinc-800/70 bg-zinc-900/35 px-3 py-2">

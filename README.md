@@ -52,6 +52,9 @@ If you ever want a friend to join a game using your account, make sure you have 
 Download Roblox Account Manager from [Releases](https://github.com/niccsprojects/Roblox-Account-Manager/releases).
 
 For v4, use the latest Windows release asset (installer or portable build), then run it.
+There are two Windows asset options:
+- Recommended build without Nexus and WebServer
+- Optional full feature bundle with Nexus and WebServer
 No .NET Framework or VC++ manual install steps are required for v4 in normal cases.
 
 If Windows SmartScreen or antivirus warns, only run builds from the official releases page and verify the publisher/release tag first.

@@ -3,6 +3,7 @@
 mod api;
 mod browser;
 mod data;
+#[cfg(feature = "nexus")]
 mod nexus;
 mod platform;
 
@@ -156,7 +157,9 @@ pub fn run() {
                 })
                 .build(app)?;
 
+            #[cfg(any(feature = "nexus", feature = "webserver"))]
             let settings = app.state::<SettingsStore>();
+            #[cfg(feature = "nexus")]
             if settings.get_bool("AccountControl", "StartOnLaunch") {
                 let handle = app.handle().clone();
                 let port = settings
@@ -174,6 +177,8 @@ pub fn run() {
                     }
                 });
             }
+
+            #[cfg(feature = "webserver")]
             if settings.get_bool("Developer", "EnableWebServer") {
                 let handle = app.handle().clone();
                 tauri::async_runtime::spawn(async move {

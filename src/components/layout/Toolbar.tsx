@@ -4,6 +4,7 @@ import { useStore } from "../../store";
 import { usePrompt } from "../../hooks/usePrompt";
 import { Tooltip } from "../ui/Tooltip";
 import { tr, useTr } from "../../i18n/text";
+import { ENABLE_NEXUS } from "../../featureFlags";
 import { Search, X, SquareX, SquareCheckBig, PanelRight, Plus, ChevronDown, Globe, File, FileText, Palette, Layers, Settings, TerminalSquare } from "lucide-react";
 
 export function Toolbar() {
@@ -192,14 +193,16 @@ export function Toolbar() {
           </button>
         </Tooltip>
 
-        <Tooltip content="Nexus" side="bottom">
-          <button
-            onClick={() => store.setNexusOpen(true)}
-            className="theme-btn-ghost p-1.5 rounded-lg transition-colors"
-          >
-            <Layers size={16} strokeWidth={1.5} />
-          </button>
-        </Tooltip>
+        {ENABLE_NEXUS && (
+          <Tooltip content="Nexus" side="bottom">
+            <button
+              onClick={() => store.setNexusOpen(true)}
+              className="theme-btn-ghost p-1.5 rounded-lg transition-colors"
+            >
+              <Layers size={16} strokeWidth={1.5} />
+            </button>
+          </Tooltip>
+        )}
 
         <Tooltip content={t("Scripts")} side="bottom">
           <button

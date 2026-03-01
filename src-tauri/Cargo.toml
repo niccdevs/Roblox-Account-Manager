@@ -10,6 +10,11 @@ crate-type = ["lib", "cdylib", "staticlib"]
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
+[features]
+default = ["nexus", "webserver"]
+nexus = ["dep:futures-util", "dep:tokio-tungstenite"]
+webserver = ["dep:axum"]
+
 [dependencies]
 tauri = { version = "2", features = ["tray-icon"] }
 serde = { version = "1", features = ["derive"] }
@@ -20,9 +25,9 @@ reqwest = { version = "0.12", features = ["cookies", "json"] }
 tokio = { version = "1", features = ["full"] }
 urlencoding = "2"
 cookie = "0.18"
-axum = "0.8"
-tokio-tungstenite = "0.26"
-futures-util = "0.3"
+axum = { version = "0.8", optional = true }
+tokio-tungstenite = { version = "0.26", optional = true }
+futures-util = { version = "0.3", optional = true }
 tauri-plugin-single-instance = "2"
 tauri-plugin-autostart = "2"
 tauri-plugin-window-state = "2"
