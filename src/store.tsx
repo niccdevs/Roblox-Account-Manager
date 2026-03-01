@@ -1097,6 +1097,26 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [settings?.General?.Language]);
 
   useEffect(() => {
+    if (!theme) return;
+    const normalized = normalizeTheme(theme);
+    const themedNavbar = settings?.General?.ThemeWindowsNavbar === "true";
+    const style = document.documentElement.style;
+
+    if (themedNavbar) {
+      style.setProperty("--titlebar-bg", normalized.forms_background);
+      style.setProperty("--titlebar-fg", normalized.forms_foreground);
+    } else {
+      style.setProperty("--titlebar-bg", normalized.dark_top_bar ? "#09090b" : normalized.forms_background);
+      style.setProperty("--titlebar-fg", normalized.dark_top_bar ? "#a1a1aa" : normalized.forms_foreground);
+    }
+  }, [theme, settings?.General?.ThemeWindowsNavbar]);
+
+  useEffect(() => {
+    if (!initialized) return;
+    void invoke("sync_windows_navbar_theme").catch(() => {});
+  }, [initialized, settings?.General?.ThemeWindowsNavbar, theme?.dark_top_bar]);
+
+  useEffect(() => {
     const unlisten = listen("browser-login-detected", async () => {
       let cookie = "";
       for (let i = 0; i < 8; i++) {

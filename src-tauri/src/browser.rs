@@ -6,6 +6,7 @@ use cookie::{Cookie, SameSite};
 use tauri::{AppHandle, Emitter, Manager, Url, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 
 use crate::data::accounts::AccountStore;
+use crate::data::settings::{SettingsStore, ThemeStore};
 
 const ROBLOX_COOKIE_URLS: [&str; 4] = [
     "https://www.roblox.com",
@@ -13,6 +14,27 @@ const ROBLOX_COOKIE_URLS: [&str; 4] = [
     "https://roblox.com",
     "https://web.roblox.com",
 ];
+
+#[cfg(target_os = "windows")]
+fn apply_windows_navbar_theme(app: &AppHandle, window: &WebviewWindow) {
+    let settings = app.state::<SettingsStore>();
+    if !settings.get_bool("General", "ThemeWindowsNavbar") {
+        let _ = window.set_theme(None);
+        return;
+    }
+
+    let theme_store = app.state::<ThemeStore>();
+    let dark = theme_store.get().map(|t| t.dark_top_bar).unwrap_or(true);
+    let theme = if dark {
+        tauri::Theme::Dark
+    } else {
+        tauri::Theme::Light
+    };
+    let _ = window.set_theme(Some(theme));
+}
+
+#[cfg(not(target_os = "windows"))]
+fn apply_windows_navbar_theme(_app: &AppHandle, _window: &WebviewWindow) {}
 
 fn normalize_security_token(raw: &str) -> String {
     let trimmed = raw.trim();
@@ -68,7 +90,7 @@ pub async fn open_login_browser(app: AppHandle) -> Result<(), String> {
     let detected_clone = detected.clone();
     let app_clone = app.clone();
 
-    WebviewWindowBuilder::new(
+    let browser = WebviewWindowBuilder::new(
         &app,
         "login-browser",
         WebviewUrl::External("https://www.roblox.com/login".parse().unwrap()),
@@ -96,6 +118,8 @@ pub async fn open_login_browser(app: AppHandle) -> Result<(), String> {
     })
     .build()
     .map_err(|e| e.to_string())?;
+
+    apply_windows_navbar_theme(&app, &browser);
 
     // Some Roblox login flows do not reliably navigate to a post-auth URL.
     // Poll for .ROBLOSECURITY so Browser Login still completes.
@@ -173,6 +197,8 @@ pub async fn open_account_browser(
     .center()
     .build()
     .map_err(|e| e.to_string())?;
+
+    apply_windows_navbar_theme(&app, &browser);
 
     let base_cookie = Cookie::build((".ROBLOSECURITY", security_token.clone()))
         .domain(".roblox.com")

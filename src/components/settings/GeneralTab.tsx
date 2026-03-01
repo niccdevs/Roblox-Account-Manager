@@ -23,6 +23,8 @@ export function GeneralTab({ s }: { s: UseSettingsReturn }) {
     }
     return "warp";
   })();
+  const isWindows =
+    typeof navigator !== "undefined" && navigator.userAgent.toLowerCase().includes("windows");
 
   const handleManualUpdateCheck = async () => {
     if (checkingUpdate) return;
@@ -108,6 +110,15 @@ export function GeneralTab({ s }: { s: UseSettingsReturn }) {
           />
         </div>
       </div>
+
+      {isWindows && (
+        <Toggle
+          checked={s.getBool("General", "ThemeWindowsNavbar")}
+          onChange={(v) => s.setBool("General", "ThemeWindowsNavbar", v)}
+          label="Theme Windows window navbar"
+          description="Makes the top window navbar follow your active RAM theme"
+        />
+      )}
 
       <Toggle
         checked={s.getBool("General", "AsyncJoin")}

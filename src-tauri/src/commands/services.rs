@@ -145,3 +145,38 @@ fn open_repo_url() -> Result<(), String> {
     #[allow(unreachable_code)]
     Err("Opening URL is not supported on this platform".into())
 }
+
+#[tauri::command]
+fn sync_windows_navbar_theme(
+    app: tauri::AppHandle,
+    settings: tauri::State<'_, SettingsStore>,
+    theme_store: tauri::State<'_, ThemeStore>,
+) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        let enable_theme_sync = settings.get_bool("General", "ThemeWindowsNavbar");
+        let target_theme = if enable_theme_sync {
+            let theme = theme_store.get()?;
+            Some(if theme.dark_top_bar {
+                tauri::Theme::Dark
+            } else {
+                tauri::Theme::Light
+            })
+        } else {
+            None
+        };
+
+        for window in app.webview_windows().values() {
+            let _ = window.set_theme(target_theme.clone());
+        }
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = app;
+        let _ = settings;
+        let _ = theme_store;
+    }
+
+    Ok(())
+}

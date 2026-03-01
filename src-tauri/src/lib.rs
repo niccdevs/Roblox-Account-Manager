@@ -305,6 +305,7 @@ pub fn run() {
             set_nexus_element_value,
             export_nexus_lua,
             open_repo_url,
+            sync_windows_navbar_theme,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

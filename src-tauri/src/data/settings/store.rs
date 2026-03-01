@@ -56,6 +56,7 @@ impl SettingsStore {
             ("StartRobloxMinimized", "false", None),
             ("StartOnPCStartup", "false", None),
             ("MinimizeToTray", "false", None),
+            ("ThemeWindowsNavbar", "true", None),
             ("RestrictedBackgroundStyle", "warp", None),
             ("BottingEnabled", "false", None),
             ("BottingUseSharedClientProfile", "true", None),
@@ -104,6 +105,10 @@ impl SettingsStore {
         }
         if !general.exists("EncryptionMethod") {
             general.set("EncryptionMethod", "default", None);
+        }
+        if !general.exists("ThemeWindowsNavbarAutoEnabledV1") {
+            general.set("ThemeWindowsNavbar", "true", None);
+            general.set("ThemeWindowsNavbarAutoEnabledV1", "true", None);
         }
         if !general.exists("EncryptionOnboardingState") {
             general.set(
