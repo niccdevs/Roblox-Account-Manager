@@ -163,6 +163,45 @@ jobs:
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
           bun .github/scripts/generate-update-manifest.mjs
 
+      - name: Move signature assets below portable binaries
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ env.RELEASE_GITHUB_TOKEN }}
+        run: |
+          $tag = "${{ steps.meta.outputs.tag }}"
+          $tmpDir = "src-tauri/target/release/reordered-signatures"
+
+          if (Test-Path $tmpDir) {
+            Remove-Item $tmpDir -Recurse -Force
+          }
+          New-Item -ItemType Directory -Path $tmpDir | Out-Null
+
+          $release = gh release view $tag --json assets | ConvertFrom-Json
+          $sigNames = @(
+            $release.assets |
+            Where-Object { $_.name -like "*.sig" } |
+            ForEach-Object { $_.name } |
+            Sort-Object
+          )
+
+          if ($sigNames.Count -eq 0) {
+            Write-Host "No signature assets found"
+            exit 0
+          }
+
+          foreach ($name in $sigNames) {
+            gh release download $tag --pattern "$name" --dir "$tmpDir" --clobber
+          }
+
+          foreach ($name in $sigNames) {
+            gh release delete-asset $tag "$name" --yes
+          }
+
+          foreach ($name in $sigNames) {
+            $path = Join-Path $tmpDir $name
+            gh release upload $tag "$path" --clobber
+          }
+
       - name: Build full feature variant (Nexus + WebServer)
         shell: pwsh
         env:
