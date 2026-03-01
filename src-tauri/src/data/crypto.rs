@@ -1,6 +1,6 @@
-use sodiumoxide::crypto::secretbox;
 use sodiumoxide::crypto::hash::sha512;
 use sodiumoxide::crypto::pwhash::argon2i13;
+use sodiumoxide::crypto::secretbox;
 
 pub const RAM_HEADER: &[u8] = b"Roblox Account Manager created by ic3w0lf22 @ github.com .......";
 const TRANSITION_RAM_HEADER: &[u8] =
@@ -33,8 +33,7 @@ pub fn hash_password(password: &str) -> Vec<u8> {
 }
 
 pub fn derive_key(password_hash: &[u8], salt: &[u8]) -> Result<secretbox::Key, CryptoError> {
-    let salt = argon2i13::Salt::from_slice(salt)
-        .ok_or(CryptoError::InvalidData)?;
+    let salt = argon2i13::Salt::from_slice(salt).ok_or(CryptoError::InvalidData)?;
 
     let mut key_bytes = [0u8; secretbox::KEYBYTES];
     argon2i13::derive_key(
@@ -43,10 +42,10 @@ pub fn derive_key(password_hash: &[u8], salt: &[u8]) -> Result<secretbox::Key, C
         &salt,
         argon2i13::OPSLIMIT_MODERATE,
         argon2i13::MEMLIMIT_MODERATE,
-    ).map_err(|_| CryptoError::InvalidPassword)?;
+    )
+    .map_err(|_| CryptoError::InvalidPassword)?;
 
-    secretbox::Key::from_slice(&key_bytes)
-        .ok_or(CryptoError::InvalidData)
+    secretbox::Key::from_slice(&key_bytes).ok_or(CryptoError::InvalidData)
 }
 
 pub fn is_encrypted(data: &[u8]) -> bool {
@@ -73,11 +72,9 @@ pub fn decrypt(encrypted: &[u8], password_hash: &[u8]) -> Result<Vec<u8>, Crypto
 
     let key = derive_key(password_hash, salt)?;
 
-    let nonce = secretbox::Nonce::from_slice(nonce_bytes)
-        .ok_or(CryptoError::InvalidData)?;
+    let nonce = secretbox::Nonce::from_slice(nonce_bytes).ok_or(CryptoError::InvalidData)?;
 
-    secretbox::open(ciphertext, &nonce, &key)
-        .map_err(|_| CryptoError::DecryptionFailed)
+    secretbox::open(ciphertext, &nonce, &key).map_err(|_| CryptoError::DecryptionFailed)
 }
 
 pub fn encrypt(content: &str, password_hash: &[u8]) -> Result<Vec<u8>, CryptoError> {
@@ -102,13 +99,13 @@ pub fn encrypt(content: &str, password_hash: &[u8]) -> Result<Vec<u8>, CryptoErr
 #[cfg(target_os = "windows")]
 pub fn try_decrypt_legacy_dpapi(data: &[u8]) -> Option<Vec<u8>> {
     use windows_sys::Win32::Foundation::LocalFree;
-    use windows_sys::Win32::Security::Cryptography::{CRYPT_INTEGER_BLOB, CryptUnprotectData};
+    use windows_sys::Win32::Security::Cryptography::{CryptUnprotectData, CRYPT_INTEGER_BLOB};
 
     const LEGACY_ENTROPY: [u8; 56] = [
-        0x52, 0x4f, 0x42, 0x4c, 0x4f, 0x58, 0x20, 0x41, 0x43, 0x43, 0x4f, 0x55, 0x4e, 0x54,
-        0x20, 0x4d, 0x41, 0x4e, 0x41, 0x47, 0x45, 0x52, 0x20, 0x7c, 0x20, 0x3a, 0x29, 0x20,
-        0x7c, 0x20, 0x42, 0x52, 0x4f, 0x55, 0x47, 0x48, 0x54, 0x20, 0x54, 0x4f, 0x20, 0x59,
-        0x4f, 0x55, 0x20, 0x42, 0x55, 0x59, 0x20, 0x69, 0x63, 0x33, 0x77, 0x30, 0x6c, 0x66,
+        0x52, 0x4f, 0x42, 0x4c, 0x4f, 0x58, 0x20, 0x41, 0x43, 0x43, 0x4f, 0x55, 0x4e, 0x54, 0x20,
+        0x4d, 0x41, 0x4e, 0x41, 0x47, 0x45, 0x52, 0x20, 0x7c, 0x20, 0x3a, 0x29, 0x20, 0x7c, 0x20,
+        0x42, 0x52, 0x4f, 0x55, 0x47, 0x48, 0x54, 0x20, 0x54, 0x4f, 0x20, 0x59, 0x4f, 0x55, 0x20,
+        0x42, 0x55, 0x59, 0x20, 0x69, 0x63, 0x33, 0x77, 0x30, 0x6c, 0x66,
     ];
 
     unsafe {
@@ -138,7 +135,8 @@ pub fn try_decrypt_legacy_dpapi(data: &[u8]) -> Option<Vec<u8>> {
             return None;
         }
 
-        let decrypted = std::slice::from_raw_parts(out_blob.pbData, out_blob.cbData as usize).to_vec();
+        let decrypted =
+            std::slice::from_raw_parts(out_blob.pbData, out_blob.cbData as usize).to_vec();
         LocalFree(out_blob.pbData as *mut core::ffi::c_void);
         Some(decrypted)
     }

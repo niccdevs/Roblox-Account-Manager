@@ -48,7 +48,10 @@ pub async fn validate_cookie(security_token: &str) -> Result<AccountInfo, String
         .map_err(|e| format!("Request failed: {}", e))?;
 
     if !response.status().is_success() {
-        return Err(format!("Invalid cookie (status {})", response.status().as_u16()));
+        return Err(format!(
+            "Invalid cookie (status {})",
+            response.status().as_u16()
+        ));
     }
 
     let body = response
@@ -56,8 +59,13 @@ pub async fn validate_cookie(security_token: &str) -> Result<AccountInfo, String
         .await
         .map_err(|e| format!("Failed to read response: {}", e))?;
 
-    serde_json::from_str::<AccountInfo>(&body)
-        .map_err(|e| format!("Failed to parse account info: {} (body: {})", e, &body[..body.len().min(200)]))
+    serde_json::from_str::<AccountInfo>(&body).map_err(|e| {
+        format!(
+            "Failed to parse account info: {} (body: {})",
+            e,
+            &body[..body.len().min(200)]
+        )
+    })
 }
 
 pub async fn get_csrf_token(security_token: &str) -> Result<String, String> {
@@ -150,7 +158,10 @@ pub async fn check_pin(security_token: &str) -> Result<bool, String> {
         .map_err(|e| format!("Request failed: {}", e))?;
 
     if !response.status().is_success() {
-        return Err(format!("Failed to check pin (status {})", response.status().as_u16()));
+        return Err(format!(
+            "Failed to check pin (status {})",
+            response.status().as_u16()
+        ));
     }
 
     let info: PinInfo = response
@@ -197,7 +208,8 @@ pub async fn unlock_pin(security_token: &str, pin: &str) -> Result<bool, String>
         .await
         .map_err(|e| format!("Failed to parse pin response: {}", e))?;
 
-    Ok(info.is_enabled && matches!(&info.unlocked_until, Some(serde_json::Value::Number(n)) if n.as_i64().unwrap_or(0) > 0))
+    Ok(info.is_enabled
+        && matches!(&info.unlocked_until, Some(serde_json::Value::Number(n)) if n.as_i64().unwrap_or(0) > 0))
 }
 
 pub struct RefreshResult {
@@ -329,7 +341,10 @@ pub async fn change_email(
     }
 }
 
-pub async fn quick_login_enter_code(security_token: &str, code: &str) -> Result<serde_json::Value, String> {
+pub async fn quick_login_enter_code(
+    security_token: &str,
+    code: &str,
+) -> Result<serde_json::Value, String> {
     let normalized_code = normalize_quick_login_code(code);
     if normalized_code.len() != 6 {
         return Err("Code must be 6 digits".to_string());
@@ -352,7 +367,10 @@ pub async fn quick_login_enter_code(security_token: &str, code: &str) -> Result<
         return Err(format!("Failed to enter code: {}", body));
     }
 
-    response.json().await.map_err(|e| format!("Failed to parse response: {}", e))
+    response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse response: {}", e))
 }
 
 pub async fn quick_login_validate_code(security_token: &str, code: &str) -> Result<(), String> {

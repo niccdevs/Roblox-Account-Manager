@@ -16,9 +16,7 @@ const ROBLOX_COOKIE_URLS: [&str; 4] = [
 
 fn normalize_security_token(raw: &str) -> String {
     let trimmed = raw.trim();
-    let no_name = trimmed
-        .strip_prefix(".ROBLOSECURITY=")
-        .unwrap_or(trimmed);
+    let no_name = trimmed.strip_prefix(".ROBLOSECURITY=").unwrap_or(trimmed);
     let no_attrs = no_name.split(';').next().unwrap_or(no_name);
     no_attrs.trim_matches('"').trim().to_string()
 }
@@ -82,19 +80,15 @@ pub async fn open_login_browser(app: AppHandle) -> Result<(), String> {
     .on_navigation(move |url| {
         if let Some(host) = url.host_str() {
             let path = url.path();
-            let is_roblox = host == "www.roblox.com"
-                || host == "web.roblox.com"
-                || host == "roblox.com";
+            let is_roblox =
+                host == "www.roblox.com" || host == "web.roblox.com" || host == "roblox.com";
             let is_post_auth = path == "/home"
                 || path.starts_with("/home/")
                 || path.starts_with("/discover")
                 || path.starts_with("/games")
                 || path.starts_with("/experiences");
 
-            if is_roblox
-                && is_post_auth
-                && !detected_clone.swap(true, Ordering::SeqCst)
-            {
+            if is_roblox && is_post_auth && !detected_clone.swap(true, Ordering::SeqCst) {
                 app_clone.emit("browser-login-detected", ()).ok();
             }
         }
