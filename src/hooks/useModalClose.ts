@@ -4,16 +4,11 @@ export function useModalClose(open: boolean, onClose: () => void, duration = 100
   const [visible, setVisible] = useState(false);
   const [closing, setClosing] = useState(false);
   const onCloseRef = useRef(onClose);
-  const durationRef = useRef(duration);
   const closeTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
     onCloseRef.current = onClose;
   }, [onClose]);
-
-  useEffect(() => {
-    durationRef.current = duration;
-  }, [duration]);
 
   useEffect(() => {
     if (open) {
@@ -26,7 +21,7 @@ export function useModalClose(open: boolean, onClose: () => void, duration = 100
       return;
     }
 
-    if (!visible || closing) return;
+    if (!visible) return;
     if (closeTimeoutRef.current !== null) {
       window.clearTimeout(closeTimeoutRef.current);
       closeTimeoutRef.current = null;
@@ -36,25 +31,15 @@ export function useModalClose(open: boolean, onClose: () => void, duration = 100
     closeTimeoutRef.current = window.setTimeout(() => {
       setClosing(false);
       setVisible(false);
-      onCloseRef.current();
       closeTimeoutRef.current = null;
-    }, durationRef.current);
-  }, [closing, open, visible]);
+    }, duration);
+  }, [duration, open, visible]);
 
   const handleClose = useCallback(() => {
-    if (closeTimeoutRef.current !== null) {
-      window.clearTimeout(closeTimeoutRef.current);
-      closeTimeoutRef.current = null;
-    }
-
-    setClosing(true);
-    closeTimeoutRef.current = window.setTimeout(() => {
-      setClosing(false);
-      setVisible(false);
+    if (open) {
       onCloseRef.current();
-      closeTimeoutRef.current = null;
-    }, durationRef.current);
-  }, []);
+    }
+  }, [open]);
 
   useEffect(() => {
     return () => {
