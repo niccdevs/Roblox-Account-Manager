@@ -193,6 +193,8 @@ jobs:
           $stageDir = "src-tauri/target/release/release-assets"
           $standardPortableSrc = "src-tauri/target/release/portable-standard.exe"
           $fullPortableSrc = "src-tauri/target/release/roblox-account-manager.exe"
+          $nsisDir = Join-Path $bundleRoot "nsis"
+          $msiDir = Join-Path $bundleRoot "msi"
 
           if (Test-Path $stageDir) {
             Remove-Item $stageDir -Recurse -Force
@@ -207,18 +209,43 @@ jobs:
             throw "Full feature portable binary not found"
           }
 
-          $fullSetupSrc = Get-ChildItem "$bundleRoot/nsis" -File -Recurse |
-            Where-Object { $_.Name -match "-setup\\.exe$" } |
+          $fullSetupSrc = $null
+          if (Test-Path $nsisDir) {
+            $fullSetupSrc = Get-ChildItem $nsisDir -File -Recurse -Filter "*.exe" |
+              Where-Object { $_.Name -match "setup" } |
+              Sort-Object LastWriteTime -Descending |
+              Select-Object -First 1
+          }
+
+          if (-not $fullSetupSrc) {
+            $fullSetupSrc = Get-ChildItem $bundleRoot -File -Recurse -Filter "*.exe" |
+              Where-Object { $_.Name -match "setup" } |
+              Sort-Object LastWriteTime -Descending |
+              Select-Object -First 1
+          }
+
+          if (-not $fullSetupSrc) {
+            $fullSetupSrc = Get-ChildItem $bundleRoot -File -Recurse -Filter "*.exe" |
             Sort-Object LastWriteTime -Descending |
             Select-Object -First 1
+          }
 
           if (-not $fullSetupSrc) {
             throw "Full feature setup EXE not found"
           }
 
-          $fullMsiSrc = Get-ChildItem "$bundleRoot/msi" -File -Recurse -Filter "*.msi" |
-            Sort-Object LastWriteTime -Descending |
-            Select-Object -First 1
+          $fullMsiSrc = $null
+          if (Test-Path $msiDir) {
+            $fullMsiSrc = Get-ChildItem $msiDir -File -Recurse -Filter "*.msi" |
+              Sort-Object LastWriteTime -Descending |
+              Select-Object -First 1
+          }
+
+          if (-not $fullMsiSrc) {
+            $fullMsiSrc = Get-ChildItem $bundleRoot -File -Recurse -Filter "*.msi" |
+              Sort-Object LastWriteTime -Descending |
+              Select-Object -First 1
+          }
 
           if (-not $fullMsiSrc) {
             throw "Full feature MSI not found"
