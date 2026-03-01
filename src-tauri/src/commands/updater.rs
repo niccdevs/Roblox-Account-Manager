@@ -51,6 +51,18 @@ fn build_manifest_endpoint(release_channel: &str, feature_channel: &str) -> Resu
     reqwest::Url::parse(&endpoint).map_err(|e| format!("Invalid updater endpoint: {}", e))
 }
 
+fn update_payload_key(update: Option<&tauri_plugin_updater::Update>) -> Option<String> {
+    update.map(|item| {
+        format!(
+            "{}|{}|{}|{}",
+            item.version,
+            item.target,
+            item.download_url,
+            item.signature
+        )
+    })
+}
+
 #[tauri::command]
 async fn check_for_updates_with_channels(
     app: tauri::AppHandle,
@@ -80,17 +92,17 @@ async fn check_for_updates_with_channels(
         .await
         .map_err(|e| format!("Failed to check for updates: {}", e))?;
 
-    let previous_version = {
+    let previous_payload_key = {
         let pending = updater_state
             .pending_update
             .lock()
             .map_err(|e| e.to_string())?;
-        pending.as_ref().map(|item| item.version.clone())
+        update_payload_key(pending.as_ref())
     };
 
-    let next_version = update.as_ref().map(|item| item.version.clone());
+    let next_payload_key = update_payload_key(update.as_ref());
 
-    if previous_version != next_version {
+    if previous_payload_key != next_payload_key {
         let mut downloaded = updater_state
             .downloaded_bytes
             .lock()
