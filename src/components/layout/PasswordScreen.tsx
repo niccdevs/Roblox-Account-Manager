@@ -3,10 +3,10 @@ import { useStore } from "../../store";
 import { useTr } from "../../i18n/text";
 import { ModalWindowControls } from "./ModalWindowControls";
 
-type RestrictedBackgroundStyle = "waves" | "warp" | "bubbles";
+type RestrictedBackgroundStyle = "waves" | "warp" | "warpLegacy" | "bubbles";
 
 function normalizeRestrictedBackgroundStyle(value: string | undefined): RestrictedBackgroundStyle {
-  if (value === "bubbles" || value === "warp" || value === "waves") {
+  if (value === "bubbles" || value === "warp" || value === "warpLegacy" || value === "waves") {
     return value;
   }
   return "warp";
@@ -38,6 +38,93 @@ function readThemeColors() {
 const VERT_SRC = `attribute vec2 a_pos;void main(){gl_Position=vec4(a_pos,0,1);}`;
 
 const WARP_FRAG = `precision highp float;
+uniform float u_time;
+uniform vec2 u_res;
+uniform vec3 u_c0,u_c1,u_c2,u_c3;
+vec3 mod289(vec3 x){return x-floor(x*(1.0/289.0))*289.0;}
+vec2 mod289(vec2 x){return x-floor(x*(1.0/289.0))*289.0;}
+vec3 permute(vec3 x){return mod289(((x*34.0)+1.0)*x);}
+float snoise(vec2 v){
+  const vec4 C=vec4(0.211324865405187,0.366025403784439,-0.577350269189626,0.024390243902439);
+  vec2 i=floor(v+dot(v,C.yy));vec2 x0=v-i+dot(i,C.xx);
+  vec2 i1=(x0.x>x0.y)?vec2(1,0):vec2(0,1);
+  vec4 x12=x0.xyxy+C.xxzz;x12.xy-=i1;i=mod289(i);
+  vec3 p=permute(permute(i.y+vec3(0,i1.y,1))+i.x+vec3(0,i1.x,1));
+  vec3 m=max(0.5-vec3(dot(x0,x0),dot(x12.xy,x12.xy),dot(x12.zw,x12.zw)),0.0);
+  m=m*m;m=m*m;
+  vec3 x=2.0*fract(p*C.www)-1.0;vec3 h=abs(x)-0.5;
+  vec3 ox=floor(x+0.5);vec3 a0=x-ox;
+  m*=1.79284291400159-0.85373472095314*(a0*a0+h*h);
+  vec3 g;g.x=a0.x*x0.x+h.x*x0.y;g.yz=a0.yz*x12.xz+h.yz*x12.yw;
+  return 130.0*dot(m,g);
+}
+void main(){
+  vec2 uv=gl_FragCoord.xy/u_res;
+  float t=u_time*0.16;
+  float aspect=u_res.x/u_res.y;
+  vec2 p=(uv-0.5)*vec2(aspect*4.9,4.9);
+  vec2 flowA=vec2(
+    snoise(p*0.32+vec2(t*0.24,-t*0.18)),
+    snoise(p*0.29+vec2(-t*0.16,t*0.22)+vec2(7.1,2.4))
+  );
+  vec2 flowB=vec2(
+    sin(t*0.37+p.y*0.86+flowA.y*1.8),
+    cos(t*0.41-p.x*0.78+flowA.x*1.5)
+  );
+  vec2 warp=flowA*0.72+flowB*0.34;
+  vec2 p1=p+warp*0.95;
+  vec2 p2=p-warp.yx*0.82+vec2(cos(t*0.52),sin(t*0.45))*0.44;
+  vec2 p3=p+vec2(warp.y,-warp.x)*0.66;
+  float n1=snoise(p1*0.42+vec2(t*0.14,-t*0.11))*0.5+0.5;
+  float n2=snoise(p2*0.54+vec2(4.7,2.3)+vec2(-t*0.09,t*0.16))*0.5+0.5;
+  float n3=snoise(p3*0.31+vec2(n1,n2)*0.58+vec2(t*0.08,-t*0.1))*0.5+0.5;
+  float n4=snoise((p-warp*0.78)*0.64+vec2(1.2,3.8)+vec2(-t*0.15,t*0.12))*0.5+0.5;
+  float n5=snoise((p+flowA*1.2)*0.76+vec2(-2.1,1.7)+vec2(t*0.11,-t*0.17))*0.5+0.5;
+  vec2 b1=vec2(-1.4+sin(t*0.62+flowB.x*0.6)*1.25,0.6+cos(t*0.54+flowA.y*0.4)*1.12);
+  vec2 b2=vec2(1.5+cos(t*0.58+n2*1.8)*1.08,-0.8+sin(t*0.73+n1*1.3)*0.96);
+  vec2 b3=vec2(0.3+sin(t*0.49+n3*2.1)*1.28,1.45+cos(t*0.78+n4*1.6)*0.92);
+  vec2 b4=vec2(-1.1+cos(t*0.67+n4*1.4)*1.04,-1.3+sin(t*0.47+n2*1.7)*1.06);
+  vec2 b5=vec2(1.75+sin(t*0.44+n1*1.8)*0.88,0.9+cos(t*0.69+n5*1.6)*1.16);
+  vec2 b6=vec2(-0.45+cos(t*0.81+n3*1.5)*1.36,sin(t*0.61+n4*1.9)*1.24);
+  vec2 b7=vec2(0.85+sin(t*0.53+n5*1.4-1.5)*1.06,-1.75+cos(t*0.43+n2*1.9)*0.82);
+  vec2 b8=vec2(-1.95+sin(t*0.36+n1*2.0+2.0)*0.82,1.05+cos(t*0.87+n3*1.7)*1.02);
+  vec2 b9=vec2(cos(t*0.74+n4*1.5)*1.46,-0.25+sin(t*0.57+n5*1.4)*1.36);
+  vec2 b10=vec2(1.98+sin(t*0.48+n3*1.6-0.5)*0.74,-0.55+cos(t*0.82+n2*1.8)*1.08);
+  float g1=exp(-0.18*dot(p-b1,p-b1));
+  float g2=exp(-0.22*dot(p-b2,p-b2));
+  float g3=exp(-0.16*dot(p-b3,p-b3));
+  float g4=exp(-0.24*dot(p-b4,p-b4));
+  float g5=exp(-0.19*dot(p-b5,p-b5));
+  float g6=exp(-0.2*dot(p-b6,p-b6));
+  float g7=exp(-0.25*dot(p-b7,p-b7));
+  float g8=exp(-0.17*dot(p-b8,p-b8));
+  float g9=exp(-0.15*dot(p-b9,p-b9));
+  float g10=exp(-0.21*dot(p-b10,p-b10));
+  vec3 c=u_c0;
+  c=mix(c,u_c1,g1*n1*0.62);
+  c=mix(c,u_c2,g2*n2*0.56);
+  c=mix(c,u_c3,g3*n3*0.52);
+  c=mix(c,mix(u_c1,u_c3,0.5),g4*n2*0.46);
+  c=mix(c,mix(u_c2,u_c1,0.4),g5*n1*0.42);
+  c=mix(c,u_c1,g6*n4*0.51);
+  c=mix(c,u_c3,g7*n1*0.47);
+  c=mix(c,mix(u_c2,u_c3,0.6),g8*n3*0.52);
+  c=mix(c,mix(u_c1,u_c2,0.5),g9*n4*0.56);
+  c=mix(c,mix(u_c3,u_c1,0.3),g10*n2*0.42);
+  c=mix(c,mix(u_c1,u_c2,n3),smoothstep(0.42,0.82,n3)*0.24);
+  c=mix(c,mix(u_c2,u_c3,n5),smoothstep(0.48,0.86,n5)*0.2);
+  float filament=smoothstep(0.58,0.84,n5)*smoothstep(0.18,0.52,n2);
+  c+=mix(u_c1,u_c2,n4)*filament*0.1;
+  float edge=smoothstep(0.38,0.54,n3)*smoothstep(0.66,0.5,n3);
+  c+=vec3(1.0,0.98,0.95)*edge*0.09;
+  float shimmer=pow(max(sin((n1*1.6+n4*1.2+t*0.7)*3.14159265),0.0),2.8);
+  c+=vec3(1.0,0.99,0.96)*shimmer*0.045;
+  vec2 vig=uv*(1.0-uv);
+  c*=pow(vig.x*vig.y*16.0,0.1);
+  gl_FragColor=vec4(c,1.0);
+}`;
+
+const WARP_FRAG_LEGACY = `precision highp float;
 uniform float u_time;
 uniform vec2 u_res;
 uniform vec3 u_c0,u_c1,u_c2,u_c3;
@@ -199,6 +286,18 @@ function useShaderCanvas(canvasRef: React.RefObject<HTMLCanvasElement | null>, f
 function RestrictedWarpBackground() {
   const ref = useRef<HTMLCanvasElement>(null);
   useShaderCanvas(ref, WARP_FRAG);
+  return (
+    <>
+      <canvas ref={ref} className="restricted-shader-canvas" />
+      <div className="restricted-fluid-grain" />
+      <div className="restricted-fluid-vignette" />
+    </>
+  );
+}
+
+function RestrictedWarpLegacyBackground() {
+  const ref = useRef<HTMLCanvasElement>(null);
+  useShaderCanvas(ref, WARP_FRAG_LEGACY);
   return (
     <>
       <canvas ref={ref} className="restricted-shader-canvas" />
@@ -592,6 +691,8 @@ export function PasswordScreen() {
       <div className="restricted-fluid-bg" aria-hidden>
         {restrictedBackgroundStyle === "bubbles"
           ? <RestrictedBubblesBackground />
+          : restrictedBackgroundStyle === "warpLegacy"
+            ? <RestrictedWarpLegacyBackground />
           : restrictedBackgroundStyle === "warp"
             ? <RestrictedWarpBackground />
             : <RestrictedWavesBackground />}

@@ -18,7 +18,7 @@ export function GeneralTab({ s }: { s: UseSettingsReturn }) {
   const [checkingUpdate, setCheckingUpdate] = useState(false);
   const restrictedBackgroundStyle = (() => {
     const style = s.get("General", "RestrictedBackgroundStyle", "warp");
-    if (style === "bubbles" || style === "warp" || style === "waves") {
+    if (style === "bubbles" || style === "warp" || style === "warpLegacy" || style === "waves") {
       return style;
     }
     return "warp";
@@ -96,7 +96,8 @@ export function GeneralTab({ s }: { s: UseSettingsReturn }) {
           <Select
             value={restrictedBackgroundStyle}
             options={[
-              { value: "warp", label: t("Fluid Warp (Default)") },
+              { value: "warp", label: t("Fluid Warp") },
+              { value: "warpLegacy", label: t("Fluid Warp Legacy") },
               { value: "waves", label: t("Waves & Lines") },
               { value: "bubbles", label: t("Fluid Bubbles") },
             ]}
@@ -104,7 +105,7 @@ export function GeneralTab({ s }: { s: UseSettingsReturn }) {
               s.set(
                 "General",
                 "RestrictedBackgroundStyle",
-                value === "bubbles" || value === "warp" || value === "waves" ? value : "warp"
+                value === "bubbles" || value === "warp" || value === "warpLegacy" || value === "waves" ? value : "warp"
               );
             }}
           />

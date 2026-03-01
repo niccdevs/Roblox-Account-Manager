@@ -497,25 +497,27 @@ body {
 }
 
 .restricted-auth-shell {
-  animation: restricted-auth-float 12s ease-in-out infinite;
+  animation: restricted-auth-float 14s cubic-bezier(0.42, 0, 0.2, 1) infinite;
 }
 
 .restricted-auth-title {
-  text-shadow: 0 6px 22px rgba(0, 0, 0, 0.35);
+  letter-spacing: 0.012em;
+  text-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
 }
 
 .restricted-auth-subtitle {
-  letter-spacing: 0.01em;
+  letter-spacing: 0.012em;
 }
 
 .restricted-auth-card {
   position: relative;
   background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02) 34%, rgba(255, 255, 255, 0)),
+    linear-gradient(148deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.02) 36%, rgba(255, 255, 255, 0)),
     var(--panel-bg);
   box-shadow:
-    0 36px 88px rgba(0, 0, 0, 0.46),
-    inset 0 1px 0 rgba(255, 255, 255, 0.09);
+    0 26px 64px rgba(0, 0, 0, 0.4),
+    0 8px 18px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
 .restricted-auth-card::before {
@@ -524,61 +526,57 @@ body {
   inset: 0;
   border-radius: inherit;
   padding: 1px;
-  background: linear-gradient(132deg, var(--accent-soft), rgba(255, 255, 255, 0.16), transparent 62%);
+  background: linear-gradient(136deg, var(--accent-soft), rgba(255, 255, 255, 0.12), transparent 58%);
   -webkit-mask:
     linear-gradient(#000 0 0) content-box,
     linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
   mask-composite: exclude;
   pointer-events: none;
-  opacity: 0.9;
+  opacity: 0.62;
 }
 
 .restricted-auth-input {
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.01)),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.01)),
     var(--textboxes-bg);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
 .restricted-auth-input:focus {
   box-shadow:
     0 0 0 2px var(--input-focus),
     0 0 0 1px var(--accent-strong),
-    0 0 44px var(--accent-soft),
+    0 10px 24px rgba(0, 0, 0, 0.22),
     inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
 
 .restricted-auth-btn {
   position: relative;
-  overflow: hidden;
   border-color: var(--accent-strong);
   color: var(--panel-fg);
   background:
-    linear-gradient(132deg, var(--accent-soft), transparent 62%),
+    linear-gradient(138deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0) 54%),
     var(--buttons-bg);
   box-shadow:
-    0 14px 30px var(--accent-soft),
+    0 10px 20px rgba(0, 0, 0, 0.3),
     inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  transition: transform 0.15s, filter 0.15s, box-shadow 0.15s, border-color 0.15s;
 }
 
 .restricted-auth-btn:hover:not(:disabled) {
   transform: translateY(-1px);
-  filter: brightness(1.1) saturate(1.1);
+  filter: brightness(1.06) saturate(1.04);
+  box-shadow:
+    0 12px 24px rgba(0, 0, 0, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.24);
 }
 
 .restricted-auth-btn:active:not(:disabled) {
-  transform: translateY(0) scale(0.985);
-}
-
-.restricted-auth-btn::before {
-  content: "";
-  position: absolute;
-  inset: -140% -30%;
-  background: linear-gradient(112deg, transparent 42%, rgba(255, 255, 255, 0.44) 50%, transparent 58%);
-  transform: translateX(-56%) rotate(9deg);
-  animation: restricted-btn-sheen 4.4s ease-in-out infinite;
-  pointer-events: none;
+  transform: translateY(0) scale(0.987);
+  box-shadow:
+    0 7px 16px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.16);
 }
 
 :root[data-show-headers="false"] .theme-group-header {
@@ -655,15 +653,8 @@ body {
 
 @keyframes restricted-auth-float {
   0% { transform: translate3d(0, 0, 0); }
-  50% { transform: translate3d(0, -4px, 0); }
+  50% { transform: translate3d(0, -3px, 0); }
   100% { transform: translate3d(0, 0, 0); }
-}
-
-@keyframes restricted-btn-sheen {
-  0% { transform: translateX(-56%) rotate(9deg); opacity: 0; }
-  12% { opacity: 0.62; }
-  24% { transform: translateX(56%) rotate(9deg); opacity: 0; }
-  100% { transform: translateX(56%) rotate(9deg); opacity: 0; }
 }
 
 @keyframes fade-in {
@@ -768,11 +759,6 @@ body {
 
   .restricted-auth-shell {
     animation: none !important;
-  }
-
-  .restricted-auth-btn::before {
-    animation: none !important;
-    display: none;
   }
 
   .restricted-fluid-svg animate {
