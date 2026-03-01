@@ -1,10 +1,11 @@
 import { execSync } from "node:child_process";
-import { writeFileSync, mkdirSync } from "node:fs";
+import { writeFileSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const tag = process.env.RELEASE_TAG;
 const channel = process.env.RELEASE_CHANNEL || "beta";
 const repo = process.env.GITHUB_REPOSITORY;
+const manifestPath = process.env.RELEASE_MANIFEST_PATH || "";
 
 if (!tag || !repo) {
   console.error("RELEASE_TAG and GITHUB_REPOSITORY are required");
@@ -13,11 +14,13 @@ if (!tag || !repo) {
 
 const version = tag.startsWith("v") ? tag.slice(1) : tag;
 
-const manifest = JSON.parse(
-  execSync(`gh release download "${tag}" --repo "${repo}" --pattern "latest.json" --output -`, {
-    encoding: "utf-8",
-  })
-);
+const manifest = manifestPath
+  ? JSON.parse(readFileSync(manifestPath, "utf-8"))
+  : JSON.parse(
+      execSync(`gh release download "${tag}" --repo "${repo}" --pattern "latest.json" --output -`, {
+        encoding: "utf-8",
+      })
+    );
 
 manifest.version = version;
 

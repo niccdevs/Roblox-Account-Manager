@@ -143,15 +143,12 @@ jobs:
           prerelease: ${{ steps.controls.outputs.channel == 'beta' }}
           releaseDraft: false
 
-      - name: Upload recommended portable EXE
+      - name: Stage standard portable binary
         shell: pwsh
-        env:
-          GH_TOKEN: ${{ env.RELEASE_GITHUB_TOKEN }}
         run: |
-          Copy-Item "src-tauri/target/release/roblox-account-manager.exe" "src-tauri/target/release/Roblox Account Manager (Recommended) Portable.exe"
-          gh release upload "${{ steps.meta.outputs.tag }}" "src-tauri/target/release/Roblox Account Manager (Recommended) Portable.exe" --clobber
+          Copy-Item "src-tauri/target/release/roblox-account-manager.exe" "src-tauri/target/release/portable-standard.exe" -Force
 
-      - name: Generate and push update manifest
+      - name: Generate and push standard update manifest
         shell: pwsh
         env:
           GH_TOKEN: ${{ env.RELEASE_GITHUB_TOKEN }}
@@ -163,7 +160,160 @@ jobs:
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
           bun .github/scripts/generate-update-manifest.mjs
 
-      - name: Move signature assets below portable binaries
+      - name: Configure updater endpoint for full feature channel
+        shell: pwsh
+        run: |
+          $channel = "${{ steps.controls.outputs.channel }}"
+          $repo = "${{ github.repository }}"
+          $endpoint = "https://raw.githubusercontent.com/$repo/update-manifests/$channel-nexus-ws/latest.json"
+          $config = Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json
+          if (-not $config.plugins) { $config | Add-Member -Name "plugins" -Value ([PSCustomObject]@{}) -MemberType NoteProperty }
+          if (-not $config.plugins.updater) { $config.plugins | Add-Member -Name "updater" -Value ([PSCustomObject]@{}) -MemberType NoteProperty }
+          $config.plugins.updater.endpoints = @($endpoint)
+          $config | ConvertTo-Json -Depth 100 | Set-Content src-tauri/tauri.conf.json
+
+      - name: Build full feature variant (Nexus + WebServer)
+        shell: pwsh
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          VITE_ENABLE_NEXUS: "true"
+          VITE_ENABLE_WEBSERVER: "true"
+        run: |
+          bun tauri build -- --features nexus,webserver
+
+      - name: Prepare full feature assets and manifest
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ steps.meta.outputs.tag }}
+          RELEASE_VERSION: ${{ steps.meta.outputs.app_version }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          $bundleRoot = "src-tauri/target/release/bundle"
+          $stageDir = "src-tauri/target/release/release-assets"
+          $standardPortableSrc = "src-tauri/target/release/portable-standard.exe"
+          $fullPortableSrc = "src-tauri/target/release/roblox-account-manager.exe"
+
+          if (Test-Path $stageDir) {
+            Remove-Item $stageDir -Recurse -Force
+          }
+          New-Item -ItemType Directory -Path $stageDir | Out-Null
+
+          if (-not (Test-Path $standardPortableSrc)) {
+            throw "Standard portable binary not found"
+          }
+
+          if (-not (Test-Path $fullPortableSrc)) {
+            throw "Full feature portable binary not found"
+          }
+
+          $fullSetupSrc = Get-ChildItem "$bundleRoot/nsis" -File -Recurse |
+            Where-Object { $_.Name -match "-setup\\.exe$" } |
+            Sort-Object LastWriteTime -Descending |
+            Select-Object -First 1
+
+          if (-not $fullSetupSrc) {
+            throw "Full feature setup EXE not found"
+          }
+
+          $fullMsiSrc = Get-ChildItem "$bundleRoot/msi" -File -Recurse -Filter "*.msi" |
+            Sort-Object LastWriteTime -Descending |
+            Select-Object -First 1
+
+          if (-not $fullMsiSrc) {
+            throw "Full feature MSI not found"
+          }
+
+          $fullSetupSigSrc = "$($fullSetupSrc.FullName).sig"
+          $fullMsiSigSrc = "$($fullMsiSrc.FullName).sig"
+
+          if (-not (Test-Path $fullSetupSigSrc)) {
+            throw "Full feature setup signature not found"
+          }
+
+          if (-not (Test-Path $fullMsiSigSrc)) {
+            throw "Full feature MSI signature not found"
+          }
+
+          $fullManifestSrc = Get-ChildItem $bundleRoot -File -Recurse -Filter "latest.json" |
+            Sort-Object LastWriteTime -Descending |
+            Select-Object -First 1
+
+          if (-not $fullManifestSrc) {
+            throw "Full feature updater manifest not found"
+          }
+
+          $v = $env:RELEASE_VERSION
+          $fullSetupName = "Roblox.Account.Manager_${v}_x64-setup_full-nexus-ws.exe"
+          $fullMsiName = "Roblox.Account.Manager_${v}_x64_en-US_full-nexus-ws.msi"
+          $standardPortableName = "Roblox.Account.Manager_${v}_x64_portable.exe"
+          $fullPortableName = "Roblox.Account.Manager_${v}_x64_portable_full-nexus-ws.exe"
+
+          Copy-Item $fullSetupSrc.FullName (Join-Path $stageDir $fullSetupName) -Force
+          Copy-Item $fullSetupSigSrc (Join-Path $stageDir "$fullSetupName.sig") -Force
+          Copy-Item $fullMsiSrc.FullName (Join-Path $stageDir $fullMsiName) -Force
+          Copy-Item $fullMsiSigSrc (Join-Path $stageDir "$fullMsiName.sig") -Force
+          Copy-Item $standardPortableSrc (Join-Path $stageDir $standardPortableName) -Force
+          Copy-Item $fullPortableSrc (Join-Path $stageDir $fullPortableName) -Force
+
+          $manifest = Get-Content $fullManifestSrc.FullName -Raw | ConvertFrom-Json
+          $baseUrl = "https://github.com/$($env:GITHUB_REPOSITORY)/releases/download/$($env:RELEASE_TAG)"
+          if ($manifest.platforms.'windows-x86_64-nsis') {
+            $manifest.platforms.'windows-x86_64-nsis'.url = "$baseUrl/$fullSetupName"
+          }
+          if ($manifest.platforms.'windows-x86_64-msi') {
+            $manifest.platforms.'windows-x86_64-msi'.url = "$baseUrl/$fullMsiName"
+          }
+          if ($manifest.platforms.'windows-x86_64') {
+            $manifest.platforms.'windows-x86_64'.url = "$baseUrl/$fullMsiName"
+          }
+
+          $fullManifestOut = Join-Path $stageDir "latest-full.json"
+          $manifest | ConvertTo-Json -Depth 100 | Set-Content $fullManifestOut
+
+          Add-Content -Path $env:GITHUB_ENV -Value "RELEASE_STAGE_DIR=$stageDir"
+          Add-Content -Path $env:GITHUB_ENV -Value "FULL_SETUP_NAME=$fullSetupName"
+          Add-Content -Path $env:GITHUB_ENV -Value "FULL_MSI_NAME=$fullMsiName"
+          Add-Content -Path $env:GITHUB_ENV -Value "STANDARD_PORTABLE_NAME=$standardPortableName"
+          Add-Content -Path $env:GITHUB_ENV -Value "FULL_PORTABLE_NAME=$fullPortableName"
+          Add-Content -Path $env:GITHUB_ENV -Value "FULL_MANIFEST_PATH=$fullManifestOut"
+
+      - name: Upload full feature installer assets
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ env.RELEASE_GITHUB_TOKEN }}
+        run: |
+          $tag = "${{ steps.meta.outputs.tag }}"
+          $fullSetupPath = Join-Path $env:RELEASE_STAGE_DIR $env:FULL_SETUP_NAME
+          $fullMsiPath = Join-Path $env:RELEASE_STAGE_DIR $env:FULL_MSI_NAME
+          gh release upload $tag "$fullSetupPath" --clobber
+          gh release upload $tag "$fullMsiPath" --clobber
+
+      - name: Upload portable binaries
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ env.RELEASE_GITHUB_TOKEN }}
+        run: |
+          $tag = "${{ steps.meta.outputs.tag }}"
+          $standardPortablePath = Join-Path $env:RELEASE_STAGE_DIR $env:STANDARD_PORTABLE_NAME
+          $fullPortablePath = Join-Path $env:RELEASE_STAGE_DIR $env:FULL_PORTABLE_NAME
+          gh release upload $tag "$standardPortablePath" --clobber
+          gh release upload $tag "$fullPortablePath" --clobber
+
+      - name: Generate and push full feature update manifest
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ env.RELEASE_GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ steps.meta.outputs.tag }}
+          RELEASE_CHANNEL: ${{ format('{0}-nexus-ws', steps.controls.outputs.channel) }}
+          RELEASE_MANIFEST_PATH: ${{ env.FULL_MANIFEST_PATH }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          bun .github/scripts/generate-update-manifest.mjs
+
+      - name: Upload signature assets at bottom
         shell: pwsh
         env:
           GH_TOKEN: ${{ env.RELEASE_GITHUB_TOKEN }}
@@ -177,86 +327,38 @@ jobs:
           New-Item -ItemType Directory -Path $tmpDir | Out-Null
 
           $release = gh release view $tag --json assets | ConvertFrom-Json
-          $sigNames = @(
-            $release.assets |
-            Where-Object { $_.name -like "*.sig" } |
-            ForEach-Object { $_.name } |
-            Sort-Object
-          )
-
-          if ($sigNames.Count -eq 0) {
-            Write-Host "No signature assets found"
-            exit 0
-          }
+          $sigNames = @($release.assets | Where-Object { $_.name -like "*.sig" } | ForEach-Object { $_.name })
 
           foreach ($name in $sigNames) {
             gh release download $tag --pattern "$name" --dir "$tmpDir" --clobber
-          }
-
-          foreach ($name in $sigNames) {
             gh release delete-asset $tag "$name" --yes
           }
 
-          foreach ($name in $sigNames) {
-            $path = Join-Path $tmpDir $name
-            gh release upload $tag "$path" --clobber
+          $fullSetupSig = Join-Path $env:RELEASE_STAGE_DIR "$env:FULL_SETUP_NAME.sig"
+          $fullMsiSig = Join-Path $env:RELEASE_STAGE_DIR "$env:FULL_MSI_NAME.sig"
+
+          if (Test-Path $fullSetupSig) {
+            Copy-Item $fullSetupSig (Join-Path $tmpDir (Split-Path $fullSetupSig -Leaf)) -Force
           }
 
-      - name: Build full feature variant (Nexus + WebServer)
-        shell: pwsh
-        env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          VITE_ENABLE_NEXUS: "true"
-          VITE_ENABLE_WEBSERVER: "true"
-        run: |
-          bun tauri build -- --features nexus,webserver
-
-      - name: Package full feature assets
-        shell: pwsh
-        run: |
-          $bundleRoot = "src-tauri/target/release/bundle"
-          $stagingDir = "src-tauri/target/release/full-feature-assets"
-          $zipPath = "src-tauri/target/release/zz-Roblox Account Manager (Optional Full Features - Nexus + WebServer).zip"
-
-          if (Test-Path $stagingDir) {
-            Remove-Item $stagingDir -Recurse -Force
+          if (Test-Path $fullMsiSig) {
+            Copy-Item $fullMsiSig (Join-Path $tmpDir (Split-Path $fullMsiSig -Leaf)) -Force
           }
-          New-Item -ItemType Directory -Path $stagingDir | Out-Null
 
-          if (Test-Path "$bundleRoot/nsis") {
-            Get-ChildItem "$bundleRoot/nsis" -File -Recurse -Filter "*.exe" | ForEach-Object {
-              Copy-Item $_.FullName (Join-Path $stagingDir $_.Name) -Force
+          Get-ChildItem $tmpDir -File -Filter "*.sig" | ForEach-Object {
+            $baseName = $_.Name
+            while ($baseName.StartsWith("zz-")) {
+              $baseName = $baseName.Substring(3)
+            }
+            $uploadPath = Join-Path $tmpDir "zz-$baseName"
+            if ($_.FullName -ne $uploadPath) {
+              Copy-Item $_.FullName $uploadPath -Force
             }
           }
 
-          if (Test-Path "$bundleRoot/msi") {
-            Get-ChildItem "$bundleRoot/msi" -File -Recurse -Filter "*.msi" | ForEach-Object {
-              Copy-Item $_.FullName (Join-Path $stagingDir $_.Name) -Force
-            }
+          Get-ChildItem $tmpDir -File -Filter "zz-*.sig" | Sort-Object Name | ForEach-Object {
+            gh release upload $tag $_.FullName --clobber
           }
-
-          if (Test-Path "src-tauri/target/release/roblox-account-manager.exe") {
-            Copy-Item "src-tauri/target/release/roblox-account-manager.exe" "src-tauri/target/release/full-feature-assets/Roblox Account Manager (Full Features) Portable.exe" -Force
-          }
-
-          if ((Get-ChildItem $stagingDir -File).Count -eq 0) {
-            throw "No full feature artifacts found"
-          }
-
-          if (Test-Path $zipPath) {
-            Remove-Item $zipPath -Force
-          }
-
-          Compress-Archive -Path "$stagingDir/*" -DestinationPath $zipPath -CompressionLevel Optimal
-          Add-Content -Path $env:GITHUB_ENV -Value "FULL_FEATURES_ZIP=$zipPath"
-
-      - name: Upload optional full feature bundle
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ env.RELEASE_GITHUB_TOKEN }}
-        run: |
-          gh release upload "${{ steps.meta.outputs.tag }}" "$env:FULL_FEATURES_ZIP" --clobber
 
       - name: Clean up release assets
         shell: pwsh
@@ -265,6 +367,11 @@ jobs:
         run: |
           gh release delete-asset "${{ steps.meta.outputs.tag }}" "latest.json" --yes 2>$null
           gh release delete-asset "${{ steps.meta.outputs.tag }}" "roblox-account-manager.exe" --yes 2>$null
+          gh release delete-asset "${{ steps.meta.outputs.tag }}" "Roblox.Account.Manager.Recommended.Portable.exe" --yes 2>$null
+          gh release delete-asset "${{ steps.meta.outputs.tag }}" "Roblox Account Manager (Recommended) Portable.exe" --yes 2>$null
+          gh release delete-asset "${{ steps.meta.outputs.tag }}" "Roblox Account Manager (Full Features) Portable.exe" --yes 2>$null
+          gh release delete-asset "${{ steps.meta.outputs.tag }}" "zz-Roblox.Account.Manager.Optional.Full.Features.-.Nexus.+.WebServer.zip" --yes 2>$null
+          gh release delete-asset "${{ steps.meta.outputs.tag }}" "zz-Roblox Account Manager (Optional Full Features - Nexus + WebServer).zip" --yes 2>$null
           exit 0
 
       - name: Finalize release notes
@@ -350,8 +457,9 @@ jobs:
               `Release commit message: ${releaseCommitMessage}`,
               `App version: ${appVersion}`,
               "",
-              "Recommended assets: installer/MSI or Roblox Account Manager (Recommended) Portable.exe",
-              "Optional full feature bundle: zz-Roblox Account Manager (Optional Full Features - Nexus + WebServer).zip"
+              "Recommended assets: use installer/MSI/portable files without _full-nexus-ws",
+              "Full feature assets: use files ending in _full-nexus-ws.exe or _full-nexus-ws.msi",
+              "Portable builds are listed after installer and MSI assets"
             ].join("\n");
 
             const finalBody = [

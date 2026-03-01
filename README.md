@@ -53,8 +53,8 @@ Download Roblox Account Manager from [Releases](https://github.com/niccsprojects
 
 For v4, use the latest Windows release asset (installer or portable build), then run it.
 There are two Windows asset options:
-- Recommended build without Nexus and WebServer
-- Optional full feature bundle with Nexus and WebServer
+- Recommended assets use filenames without `_full-nexus-ws`
+- Full-feature assets use filenames ending in `_full-nexus-ws.exe` or `_full-nexus-ws.msi`
 No .NET Framework or VC++ manual install steps are required for v4 in normal cases.
 
 If Windows SmartScreen or antivirus warns, only run builds from the official releases page and verify the publisher/release tag first.
