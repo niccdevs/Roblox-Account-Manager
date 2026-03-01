@@ -183,6 +183,12 @@ export interface StoreValue {
   openEncryptionSetupFromSettings: () => void;
   closeEncryptionSetup: () => void;
   applyEncryptionMethod: (method: "default" | "password", password?: string) => Promise<void>;
+  firstRunWalkthroughOpen: boolean;
+  firstRunWalkthroughMode: "firstRun" | "manual";
+  openFirstRunWalkthroughFromSettings: () => void;
+  closeFirstRunWalkthrough: () => void;
+  completeFirstRunWalkthrough: () => Promise<void>;
+  skipFirstRunWalkthrough: () => Promise<void>;
   initialized: boolean;
 
   settingsOpen: boolean;
@@ -280,6 +286,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [accountsEncrypted, setAccountsEncrypted] = useState<boolean | null>(null);
   const [applyingEncryption, setApplyingEncryption] = useState(false);
   const [encryptionSetupError, setEncryptionSetupError] = useState<string | null>(null);
+  const [firstRunWalkthroughOpen, setFirstRunWalkthroughOpen] = useState(false);
+  const [firstRunWalkthroughMode, setFirstRunWalkthroughMode] = useState<"firstRun" | "manual">("firstRun");
   const [initialized, setInitialized] = useState(false);
   const [dragState, setDragState] = useState<{ userId: number; sourceGroup: string } | null>(null);
   const [toasts, setToasts] = useState<string[]>([]);
@@ -983,6 +991,69 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setEncryptionSetupError(null);
   }, [encryptionSetupMode]);
 
+  const openFirstRunWalkthroughFromSettings = useCallback(() => {
+    setSettingsOpen(false);
+    setFirstRunWalkthroughMode("manual");
+    setFirstRunWalkthroughOpen(true);
+  }, []);
+
+  const closeFirstRunWalkthrough = useCallback(() => {
+    setFirstRunWalkthroughOpen(false);
+    setFirstRunWalkthroughMode("manual");
+  }, []);
+
+  const persistFirstRunWalkthroughState = useCallback(async (state: "completed" | "skipped") => {
+    await invoke("update_setting", {
+      section: "General",
+      key: "FirstRunWalkthroughState",
+      value: state,
+    }).catch(() => {});
+    setSettings((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        General: {
+          ...(prev.General || {}),
+          FirstRunWalkthroughState: state,
+        },
+      };
+    });
+  }, []);
+
+  const completeFirstRunWalkthrough = useCallback(async () => {
+    setFirstRunWalkthroughOpen(false);
+    if (
+      firstRunWalkthroughMode === "firstRun" ||
+      settings?.General?.FirstRunWalkthroughState === "pending"
+    ) {
+      await persistFirstRunWalkthroughState("completed");
+      addToast(tr("First-Time Walkthrough complete"));
+    }
+    setFirstRunWalkthroughMode("manual");
+  }, [
+    addToast,
+    firstRunWalkthroughMode,
+    persistFirstRunWalkthroughState,
+    settings?.General?.FirstRunWalkthroughState,
+  ]);
+
+  const skipFirstRunWalkthrough = useCallback(async () => {
+    setFirstRunWalkthroughOpen(false);
+    if (
+      firstRunWalkthroughMode === "firstRun" ||
+      settings?.General?.FirstRunWalkthroughState === "pending"
+    ) {
+      await persistFirstRunWalkthroughState("skipped");
+      addToast(tr("First-Time Walkthrough skipped"));
+    }
+    setFirstRunWalkthroughMode("manual");
+  }, [
+    addToast,
+    firstRunWalkthroughMode,
+    persistFirstRunWalkthroughState,
+    settings?.General?.FirstRunWalkthroughState,
+  ]);
+
   const applyEncryptionMethod = useCallback(async (method: "default" | "password", password?: string) => {
     setApplyingEncryption(true);
     setEncryptionSetupError(null);
@@ -1009,10 +1080,29 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         }),
       ]);
 
+      setSettings((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          General: {
+            ...(prev.General || {}),
+            EncryptionOnboardingState: "completed",
+            EncryptionMethod: method,
+          },
+        };
+      });
+
       await refreshEncryptionState();
       await loadAccounts();
       setEncryptionSetupOpen(false);
       setEncryptionSetupMode("settings");
+      if (
+        encryptionSetupMode === "firstRun" &&
+        (settings?.General?.FirstRunWalkthroughState ?? "pending") === "pending"
+      ) {
+        setFirstRunWalkthroughMode("firstRun");
+        setFirstRunWalkthroughOpen(true);
+      }
       addToast(method === "password" ? tr("Password lock enabled") : tr("Default encryption enabled"));
     } catch (e) {
       setEncryptionSetupError(String(e));
@@ -1020,7 +1110,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     } finally {
       setApplyingEncryption(false);
     }
-  }, [addToast, loadAccounts, refreshEncryptionState]);
+  }, [
+    addToast,
+    encryptionSetupMode,
+    loadAccounts,
+    refreshEncryptionState,
+    settings?.General?.FirstRunWalkthroughState,
+  ]);
 
   async function unlock(password: string) {
     setUnlocking(true);
@@ -1084,6 +1180,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         setEncryptionSetupOpen(true);
       }
 
+      if (
+        !needs &&
+        loadedSettings?.General?.FirstRunWalkthroughState === "pending" &&
+        loadedSettings?.General?.EncryptionOnboardingState !== "pending"
+      ) {
+        setFirstRunWalkthroughMode("firstRun");
+        setFirstRunWalkthroughOpen(true);
+      }
+
       try {
         const t = await invoke<ThemeData>("get_theme");
         applyThemePreview(t);
@@ -1091,6 +1196,22 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setInitialized(true);
     })();
   }, [applyThemePreview, refreshEncryptionState]);
+
+  useEffect(() => {
+    if (!initialized || needsPassword) return;
+    if (encryptionSetupOpen || firstRunWalkthroughOpen) return;
+    if (settings?.General?.FirstRunWalkthroughState !== "pending") return;
+    if (settings?.General?.EncryptionOnboardingState === "pending") return;
+    setFirstRunWalkthroughMode("firstRun");
+    setFirstRunWalkthroughOpen(true);
+  }, [
+    encryptionSetupOpen,
+    firstRunWalkthroughOpen,
+    initialized,
+    needsPassword,
+    settings?.General?.EncryptionOnboardingState,
+    settings?.General?.FirstRunWalkthroughState,
+  ]);
 
   useEffect(() => {
     void i18n.changeLanguage(normalizeLanguage(settings?.General?.Language));
@@ -1550,6 +1671,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     openEncryptionSetupFromSettings,
     closeEncryptionSetup,
     applyEncryptionMethod,
+    firstRunWalkthroughOpen,
+    firstRunWalkthroughMode,
+    openFirstRunWalkthroughFromSettings,
+    closeFirstRunWalkthrough,
+    completeFirstRunWalkthrough,
+    skipFirstRunWalkthrough,
     initialized,
     settingsOpen,
     setSettingsOpen,

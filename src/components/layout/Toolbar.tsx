@@ -140,6 +140,7 @@ export function Toolbar() {
         <div ref={addRef} className="relative">
           <button
             onClick={() => setAddMenuOpen(!addMenuOpen)}
+            data-tour="toolbar-add"
             className="theme-btn flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors"
           >
             <Plus size={14} strokeWidth={2.5} />
@@ -211,6 +212,7 @@ export function Toolbar() {
         <Tooltip content={t("Settings")} side="bottom">
           <button
             onClick={() => store.setSettingsOpen(true)}
+            data-tour="toolbar-settings"
             className="theme-btn-ghost p-1.5 rounded-lg transition-colors"
           >
             <Settings size={16} strokeWidth={1.5} />
