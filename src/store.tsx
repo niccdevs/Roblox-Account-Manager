@@ -1366,6 +1366,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    let disposed = false;
     const unsubs: Array<() => void> = [];
     invoke("start_watcher").catch(() => {});
 
@@ -1387,9 +1388,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }),
     ];
 
-    Promise.all(listeners).then((fns) => fns.forEach((fn) => unsubs.push(fn)));
+    Promise.all(listeners)
+      .then((fns) => {
+        if (disposed) {
+          fns.forEach((fn) => fn());
+          return;
+        }
+        fns.forEach((fn) => unsubs.push(fn));
+      })
+      .catch(() => {});
 
     return () => {
+      disposed = true;
       invoke("stop_watcher").catch(() => {});
       unsubs.forEach((fn) => fn());
     };

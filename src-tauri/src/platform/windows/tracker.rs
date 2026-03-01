@@ -1,3 +1,5 @@
+use std::sync::atomic::AtomicU64;
+
 #[derive(Debug, Clone, Serialize)]
 pub struct TrackedProcess {
     pub pid: u32,
@@ -8,6 +10,7 @@ pub struct TrackedProcess {
 pub struct ProcessTracker {
     instances: Mutex<HashMap<i64, TrackedProcess>>,
     watcher_active: AtomicBool,
+    watcher_session: AtomicU64,
     launcher_cancelled: AtomicBool,
     next_account: AtomicBool,
 }
@@ -17,6 +20,7 @@ impl ProcessTracker {
         Self {
             instances: Mutex::new(HashMap::new()),
             watcher_active: AtomicBool::new(false),
+            watcher_session: AtomicU64::new(0),
             launcher_cancelled: AtomicBool::new(false),
             next_account: AtomicBool::new(false),
         }
@@ -107,7 +111,34 @@ impl ProcessTracker {
     }
 
     pub fn set_watcher_active(&self, active: bool) {
-        self.watcher_active.store(active, Ordering::Relaxed);
+        self.watcher_active.store(active, Ordering::SeqCst);
+        self.watcher_session.fetch_add(1, Ordering::SeqCst);
+    }
+
+    pub fn try_start_watcher(&self) -> Option<u64> {
+        if self
+            .watcher_active
+            .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+            .is_err()
+        {
+            return None;
+        }
+
+        Some(
+            self.watcher_session
+                .fetch_add(1, Ordering::SeqCst)
+                .wrapping_add(1),
+        )
+    }
+
+    pub fn stop_watcher(&self) {
+        self.watcher_active.store(false, Ordering::SeqCst);
+        self.watcher_session.fetch_add(1, Ordering::SeqCst);
+    }
+
+    pub fn is_watcher_session_active(&self, session: u64) -> bool {
+        self.watcher_active.load(Ordering::SeqCst)
+            && self.watcher_session.load(Ordering::SeqCst) == session
     }
 
     pub fn cancel_launch(&self) {
