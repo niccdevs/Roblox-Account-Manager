@@ -313,6 +313,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const avatarLoadingRef = useRef<Set<number>>(new Set());
   const launchClearTimeoutRef = useRef<number | null>(null);
   const actionStatusTimeoutRef = useRef<number | null>(null);
+  const walkthroughOpenTimeoutRef = useRef<number | null>(null);
 
   const devMode = settings?.Developer?.DevMode === "true";
   const hiddenNameLetters = parseInt(settings?.General?.HiddenNameLetters || "0") || 0;
@@ -992,12 +993,24 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [encryptionSetupMode]);
 
   const openFirstRunWalkthroughFromSettings = useCallback(() => {
+    if (walkthroughOpenTimeoutRef.current !== null) {
+      window.clearTimeout(walkthroughOpenTimeoutRef.current);
+      walkthroughOpenTimeoutRef.current = null;
+    }
     setSettingsOpen(false);
     setFirstRunWalkthroughMode("manual");
-    setFirstRunWalkthroughOpen(true);
+    setFirstRunWalkthroughOpen(false);
+    walkthroughOpenTimeoutRef.current = window.setTimeout(() => {
+      setFirstRunWalkthroughOpen(true);
+      walkthroughOpenTimeoutRef.current = null;
+    }, 120);
   }, []);
 
   const closeFirstRunWalkthrough = useCallback(() => {
+    if (walkthroughOpenTimeoutRef.current !== null) {
+      window.clearTimeout(walkthroughOpenTimeoutRef.current);
+      walkthroughOpenTimeoutRef.current = null;
+    }
     setFirstRunWalkthroughOpen(false);
     setFirstRunWalkthroughMode("manual");
   }, []);
@@ -1547,6 +1560,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (actionStatusTimeoutRef.current !== null) {
         window.clearTimeout(actionStatusTimeoutRef.current);
         actionStatusTimeoutRef.current = null;
+      }
+      if (walkthroughOpenTimeoutRef.current !== null) {
+        window.clearTimeout(walkthroughOpenTimeoutRef.current);
+        walkthroughOpenTimeoutRef.current = null;
       }
     };
   }, []);

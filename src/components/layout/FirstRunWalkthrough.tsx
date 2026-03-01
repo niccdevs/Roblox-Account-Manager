@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, X } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { useStore } from "../../store";
@@ -19,9 +19,11 @@ interface WalkthroughStep {
 export function FirstRunWalkthrough() {
   const t = useTr();
   const store = useStore();
+  const panelRef = useRef<HTMLDivElement>(null);
   const [stepIndex, setStepIndex] = useState(0);
   const [languageSelected, setLanguageSelected] = useState(false);
   const [languageSaving, setLanguageSaving] = useState(false);
+  const [panelPosition, setPanelPosition] = useState({ left: 16, top: 16 });
   const isFirstRunMode = store.firstRunWalkthroughMode === "firstRun";
   const currentLanguage = store.settings?.General?.Language || "en";
   const isLanguageStep = stepIndex === 0;
@@ -84,21 +86,25 @@ export function FirstRunWalkthrough() {
         ],
         targets: ["[data-tour='accounts-list']"],
       },
-      {
-        id: "launch-sidebar",
-        title: t("Use the launch panel"),
-        summary: t("Select one account to reveal launch controls on the right."),
-        highlights: [
-          t("Place ID is required, Job ID and Launch Data are optional"),
-          t("Save launch fields to the account once your target is dialed in"),
-        ],
-        targets: ["[data-tour='launch-sidebar']"],
-        missingTargetHint: t("Select one account to reveal the launch sidebar, then continue"),
-        actionLabel: t("Show Launch Panel"),
-        onAction: () => {
-          store.setSidebarOpen(true);
-        },
-      },
+      ...(store.accounts.length > 0
+        ? [
+            {
+              id: "launch-sidebar",
+              title: t("Use the launch panel"),
+              summary: t("Select one account to reveal launch controls on the right."),
+              highlights: [
+                t("Place ID is required, Job ID and Launch Data are optional"),
+                t("Save launch fields to the account once your target is dialed in"),
+              ],
+              targets: ["[data-tour='launch-sidebar']"],
+              missingTargetHint: t("Select one account to reveal the launch sidebar, then continue"),
+              actionLabel: t("Show Launch Panel"),
+              onAction: () => {
+                store.setSidebarOpen(true);
+              },
+            },
+          ]
+        : []),
       {
         id: "safety",
         title: t("Power settings, used carefully"),
@@ -107,7 +113,7 @@ export function FirstRunWalkthrough() {
           t("Multi Roblox and Botting are powerful but higher risk"),
           t("Keep online-join warnings enabled until you fully trust your routine"),
         ],
-        targets: ["[data-tour='toolbar-settings']"],
+        targets: ["[data-tour='settings-modal']", "[data-tour='toolbar-settings']"],
         actionLabel: t("Open Settings"),
         onAction: () => {
           store.setSettingsOpen(true);
@@ -126,6 +132,7 @@ export function FirstRunWalkthrough() {
     ],
     [
       store.openLoginBrowser,
+      store.accounts.length,
       store.setSettingsOpen,
       store.setSidebarOpen,
       t,
@@ -134,32 +141,153 @@ export function FirstRunWalkthrough() {
 
   const activeStep = steps[Math.min(stepIndex, steps.length - 1)];
 
-  const activeTarget = useMemo(() => {
+  const panelAnchor = useMemo<"bottom-right" | "bottom-left" | "top-left">(() => {
+    if (activeStep?.id === "launch-sidebar") return "bottom-left";
+    if (activeStep?.id === "ready") return "top-left";
+    return "bottom-right";
+  }, [activeStep?.id]);
+
+  const resolveActiveTarget = useCallback(() => {
     if (!activeStep?.targets || activeStep.targets.length === 0) return null;
-    for (const selector of activeStep.targets) {
+
+    if (activeStep.id === "add-account") {
+      const browserLoginButton = document.querySelector<HTMLElement>("[data-tour='add-browser-login']");
+      if (browserLoginButton) return browserLoginButton;
+
+      const addButton = document.querySelector<HTMLElement>("[data-tour='toolbar-add']");
+      if (addButton) return addButton;
+
+      const emptyAddButton = document.querySelector<HTMLElement>("[data-tour='empty-add']");
+      if (emptyAddButton) return emptyAddButton;
+
+      return null;
+    }
+
+    const selectors =
+      activeStep.id === "safety"
+        ? store.settingsOpen
+          ? ["[data-tour='settings-modal']", "[data-tour='toolbar-settings']"]
+          : ["[data-tour='toolbar-settings']", "[data-tour='settings-modal']"]
+          : activeStep.targets;
+
+    for (const selector of selectors) {
       const element = document.querySelector<HTMLElement>(selector);
       if (element) return element;
     }
+
     return null;
+  }, [activeStep, store.accounts.length, store.settingsOpen]);
+
+  useEffect(() => {
+    if (activeStep.id !== "launch-sidebar") return;
+    store.setSidebarOpen(true);
+    if (store.selectedIds.size > 0) return;
+    const firstId = store.orderedUserIds[0] ?? store.accounts[0]?.UserID;
+    if (typeof firstId === "number") {
+      store.selectSingle(firstId);
+    }
   }, [
-    activeStep,
-    store.accounts.length,
-    store.selectedAccount?.UserID,
-    store.selectedAccounts.length,
-    store.sidebarOpen,
-    store.settingsOpen,
+    activeStep.id,
+    stepIndex,
+    store.accounts,
+    store.orderedUserIds,
+    store.selectSingle,
+    store.selectedIds.size,
+    store.setSidebarOpen,
   ]);
 
+  useEffect(() => {
+    if (activeStep.id !== "ready") return;
+    store.setSettingsOpen(false);
+    store.setServerListOpen(false);
+    store.setImportDialogOpen(false);
+    store.setAccountFieldsOpen(false);
+    store.setAccountUtilsOpen(false);
+    store.setThemeEditorOpen(false);
+    store.setBottingDialogOpen(false);
+    store.setNexusOpen(false);
+    store.setScriptsOpen(false);
+    store.setUpdateDialogOpen(false);
+    store.setMissingAssets(null);
+    store.closeModal();
+  }, [
+    activeStep.id,
+    stepIndex,
+    store.closeModal,
+    store.setAccountFieldsOpen,
+    store.setAccountUtilsOpen,
+    store.setBottingDialogOpen,
+    store.setImportDialogOpen,
+    store.setMissingAssets,
+    store.setNexusOpen,
+    store.setScriptsOpen,
+    store.setServerListOpen,
+    store.setSettingsOpen,
+    store.setThemeEditorOpen,
+    store.setUpdateDialogOpen,
+  ]);
+
+  const [activeTarget, setActiveTarget] = useState<HTMLElement | null>(null);
   const [focusRect, setFocusRect] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
 
   useEffect(() => {
-    if (!activeTarget) {
-      setFocusRect(null);
-      return;
-    }
+    const margin = 16;
 
+    const updatePanelPosition = () => {
+      const panel = panelRef.current;
+      const panelWidth = panel?.offsetWidth ?? 460;
+      const panelHeight = panel?.offsetHeight ?? 420;
+
+      let left = window.innerWidth - panelWidth - margin;
+      let top = window.innerHeight - panelHeight - margin;
+
+      if (panelAnchor === "bottom-left") {
+        left = margin;
+        top = window.innerHeight - panelHeight - margin;
+      }
+
+      if (panelAnchor === "top-left") {
+        left = margin;
+        top = margin;
+      }
+
+      const maxLeft = Math.max(8, window.innerWidth - panelWidth - 8);
+      const maxTop = Math.max(8, window.innerHeight - panelHeight - 8);
+
+      setPanelPosition({
+        left: Math.min(Math.max(8, left), maxLeft),
+        top: Math.min(Math.max(8, top), maxTop),
+      });
+    };
+
+    updatePanelPosition();
+    const raf = window.requestAnimationFrame(updatePanelPosition);
+    window.addEventListener("resize", updatePanelPosition);
+
+    const observer =
+      panelRef.current && typeof ResizeObserver !== "undefined"
+        ? new ResizeObserver(() => updatePanelPosition())
+        : null;
+    if (observer && panelRef.current) observer.observe(panelRef.current);
+
+    return () => {
+      window.cancelAnimationFrame(raf);
+      window.removeEventListener("resize", updatePanelPosition);
+      observer?.disconnect();
+    };
+  }, [panelAnchor]);
+
+  useEffect(() => {
     const update = () => {
-      const rect = activeTarget.getBoundingClientRect();
+      const target = resolveActiveTarget();
+      setActiveTarget((prev) => (prev === target ? prev : target));
+
+      if (!target) {
+        setFocusRect(null);
+        return;
+      }
+
+      const rect = target.getBoundingClientRect();
       setFocusRect({
         left: Math.max(8, rect.left - 8),
         top: Math.max(8, rect.top - 8),
@@ -178,7 +306,7 @@ export function FirstRunWalkthrough() {
       window.removeEventListener("resize", update);
       window.removeEventListener("scroll", update, true);
     };
-  }, [activeTarget, stepIndex]);
+  }, [resolveActiveTarget, stepIndex]);
 
   useEffect(() => {
     if (stepIndex <= steps.length - 1) return;
@@ -241,7 +369,14 @@ export function FirstRunWalkthrough() {
         <div className="walkthrough-soft-scrim" />
       )}
 
-      <div className="walkthrough-panel pointer-events-auto animate-scale-in">
+      <div
+        ref={panelRef}
+        className="walkthrough-panel pointer-events-auto animate-scale-in"
+        style={{
+          left: `${panelPosition.left}px`,
+          top: `${panelPosition.top}px`,
+        }}
+      >
         <div className="flex items-center justify-between gap-3">
           <div className="walkthrough-chip">{isFirstRunMode ? t("First-Time Walkthrough") : t("Walkthrough Replay")}</div>
           <button
