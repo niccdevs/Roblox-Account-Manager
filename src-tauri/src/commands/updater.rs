@@ -4,7 +4,7 @@ const UPDATER_MANIFEST_BASE: &str =
 #[derive(Default)]
 struct UpdaterRuntimeState {
     pending_update: std::sync::Mutex<Option<tauri_plugin_updater::Update>>,
-    downloaded_bytes: std::sync::Mutex<Option<Vec<u8>>>,
+    downloaded_bytes: std::sync::Mutex<Option<(String, Vec<u8>)>>,
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -142,6 +142,9 @@ async fn download_selected_update(
             .ok_or_else(|| "No pending update selected".to_string())?
     };
 
+    let payload_key =
+        update_payload_key(Some(&update)).ok_or_else(|| "No pending update selected".to_string())?;
+
     let bytes = update
         .download(|_, _| {}, || {})
         .await
@@ -151,7 +154,7 @@ async fn download_selected_update(
         .downloaded_bytes
         .lock()
         .map_err(|e| e.to_string())?;
-    *downloaded = Some(bytes);
+    *downloaded = Some((payload_key, bytes));
 
     Ok(())
 }
@@ -168,7 +171,10 @@ fn install_selected_update(updater_state: tauri::State<'_, UpdaterRuntimeState>)
             .ok_or_else(|| "No pending update selected".to_string())?
     };
 
-    let bytes = {
+    let pending_payload_key =
+        update_payload_key(Some(&update)).ok_or_else(|| "No pending update selected".to_string())?;
+
+    let (downloaded_payload_key, bytes) = {
         let downloaded = updater_state
             .downloaded_bytes
             .lock()
@@ -177,6 +183,12 @@ fn install_selected_update(updater_state: tauri::State<'_, UpdaterRuntimeState>)
             .clone()
             .ok_or_else(|| "No downloaded update found".to_string())?
     };
+
+    if downloaded_payload_key != pending_payload_key {
+        return Err(
+            "Downloaded update no longer matches selected channel/version. Download again.".into(),
+        );
+    }
 
     update
         .install(bytes)
