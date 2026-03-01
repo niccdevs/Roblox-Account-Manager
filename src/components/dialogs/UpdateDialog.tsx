@@ -1,10 +1,10 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { check, type Update } from "@tauri-apps/plugin-updater";
-import { relaunch } from "@tauri-apps/plugin-process";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { AlertTriangle, Download, Info, X } from "lucide-react";
 import { useStore } from "../../store";
 import { useModalClose } from "../../hooks/useModalClose";
 import { useTr } from "../../i18n/text";
+import { getUpdaterSkipVersionKey } from "../../updaterChannels";
 
 type Phase = "available" | "downloading" | "ready" | "installing" | "error";
 
@@ -457,8 +457,6 @@ export function UpdateDialog() {
   const [progress, setProgress] = useState<DownloadProgress>({ downloaded: 0, total: null, speed: 0 });
   const [errorMsg, setErrorMsg] = useState("");
   const [releaseNotes, setReleaseNotes] = useState<string | null>(null);
-  const updateRef = useRef<Update | null>(null);
-  const speedSamplesRef = useRef<{ time: number; bytes: number }[]>([]);
   const renderedNotes = useMemo(() => (releaseNotes ? renderMarkdown(releaseNotes) : null), [releaseNotes]);
 
   useEffect(() => {
@@ -467,7 +465,6 @@ export function UpdateDialog() {
       setProgress({ downloaded: 0, total: null, speed: 0 });
       setErrorMsg("");
       setReleaseNotes(null);
-      speedSamplesRef.current = [];
       return;
     }
 
@@ -507,59 +504,21 @@ export function UpdateDialog() {
   const startDownload = useCallback(async () => {
     setPhase("downloading");
     setProgress({ downloaded: 0, total: null, speed: 0 });
-    speedSamplesRef.current = [{ time: Date.now(), bytes: 0 }];
 
     try {
-      const update = await check();
-      if (!update) {
-        setPhase("error");
-        setErrorMsg(t("No updates available"));
-        return;
-      }
-      updateRef.current = update;
-
-      let totalLen: number | null = null;
-
-      await update.downloadAndInstall((event) => {
-        if (event.event === "Started") {
-          totalLen = event.data.contentLength ?? null;
-        } else if (event.event === "Progress") {
-          const now = Date.now();
-          const chunk = event.data.chunkLength;
-
-          setProgress((prev) => {
-            const downloaded = prev.downloaded + chunk;
-            speedSamplesRef.current.push({ time: now, bytes: downloaded });
-            const cutoff = now - 2000;
-            speedSamplesRef.current = speedSamplesRef.current.filter((s) => s.time >= cutoff);
-
-            let speed = 0;
-            const samples = speedSamplesRef.current;
-            if (samples.length >= 2) {
-              const oldest = samples[0];
-              const newest = samples[samples.length - 1];
-              const dt = (newest.time - oldest.time) / 1000;
-              if (dt > 0) speed = (newest.bytes - oldest.bytes) / dt;
-            }
-
-            return { downloaded, total: totalLen, speed };
-          });
-        } else if (event.event === "Finished") {
-          setPhase("ready");
-        }
-      });
-
+      await invoke("download_selected_update");
+      setProgress({ downloaded: 1, total: 1, speed: 0 });
       setPhase("ready");
     } catch (e) {
       setPhase("error");
       setErrorMsg(String(e));
     }
-  }, [t]);
+  }, []);
 
   const installAndRestart = useCallback(async () => {
     setPhase("installing");
     try {
-      await relaunch();
+      await invoke("install_selected_update");
     } catch (e) {
       setPhase("error");
       setErrorMsg(String(e));
@@ -568,7 +527,10 @@ export function UpdateDialog() {
 
   const skipVersion = useCallback(() => {
     if (info) {
-      localStorage.setItem("skipped-update-version", info.version);
+      localStorage.setItem(
+        getUpdaterSkipVersionKey(info.releaseChannel, info.featureChannel),
+        info.version
+      );
     }
     handleClose();
   }, [info, handleClose]);
