@@ -148,6 +148,28 @@ jobs:
         run: |
           Copy-Item "src-tauri/target/release/roblox-account-manager.exe" "src-tauri/target/release/portable-standard.exe" -Force
 
+      - name: Wait for release to become available
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ env.RELEASE_GITHUB_TOKEN }}
+        run: |
+          $tag = "${{ steps.meta.outputs.tag }}"
+          $repo = "${{ github.repository }}"
+
+          for ($i = 1; $i -le 20; $i++) {
+            gh release view $tag --repo $repo --json id *> $null
+            if ($LASTEXITCODE -eq 0) {
+              Write-Host "Release $tag is available in $repo"
+              break
+            }
+
+            if ($i -eq 20) {
+              throw "Release $tag not found in $repo after waiting"
+            }
+
+            Start-Sleep -Seconds 3
+          }
+
       - name: Generate and push standard update manifest
         shell: pwsh
         env:
@@ -315,10 +337,11 @@ jobs:
           GH_TOKEN: ${{ env.RELEASE_GITHUB_TOKEN }}
         run: |
           $tag = "${{ steps.meta.outputs.tag }}"
+          $repo = "${{ github.repository }}"
           $fullSetupPath = Join-Path $env:RELEASE_STAGE_DIR $env:FULL_SETUP_NAME
           $fullMsiPath = Join-Path $env:RELEASE_STAGE_DIR $env:FULL_MSI_NAME
-          gh release upload $tag "$fullSetupPath" --clobber
-          gh release upload $tag "$fullMsiPath" --clobber
+          gh release upload $tag "$fullSetupPath" --repo $repo --clobber
+          gh release upload $tag "$fullMsiPath" --repo $repo --clobber
 
       - name: Upload portable binaries
         shell: pwsh
@@ -326,10 +349,11 @@ jobs:
           GH_TOKEN: ${{ env.RELEASE_GITHUB_TOKEN }}
         run: |
           $tag = "${{ steps.meta.outputs.tag }}"
+          $repo = "${{ github.repository }}"
           $standardPortablePath = Join-Path $env:RELEASE_STAGE_DIR $env:STANDARD_PORTABLE_NAME
           $fullPortablePath = Join-Path $env:RELEASE_STAGE_DIR $env:FULL_PORTABLE_NAME
-          gh release upload $tag "$standardPortablePath" --clobber
-          gh release upload $tag "$fullPortablePath" --clobber
+          gh release upload $tag "$standardPortablePath" --repo $repo --clobber
+          gh release upload $tag "$fullPortablePath" --repo $repo --clobber
 
       - name: Generate and push full feature update manifest
         shell: pwsh
@@ -350,6 +374,7 @@ jobs:
           GH_TOKEN: ${{ env.RELEASE_GITHUB_TOKEN }}
         run: |
           $tag = "${{ steps.meta.outputs.tag }}"
+          $repo = "${{ github.repository }}"
           $tmpDir = "src-tauri/target/release/reordered-signatures"
 
           if (Test-Path $tmpDir) {
@@ -357,12 +382,12 @@ jobs:
           }
           New-Item -ItemType Directory -Path $tmpDir | Out-Null
 
-          $release = gh release view $tag --json assets | ConvertFrom-Json
+          $release = gh release view $tag --repo $repo --json assets | ConvertFrom-Json
           $sigNames = @($release.assets | Where-Object { $_.name -like "*.sig" } | ForEach-Object { $_.name })
 
           foreach ($name in $sigNames) {
-            gh release download $tag --pattern "$name" --dir "$tmpDir" --clobber
-            gh release delete-asset $tag "$name" --yes
+            gh release download $tag --repo $repo --pattern "$name" --dir "$tmpDir" --clobber
+            gh release delete-asset $tag "$name" --repo $repo --yes
           }
 
           $fullSetupSig = Join-Path $env:RELEASE_STAGE_DIR "$env:FULL_SETUP_NAME.sig"
@@ -388,7 +413,7 @@ jobs:
           }
 
           Get-ChildItem $tmpDir -File -Filter "zz-*.sig" | Sort-Object Name | ForEach-Object {
-            gh release upload $tag $_.FullName --clobber
+            gh release upload $tag $_.FullName --repo $repo --clobber
           }
 
       - name: Clean up release assets
@@ -396,13 +421,15 @@ jobs:
         env:
           GH_TOKEN: ${{ env.RELEASE_GITHUB_TOKEN }}
         run: |
-          gh release delete-asset "${{ steps.meta.outputs.tag }}" "latest.json" --yes 2>$null
-          gh release delete-asset "${{ steps.meta.outputs.tag }}" "roblox-account-manager.exe" --yes 2>$null
-          gh release delete-asset "${{ steps.meta.outputs.tag }}" "Roblox.Account.Manager.Recommended.Portable.exe" --yes 2>$null
-          gh release delete-asset "${{ steps.meta.outputs.tag }}" "Roblox Account Manager (Recommended) Portable.exe" --yes 2>$null
-          gh release delete-asset "${{ steps.meta.outputs.tag }}" "Roblox Account Manager (Full Features) Portable.exe" --yes 2>$null
-          gh release delete-asset "${{ steps.meta.outputs.tag }}" "zz-Roblox.Account.Manager.Optional.Full.Features.-.Nexus.+.WebServer.zip" --yes 2>$null
-          gh release delete-asset "${{ steps.meta.outputs.tag }}" "zz-Roblox Account Manager (Optional Full Features - Nexus + WebServer).zip" --yes 2>$null
+          $tag = "${{ steps.meta.outputs.tag }}"
+          $repo = "${{ github.repository }}"
+          gh release delete-asset $tag "latest.json" --repo $repo --yes 2>$null
+          gh release delete-asset $tag "roblox-account-manager.exe" --repo $repo --yes 2>$null
+          gh release delete-asset $tag "Roblox.Account.Manager.Recommended.Portable.exe" --repo $repo --yes 2>$null
+          gh release delete-asset $tag "Roblox Account Manager (Recommended) Portable.exe" --repo $repo --yes 2>$null
+          gh release delete-asset $tag "Roblox Account Manager (Full Features) Portable.exe" --repo $repo --yes 2>$null
+          gh release delete-asset $tag "zz-Roblox.Account.Manager.Optional.Full.Features.-.Nexus.+.WebServer.zip" --repo $repo --yes 2>$null
+          gh release delete-asset $tag "zz-Roblox Account Manager (Optional Full Features - Nexus + WebServer).zip" --repo $repo --yes 2>$null
           exit 0
 
       - name: Finalize release notes
