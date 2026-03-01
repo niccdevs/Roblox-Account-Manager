@@ -248,6 +248,7 @@ async fn start_watcher(
                                 .unwrap_or(true);
 
                             if changed_since_last_tick {
+                                let mut persisted = false;
                                 let store = app_handle.state::<AccountStore>();
                                 if let Ok(accounts) = store.get_all() {
                                     if let Some(mut account) =
@@ -284,12 +285,18 @@ async fn start_watcher(
                                             account.fields.insert("Window_Position_Y".into(), y);
                                             account.fields.insert("Window_Width".into(), w);
                                             account.fields.insert("Window_Height".into(), h);
-                                            let _ = store.update(account);
+                                            if store.update(account).is_ok() {
+                                                persisted = true;
+                                            }
+                                        } else {
+                                            persisted = true;
                                         }
                                     }
                                 }
 
-                                last_saved_positions.insert(inst.user_id, position);
+                                if persisted {
+                                    last_saved_positions.insert(inst.user_id, position);
+                                }
                             }
                         }
                     }
