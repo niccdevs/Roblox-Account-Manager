@@ -121,6 +121,17 @@ impl SettingsStore {
                 None,
             );
         }
+        if !general.exists("FirstRunWalkthroughState") {
+            general.set(
+                "FirstRunWalkthroughState",
+                if settings_file_existed {
+                    "completed"
+                } else {
+                    "pending"
+                },
+                None,
+            );
+        }
 
         let developer = ini.section("Developer");
         if !developer.exists("DevMode") {

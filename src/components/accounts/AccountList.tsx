@@ -210,6 +210,7 @@ export function AccountList() {
     return (
       <>
         <div
+          data-tour="accounts-list"
           className="theme-surface flex-1 flex flex-col items-center justify-center min-h-0 text-center px-8"
           onDragOver={handleDragOver}
           onDrop={handleExternalDrop}
@@ -223,6 +224,7 @@ export function AccountList() {
             <button
               type="button"
               onClick={() => setAddDialogOpen(true)}
+              data-tour="empty-add"
               className="theme-accent hover:underline underline-offset-2"
             >
               {t("Add")}
@@ -246,6 +248,7 @@ export function AccountList() {
   return (
     <div
       ref={listRef}
+      data-tour="accounts-list"
       tabIndex={0}
       className="relative flex-1 overflow-y-auto min-h-0 py-1 outline-none"
       onClickCapture={handleClickCapture}

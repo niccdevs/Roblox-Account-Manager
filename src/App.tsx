@@ -1,8 +1,9 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { StoreProvider, useStore } from "./store";
 import { PromptProvider } from "./hooks/usePrompt";
 import { PasswordScreen } from "./components/layout/PasswordScreen";
 import { EncryptionSetupScreen } from "./components/layout/EncryptionSetupScreen";
+import { FirstRunWalkthrough } from "./components/layout/FirstRunWalkthrough";
 import { TitleBar } from "./components/layout/TitleBar";
 import { ModalWindowControls } from "./components/layout/ModalWindowControls";
 import { UpdateBanner } from "./components/layout/UpdateBanner";
@@ -27,6 +28,7 @@ import { useTr } from "./i18n/text";
 function AppContent() {
   const t = useTr();
   const store = useStore();
+  const hasCheckedForUpdatesRef = useRef(false);
   const errorLower = (store.error || "").toLowerCase();
   const showCloseRobloxAction =
     errorLower.includes("failed to enable multi roblox") ||
@@ -43,13 +45,15 @@ function AppContent() {
     store.nexusOpen ||
     store.scriptsOpen ||
     store.updateDialogOpen ||
+    store.firstRunWalkthroughOpen ||
     !!store.modal;
 
   useEffect(() => {
-    if (store.initialized && !store.needsPassword) {
-      store.checkForUpdates();
-    }
-  }, [store.initialized, store.needsPassword]);
+    if (!store.initialized || store.needsPassword || store.firstRunWalkthroughOpen) return;
+    if (hasCheckedForUpdatesRef.current) return;
+    hasCheckedForUpdatesRef.current = true;
+    store.checkForUpdates();
+  }, [store.checkForUpdates, store.firstRunWalkthroughOpen, store.initialized, store.needsPassword]);
 
   if (!store.initialized) {
     return (
@@ -174,6 +178,8 @@ function AppContent() {
       />
 
       <UpdateDialog />
+
+      {store.firstRunWalkthroughOpen && <FirstRunWalkthrough />}
 
       {store.modal && (
         <div

@@ -144,7 +144,7 @@ export function MultiSelectSidebar() {
   }
 
   return (
-    <div className="theme-surface theme-border w-72 border-l flex flex-col shrink-0 animate-slide-right">
+    <div data-tour="launch-sidebar" className="theme-surface theme-border w-72 border-l flex flex-col shrink-0 animate-slide-right">
       <div className="p-4 border-b theme-border">
         <div className="flex items-center justify-between">
           <div>
