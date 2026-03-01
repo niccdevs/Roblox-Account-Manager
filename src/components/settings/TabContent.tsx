@@ -56,7 +56,7 @@ export function TabContent({
             className={active ? enterClass : ""}
             style={{
               gridArea: "1 / 1",
-              visibility: active ? "visible" : "hidden",
+              display: active ? "block" : "none",
               pointerEvents: active ? "auto" : "none",
             }}
           >
