@@ -31,7 +31,7 @@ export function FirstRunWalkthrough() {
   }, [store.firstRunWalkthroughOpen]);
 
   const handleLanguageChange = async (value: string) => {
-    setLanguageSelected(true);
+    setLanguageSelected(false);
     setLanguageSaving(true);
     try {
       await invoke("update_setting", {
@@ -40,7 +40,9 @@ export function FirstRunWalkthrough() {
         value,
       });
       await store.reloadSettings();
+      setLanguageSelected(true);
     } catch {
+      setLanguageSelected(false);
       store.addToast(t("Failed to change language"));
     } finally {
       setLanguageSaving(false);
