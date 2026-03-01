@@ -33,6 +33,7 @@ include!("commands/botting.rs");
 include!("commands/launch.rs");
 include!("commands/watcher.rs");
 include!("commands/services.rs");
+include!("commands/updater.rs");
 
 #[cfg(target_os = "windows")]
 fn cleanup_multi_roblox_on_exit(app: &AppHandle<Wry>) {
@@ -116,6 +117,7 @@ pub fn run() {
         .manage(theme_preset_store)
         .manage(script_store)
         .manage(image_cache)
+        .manage(UpdaterRuntimeState::default())
         .setup(|app| {
             let show = MenuItemBuilder::with_id("show", "Show").build(app)?;
             let quit = MenuItemBuilder::with_id("quit", "Quit").build(app)?;
@@ -223,6 +225,9 @@ pub fn run() {
             data::settings::export_theme_preset_file,
             data::settings::import_theme_font_asset,
             data::settings::resolve_theme_font_asset,
+            check_for_updates_with_channels,
+            download_selected_update,
+            install_selected_update,
             test_auth,
             validate_cookie,
             get_csrf_token,

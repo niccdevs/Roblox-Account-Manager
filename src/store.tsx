@@ -13,9 +13,15 @@ import { listen } from "@tauri-apps/api/event";
 import type { Account, ThemeData, ThumbnailData, ParsedGroup } from "./types";
 import { parseGroupName } from "./types";
 import { applyThemeCssVariables, normalizeTheme, DEFAULT_THEME } from "./theme";
-import { check as checkForUpdate } from "@tauri-apps/plugin-updater";
 import i18n, { normalizeLanguage } from "./i18n";
 import { tr } from "./i18n/text";
+import {
+  type UpdaterReleaseChannel,
+  type UpdaterFeatureChannel,
+  normalizeUpdaterReleaseChannel,
+  normalizeUpdaterFeatureChannel,
+  getUpdaterSkipVersionKey,
+} from "./updaterChannels";
 
 interface PresenceEntry {
   userId?: number;
@@ -219,10 +225,20 @@ export interface StoreValue {
   scriptsOpen: boolean;
   setScriptsOpen: (open: boolean) => void;
 
-  updateInfo: { version: string; currentVersion: string; date: string; body: string } | null;
+  updateInfo: {
+    version: string;
+    currentVersion: string;
+    date: string;
+    body: string;
+    releaseChannel: UpdaterReleaseChannel;
+    featureChannel: UpdaterFeatureChannel;
+  } | null;
   updateDialogOpen: boolean;
   setUpdateDialogOpen: (open: boolean) => void;
-  checkForUpdates: (manual?: boolean) => Promise<void>;
+  checkForUpdates: (
+    manual?: boolean,
+    channels?: { releaseChannel?: string; featureChannel?: string }
+  ) => Promise<void>;
   openUpdatePreviewDialog: () => void;
 
   openLoginBrowser: () => Promise<void>;
@@ -304,7 +320,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [missingAssets, setMissingAssets] = useState<{ userId: number; username: string; assetIds: number[] } | null>(null);
   const [nexusOpen, setNexusOpen] = useState(false);
   const [scriptsOpen, setScriptsOpen] = useState(false);
-  const [updateInfo, setUpdateInfo] = useState<{ version: string; currentVersion: string; date: string; body: string } | null>(null);
+  const [updateInfo, setUpdateInfo] = useState<{
+    version: string;
+    currentVersion: string;
+    date: string;
+    body: string;
+    releaseChannel: UpdaterReleaseChannel;
+    featureChannel: UpdaterFeatureChannel;
+  } | null>(null);
   const [updateDialogOpen, setUpdateDialogOpen] = useState(false);
   const [joiningAccounts, setJoiningAccounts] = useState<Set<number>>(new Set());
   const [launchProgress, setLaunchProgress] = useState<LaunchProgressState | null>(null);
@@ -1568,27 +1591,56 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const checkForUpdates = useCallback(async (manual?: boolean) => {
+  const checkForUpdates = useCallback(async (
+    manual?: boolean,
+    channels?: { releaseChannel?: string; featureChannel?: string }
+  ) => {
     if (!manual && settings?.General?.CheckForUpdates === "false") return;
+
+    const releaseChannel = normalizeUpdaterReleaseChannel(
+      channels?.releaseChannel ?? settings?.General?.UpdaterReleaseChannel ?? "beta"
+    );
+    const featureChannel = normalizeUpdaterFeatureChannel(
+      channels?.featureChannel ?? settings?.General?.UpdaterFeatureChannel ?? "standard"
+    );
+
     try {
-      const update = await checkForUpdate();
+      const update = await invoke<{
+        version: string;
+        currentVersion: string;
+        date: string;
+        body: string;
+      } | null>("check_for_updates_with_channels", {
+        releaseChannel,
+        featureChannel,
+      });
+
       if (!update) {
         if (manual) addToast(tr("No updates available"));
         return;
       }
-      const skipped = localStorage.getItem("skipped-update-version");
+
+      const skipped = localStorage.getItem(getUpdaterSkipVersionKey(releaseChannel, featureChannel));
       if (!manual && skipped === update.version) return;
+
       setUpdateInfo({
         version: update.version,
         currentVersion: update.currentVersion,
         date: update.date ?? "",
         body: update.body ?? "",
+        releaseChannel,
+        featureChannel,
       });
       setUpdateDialogOpen(true);
     } catch (e) {
       if (manual) addToast(tr("Update check failed"));
     }
-  }, [settings?.General?.CheckForUpdates, addToast]);
+  }, [
+    settings?.General?.CheckForUpdates,
+    settings?.General?.UpdaterFeatureChannel,
+    settings?.General?.UpdaterReleaseChannel,
+    addToast,
+  ]);
 
   const openUpdatePreviewDialog = useCallback(() => {
     const previewBody = [
@@ -1620,6 +1672,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       currentVersion: "4.2.5",
       date: new Date().toISOString(),
       body: previewBody,
+      releaseChannel: "beta",
+      featureChannel: "standard",
     });
     setUpdateDialogOpen(true);
   }, []);

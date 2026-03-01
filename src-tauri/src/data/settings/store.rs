@@ -26,6 +26,8 @@ impl SettingsStore {
 
         let defaults: &[(&str, &str, Option<&str>)] = &[
             ("CheckForUpdates", "true", None),
+            ("UpdaterReleaseChannel", "beta", None),
+            ("UpdaterFeatureChannel", "standard", None),
             ("AccountJoinDelay", "8", None),
             ("AsyncJoin", "false", None),
             ("DisableAgingAlert", "false", None),
