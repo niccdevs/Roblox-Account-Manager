@@ -158,6 +158,7 @@ export function Toolbar() {
               </button>
               <button
                 onClick={handleBrowserLogin}
+                data-tour="add-browser-login"
                 className="flex items-center gap-2.5 w-full px-3.5 py-2 text-sm text-[var(--panel-fg)] hover:bg-[var(--panel-soft)] text-left"
               >
                 <Globe size={14} strokeWidth={1.5} className="theme-muted" />

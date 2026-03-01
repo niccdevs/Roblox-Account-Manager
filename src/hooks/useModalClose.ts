@@ -23,8 +23,23 @@ export function useModalClose(open: boolean, onClose: () => void, duration = 100
       }
       setVisible(true);
       setClosing(false);
+      return;
     }
-  }, [open]);
+
+    if (!visible || closing) return;
+    if (closeTimeoutRef.current !== null) {
+      window.clearTimeout(closeTimeoutRef.current);
+      closeTimeoutRef.current = null;
+    }
+
+    setClosing(true);
+    closeTimeoutRef.current = window.setTimeout(() => {
+      setClosing(false);
+      setVisible(false);
+      onCloseRef.current();
+      closeTimeoutRef.current = null;
+    }, durationRef.current);
+  }, [closing, open, visible]);
 
   const handleClose = useCallback(() => {
     if (closeTimeoutRef.current !== null) {
