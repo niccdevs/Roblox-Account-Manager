@@ -1,5 +1,6 @@
 import { execSync } from "node:child_process";
-import { writeFileSync, mkdirSync, readFileSync } from "node:fs";
+import { writeFileSync, mkdirSync, readFileSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 const tag = process.env.RELEASE_TAG;
@@ -41,26 +42,30 @@ if (!token) {
   process.exit(1);
 }
 
-const tmpDir = ".tmp-update-manifest";
-execSync(`git clone --depth 1 --branch update-manifests --single-branch "https://x-access-token:${token}@github.com/${repo}.git" "${tmpDir}"`, {
-  stdio: "inherit",
-});
+const tmpDir = mkdtempSync(join(tmpdir(), "ram-update-manifest-"));
 
-const channelDir = join(tmpDir, channel);
-mkdirSync(channelDir, { recursive: true });
-writeFileSync(join(channelDir, "latest.json"), JSON.stringify(manifest, null, 2) + "\n");
+try {
+  execSync(`git clone --depth 1 --branch update-manifests --single-branch "https://x-access-token:${token}@github.com/${repo}.git" "${tmpDir}"`, {
+    stdio: "inherit",
+  });
 
-execSync(`git -C "${tmpDir}" add -A`, { stdio: "inherit" });
+  const channelDir = join(tmpDir, channel);
+  mkdirSync(channelDir, { recursive: true });
+  writeFileSync(join(channelDir, "latest.json"), JSON.stringify(manifest, null, 2) + "\n");
 
-const status = execSync(`git -C "${tmpDir}" status --porcelain`, { encoding: "utf-8" }).trim();
-if (!status) {
-  console.log("No changes to update manifest");
-  process.exit(0);
+  execSync(`git -C "${tmpDir}" add -A`, { stdio: "inherit" });
+
+  const status = execSync(`git -C "${tmpDir}" status --porcelain`, { encoding: "utf-8" }).trim();
+  if (!status) {
+    console.log("No changes to update manifest");
+  } else {
+    execSync(`git -C "${tmpDir}" commit -m "update ${channel}/latest.json to ${version}"`, {
+      stdio: "inherit",
+    });
+    execSync(`git -C "${tmpDir}" push origin update-manifests`, { stdio: "inherit" });
+
+    console.log(`Updated ${channel}/latest.json to ${version}`);
+  }
+} finally {
+  rmSync(tmpDir, { recursive: true, force: true });
 }
-
-execSync(`git -C "${tmpDir}" commit -m "update ${channel}/latest.json to ${version}"`, {
-  stdio: "inherit",
-});
-execSync(`git -C "${tmpDir}" push origin update-manifests`, { stdio: "inherit" });
-
-console.log(`Updated ${channel}/latest.json to ${version}`);
