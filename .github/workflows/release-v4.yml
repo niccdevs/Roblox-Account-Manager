@@ -262,14 +262,6 @@ jobs:
             throw "Full feature MSI signature not found"
           }
 
-          $fullManifestSrc = Get-ChildItem $bundleRoot -File -Recurse -Filter "latest.json" |
-            Sort-Object LastWriteTime -Descending |
-            Select-Object -First 1
-
-          if (-not $fullManifestSrc) {
-            throw "Full feature updater manifest not found"
-          }
-
           $v = $env:RELEASE_VERSION
           $fullSetupName = "Roblox.Account.Manager_${v}_x64-setup_full-nexus-ws.exe"
           $fullMsiName = "Roblox.Account.Manager_${v}_x64_en-US_full-nexus-ws.msi"
@@ -283,16 +275,28 @@ jobs:
           Copy-Item $standardPortableSrc (Join-Path $stageDir $standardPortableName) -Force
           Copy-Item $fullPortableSrc (Join-Path $stageDir $fullPortableName) -Force
 
-          $manifest = Get-Content $fullManifestSrc.FullName -Raw | ConvertFrom-Json
           $baseUrl = "https://github.com/$($env:GITHUB_REPOSITORY)/releases/download/$($env:RELEASE_TAG)"
-          if ($manifest.platforms.'windows-x86_64-nsis') {
-            $manifest.platforms.'windows-x86_64-nsis'.url = "$baseUrl/$fullSetupName"
-          }
-          if ($manifest.platforms.'windows-x86_64-msi') {
-            $manifest.platforms.'windows-x86_64-msi'.url = "$baseUrl/$fullMsiName"
-          }
-          if ($manifest.platforms.'windows-x86_64') {
-            $manifest.platforms.'windows-x86_64'.url = "$baseUrl/$fullMsiName"
+          $fullSetupSignature = (Get-Content $fullSetupSigSrc -Raw).Trim()
+          $fullMsiSignature = (Get-Content $fullMsiSigSrc -Raw).Trim()
+
+          $manifest = [ordered]@{
+            version = $v
+            notes = ""
+            pub_date = (Get-Date).ToUniversalTime().ToString("o")
+            platforms = [ordered]@{
+              "windows-x86_64" = [ordered]@{
+                signature = $fullMsiSignature
+                url = "$baseUrl/$fullMsiName"
+              }
+              "windows-x86_64-msi" = [ordered]@{
+                signature = $fullMsiSignature
+                url = "$baseUrl/$fullMsiName"
+              }
+              "windows-x86_64-nsis" = [ordered]@{
+                signature = $fullSetupSignature
+                url = "$baseUrl/$fullSetupName"
+              }
+            }
           }
 
           $fullManifestOut = Join-Path $stageDir "latest-full.json"
