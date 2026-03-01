@@ -80,7 +80,17 @@ async fn check_for_updates_with_channels(
         .await
         .map_err(|e| format!("Failed to check for updates: {}", e))?;
 
-    {
+    let previous_version = {
+        let pending = updater_state
+            .pending_update
+            .lock()
+            .map_err(|e| e.to_string())?;
+        pending.as_ref().map(|item| item.version.clone())
+    };
+
+    let next_version = update.as_ref().map(|item| item.version.clone());
+
+    if previous_version != next_version {
         let mut downloaded = updater_state
             .downloaded_bytes
             .lock()
