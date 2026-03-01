@@ -135,7 +135,7 @@ jobs:
         with:
           projectPath: "."
           tauriScript: "bun tauri"
-          args: --no-default-features
+          args: -- --no-default-features
           tagName: ${{ steps.meta.outputs.tag }}
           releaseName: ${{ steps.meta.outputs.release_title }}
           releaseBody: ${{ steps.meta.outputs.release_body }}
@@ -210,7 +210,7 @@ jobs:
           VITE_ENABLE_NEXUS: "true"
           VITE_ENABLE_WEBSERVER: "true"
         run: |
-          bun tauri build --features nexus,webserver
+          bun tauri build -- --features nexus,webserver
 
       - name: Package full feature assets
         shell: pwsh
