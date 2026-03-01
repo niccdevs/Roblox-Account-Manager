@@ -1002,12 +1002,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setFirstRunWalkthroughMode("manual");
   }, []);
 
-  const persistFirstRunWalkthroughState = useCallback(async (state: "completed" | "skipped") => {
-    await invoke("update_setting", {
-      section: "General",
-      key: "FirstRunWalkthroughState",
-      value: state,
-    }).catch(() => {});
+  const setFirstRunWalkthroughStateLocal = useCallback((state: "completed" | "skipped") => {
     setSettings((prev) => {
       if (!prev) return prev;
       return {
@@ -1020,12 +1015,25 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const persistFirstRunWalkthroughState = useCallback(async (state: "completed" | "skipped") => {
+    await invoke("update_setting", {
+      section: "General",
+      key: "FirstRunWalkthroughState",
+      value: state,
+    }).catch(() => {});
+  }, []);
+
   const completeFirstRunWalkthrough = useCallback(async () => {
-    setFirstRunWalkthroughOpen(false);
-    if (
+    const shouldPersist =
       firstRunWalkthroughMode === "firstRun" ||
-      settings?.General?.FirstRunWalkthroughState === "pending"
-    ) {
+      settings?.General?.FirstRunWalkthroughState === "pending";
+
+    if (shouldPersist) {
+      setFirstRunWalkthroughStateLocal("completed");
+    }
+    setFirstRunWalkthroughOpen(false);
+
+    if (shouldPersist) {
       await persistFirstRunWalkthroughState("completed");
       addToast(tr("First-Time Walkthrough complete"));
     }
@@ -1034,15 +1042,21 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     addToast,
     firstRunWalkthroughMode,
     persistFirstRunWalkthroughState,
+    setFirstRunWalkthroughStateLocal,
     settings?.General?.FirstRunWalkthroughState,
   ]);
 
   const skipFirstRunWalkthrough = useCallback(async () => {
-    setFirstRunWalkthroughOpen(false);
-    if (
+    const shouldPersist =
       firstRunWalkthroughMode === "firstRun" ||
-      settings?.General?.FirstRunWalkthroughState === "pending"
-    ) {
+      settings?.General?.FirstRunWalkthroughState === "pending";
+
+    if (shouldPersist) {
+      setFirstRunWalkthroughStateLocal("skipped");
+    }
+    setFirstRunWalkthroughOpen(false);
+
+    if (shouldPersist) {
       await persistFirstRunWalkthroughState("skipped");
       addToast(tr("First-Time Walkthrough skipped"));
     }
@@ -1051,6 +1065,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     addToast,
     firstRunWalkthroughMode,
     persistFirstRunWalkthroughState,
+    setFirstRunWalkthroughStateLocal,
     settings?.General?.FirstRunWalkthroughState,
   ]);
 

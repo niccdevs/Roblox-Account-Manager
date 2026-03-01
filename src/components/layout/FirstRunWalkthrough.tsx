@@ -27,8 +27,8 @@ export function FirstRunWalkthrough() {
   const isLanguageStep = stepIndex === 0;
 
   useEffect(() => {
-    setLanguageSelected(false);
-  }, [store.firstRunWalkthroughOpen]);
+    setLanguageSelected(store.firstRunWalkthroughMode !== "firstRun");
+  }, [store.firstRunWalkthroughOpen, store.firstRunWalkthroughMode]);
 
   const handleLanguageChange = async (value: string) => {
     setLanguageSelected(false);
