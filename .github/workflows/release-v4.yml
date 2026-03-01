@@ -123,16 +123,19 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      - name: Build and publish release
+      - name: Build and publish standard release
         id: tauri_build
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ env.RELEASE_GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          VITE_ENABLE_NEXUS: "false"
+          VITE_ENABLE_WEBSERVER: "false"
         with:
           projectPath: "."
           tauriScript: "bun tauri"
+          args: --no-default-features
           tagName: ${{ steps.meta.outputs.tag }}
           releaseName: ${{ steps.meta.outputs.release_title }}
           releaseBody: ${{ steps.meta.outputs.release_body }}
@@ -140,13 +143,13 @@ jobs:
           prerelease: ${{ steps.controls.outputs.channel == 'beta' }}
           releaseDraft: false
 
-      - name: Upload portable EXE
+      - name: Upload recommended portable EXE
         shell: pwsh
         env:
           GH_TOKEN: ${{ env.RELEASE_GITHUB_TOKEN }}
         run: |
-          Copy-Item "src-tauri/target/release/roblox-account-manager.exe" "src-tauri/target/release/Roblox Account Manager_portable.exe"
-          gh release upload "${{ steps.meta.outputs.tag }}" "src-tauri/target/release/Roblox Account Manager_portable.exe" --clobber
+          Copy-Item "src-tauri/target/release/roblox-account-manager.exe" "src-tauri/target/release/Roblox Account Manager (Recommended) Portable.exe"
+          gh release upload "${{ steps.meta.outputs.tag }}" "src-tauri/target/release/Roblox Account Manager (Recommended) Portable.exe" --clobber
 
       - name: Generate and push update manifest
         shell: pwsh
@@ -159,6 +162,62 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
           bun .github/scripts/generate-update-manifest.mjs
+
+      - name: Build full feature variant (Nexus + WebServer)
+        shell: pwsh
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          VITE_ENABLE_NEXUS: "true"
+          VITE_ENABLE_WEBSERVER: "true"
+        run: |
+          bun tauri build --features nexus,webserver
+
+      - name: Package full feature assets
+        shell: pwsh
+        run: |
+          $bundleRoot = "src-tauri/target/release/bundle"
+          $stagingDir = "src-tauri/target/release/full-feature-assets"
+          $zipPath = "src-tauri/target/release/zz-Roblox Account Manager (Optional Full Features - Nexus + WebServer).zip"
+
+          if (Test-Path $stagingDir) {
+            Remove-Item $stagingDir -Recurse -Force
+          }
+          New-Item -ItemType Directory -Path $stagingDir | Out-Null
+
+          if (Test-Path "$bundleRoot/nsis") {
+            Get-ChildItem "$bundleRoot/nsis" -File -Recurse -Filter "*.exe" | ForEach-Object {
+              Copy-Item $_.FullName (Join-Path $stagingDir $_.Name) -Force
+            }
+          }
+
+          if (Test-Path "$bundleRoot/msi") {
+            Get-ChildItem "$bundleRoot/msi" -File -Recurse -Filter "*.msi" | ForEach-Object {
+              Copy-Item $_.FullName (Join-Path $stagingDir $_.Name) -Force
+            }
+          }
+
+          if (Test-Path "src-tauri/target/release/roblox-account-manager.exe") {
+            Copy-Item "src-tauri/target/release/roblox-account-manager.exe" "src-tauri/target/release/full-feature-assets/Roblox Account Manager (Full Features) Portable.exe" -Force
+          }
+
+          if ((Get-ChildItem $stagingDir -File).Count -eq 0) {
+            throw "No full feature artifacts found"
+          }
+
+          if (Test-Path $zipPath) {
+            Remove-Item $zipPath -Force
+          }
+
+          Compress-Archive -Path "$stagingDir/*" -DestinationPath $zipPath -CompressionLevel Optimal
+          Add-Content -Path $env:GITHUB_ENV -Value "FULL_FEATURES_ZIP=$zipPath"
+
+      - name: Upload optional full feature bundle
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ env.RELEASE_GITHUB_TOKEN }}
+        run: |
+          gh release upload "${{ steps.meta.outputs.tag }}" "$env:FULL_FEATURES_ZIP" --clobber
 
       - name: Clean up release assets
         shell: pwsh
@@ -250,7 +309,10 @@ jobs:
               `Channel: ${channelLabel}`,
               `Release commit: ${releaseCommitSha}`,
               `Release commit message: ${releaseCommitMessage}`,
-              `App version: ${appVersion}`
+              `App version: ${appVersion}`,
+              "",
+              "Recommended assets: installer/MSI or Roblox Account Manager (Recommended) Portable.exe",
+              "Optional full feature bundle: zz-Roblox Account Manager (Optional Full Features - Nexus + WebServer).zip"
             ].join("\n");
 
             const finalBody = [

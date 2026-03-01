@@ -34,8 +34,20 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      - name: Build frontend
+      - name: Build frontend (full)
+        env:
+          VITE_ENABLE_NEXUS: "true"
+          VITE_ENABLE_WEBSERVER: "true"
         run: bun run build
 
-      - name: Check Rust backend
+      - name: Build frontend (standard)
+        env:
+          VITE_ENABLE_NEXUS: "false"
+          VITE_ENABLE_WEBSERVER: "false"
+        run: bun run build
+
+      - name: Check Rust backend (full features)
         run: cargo check --manifest-path src-tauri/Cargo.toml --locked
+
+      - name: Check Rust backend (standard build)
+        run: cargo check --manifest-path src-tauri/Cargo.toml --locked --no-default-features
