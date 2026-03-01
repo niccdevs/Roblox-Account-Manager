@@ -148,36 +148,36 @@ export function MiscellaneousTab({
         </>
       )}
 
-      <SectionLabel>FPS</SectionLabel>
-      <Toggle
-        checked={s.getBool("General", "UnlockFPS")}
-        onChange={(v) => {
-          if (customClientSettingsEnabled) return;
-          s.setBool("General", "UnlockFPS", v);
-        }}
-        label="Unlock FPS"
-        description={
-          customClientSettingsEnabled
-            ? "Disabled while Custom ClientAppSettings is set"
-            : undefined
-        }
-      />
-      <NumberField
-        value={s.getNumber("General", "MaxFPSValue", 120)}
-        onChange={(v) => s.setNumber("General", "MaxFPSValue", v)}
-        label="Max FPS"
-        min={5}
-        max={9999}
-      />
-      <TextField
-        value={s.get("General", "CustomClientSettings", "")}
-        onChange={(v) => s.set("General", "CustomClientSettings", v)}
-        label="Custom ClientSettings"
-        placeholder="C:\\path\\ClientAppSettings.json"
-      />
-
       {showRobloxClientSection && (
         <>
+          <SectionLabel>FPS</SectionLabel>
+          <Toggle
+            checked={s.getBool("General", "UnlockFPS")}
+            onChange={(v) => {
+              if (customClientSettingsEnabled) return;
+              s.setBool("General", "UnlockFPS", v);
+            }}
+            label="Unlock FPS"
+            description={
+              customClientSettingsEnabled
+                ? "Disabled while Custom ClientAppSettings is set"
+                : undefined
+            }
+          />
+          <NumberField
+            value={s.getNumber("General", "MaxFPSValue", 120)}
+            onChange={(v) => s.setNumber("General", "MaxFPSValue", v)}
+            label="Max FPS"
+            min={5}
+            max={9999}
+          />
+          <TextField
+            value={s.get("General", "CustomClientSettings", "")}
+            onChange={(v) => s.set("General", "CustomClientSettings", v)}
+            label="Custom ClientSettings"
+            placeholder="C:\\path\\ClientAppSettings.json"
+          />
+
           <Divider />
           <SectionLabel>Roblox Client</SectionLabel>
 
